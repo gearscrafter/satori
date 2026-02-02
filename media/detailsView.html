@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relationship Details</title>
+    <style>
+        body, html {
+            padding: 0;
+            margin: 0;
+            font-family: var(--vscode-font-family, system-ui, sans-serif);
+            color: var(--vscode-editor-foreground);
+            background-color: var(--vscode-sideBar-background);
+        }
+        #content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+        }
+        .placeholder {
+            font-style: italic;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .rel-card {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+            box-sizing: border-box;
+            gap: 15px;
+        }
+
+        /* Los nodos Origen y Destino */
+        .rel-node {
+            padding: 8px 14px;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            font-weight: 500;
+            text-align: center;
+            flex-basis: 35%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+
+            cursor: pointer; 
+            transition: background-color 0.2s ease;
+        }
+
+        .rel-node:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+
+        .rel-flow-line {
+            flex-grow: 1;
+            height: 1px;
+            background-color: var(--vscode-descriptionForeground);
+            position: relative;
+            text-align: center;
+        }
+
+        .rel-verb {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); 
+            padding: 2px 8px;
+            background-color: var(--vscode-sideBar-background); 
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        .rel-text-extends { color: #28a745; font-weight: bold; }
+        .rel-text-implements { color: #17a2b8; font-weight: bold; }
+        .rel-text-calls, .rel-text-se-construye-con { color: #D4B4F3; } 
+        .rel-text-reads-from, .rel-text-obtiene-de, .rel-text-usa-el-dato-de { color: #FABD2F;}
+        .rel-text-writes-to { color: #FB4934;}
+        .rel-text-instance-of { color: #82AAFF;}
+        .rel-text-uses-as-type, .rel-text-referencia-a { color: var(--vscode-descriptionForeground); }
+
+        .panel-title {
+            width: 100%;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 300;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            padding-bottom: 10px;
+        }
+        .panel-title strong {
+            font-weight: 600;
+        }
+
+        .rel-card.narrative {
+            flex-direction: column; 
+            align-items: flex-start; 
+            gap: 8px;
+            padding: 12px;
+            background-color: var(--vscode-editorWidget-background);
+            border-radius: 8px;
+            border: 1px solid var(--vscode-panel-border);
+        }
+
+        .narrative-verb {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .narrative-verb .rel-verb {
+            position: static;
+            transform: none;
+            background-color: transparent;
+            padding: 0;
+            display: inline;
+        }
+
+        .narrative-collaborators {
+            display: flex;
+            flex-wrap: wrap; 
+            gap: 8px;
+        }
+
+        .narrative-collaborators .rel-node {
+            flex-basis: auto; 
+            flex-grow: 1;
+        }
+
+        .narrative-text {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .rel-card[data-category="ui"] {
+            background-color: #2b2e3a;
+            border-left: 4px solid #61afef;
+        }
+
+        .rel-card[data-category="logic"] {
+            background-color: #2d2b3c;
+            border-left: 4px solid #c678dd;
+        }
+
+        .rel-card[data-category="data"] {
+            background-color: #3a2e2e;
+            border-left: 4px solid #fabd2f;
+        }
+
+        .rel-card[data-category="inheritance"] {
+            background-color: #2e3a2e;
+            border-left: 4px solid #28a745;
+        }
+
+        .rel-card[data-category="composition"] {
+            background-color: #2e2e3a;
+            border-left: 4px solid #82AAFF;
+        }
+
+        .rel-card[data-category="formatting"] {
+            background-color: #3a2e36;
+            border-left: 4px solid #ff79c6;
+        }
+
+        .rel-card[data-category="analytics"] {
+            background-color: #2e2e2e;
+            border-left: 4px solid #ffb86c;
+        }
+
+        .rel-card[data-category="other"] {
+            background-color: #1e1e1e;
+            border-left: 4px solid #888;
+        }
+
+        .rel-card[data-category="responsibilities"] {
+            background-color: #2e3a2e;
+            border-left: 4px solid #28a745;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="content">
+        <p class="placeholder">Pasa el ratón sobre un nodo en el grafo para ver sus relaciones.</p>
+    </div>
+
+    <script>
+        (function() {
+            const vscode = acquireVsCodeApi();
+            const contentEl = document.getElementById('content');
+
+            const translations = window.translations || {};
+
+            function t(key, ...args) {
+                let translation = translations[key] || key;
+                args.forEach((arg, index) => {
+                    translation = translation.replace(`{${index}}`, arg);
+                });
+                return translation;
+            }
+
+            contentEl.addEventListener('click', (e) => {
+                const relCard = e.target.closest('.rel-card');
+                const nodeElement = e.target.closest('.rel-node');
+                
+                if (nodeElement) {
+                    e.stopPropagation();
+                    vscode.postMessage({ command: 'log', args: [`[DetailsView] Clic en nodo, enviando foco para: ${nodeElement.dataset.nodeId}`] });
+                    vscode.postMessage({
+                        command: 'focusNode',
+                        nodeId: nodeElement.dataset.nodeId
+                    });
+                    return;
+                }
+
+                if (relCard) {
+                    const sourceNodeEl = relCard.querySelector('.rel-node[data-node-id]:first-child');
+                    const targetNodeEl = relCard.querySelector('.rel-node[data-node-id]:last-child');
+                    
+                    if (sourceNodeEl && targetNodeEl) {
+                        vscode.postMessage({
+                            command: 'highlightPath',
+                            sourceId: sourceNodeEl.dataset.nodeId,
+                            targetId: targetNodeEl.dataset.nodeId
+                        });
+                    }
+                }
+            });
+            
+             const DEFAULT_VERBS = {
+                'extends': t('verb.extends'),
+                'implements': t('verb.implements'),
+                'calls': t('verb.calls'),
+                'reads-from': t('verb.readsFrom'),
+                'writes-to': t('verb.writesTo'),
+                'instance-of': t('verb.instanceOf'),
+                'uses-as-type': t('verb.usesAsType'),
+                'unknown': t('verb.unknown')
+            };
+
+
+            const SMART_VERB_RULES = [
+                {
+                    name: 'Reacción a Estado',
+                    condition: (source, target, label) =>
+                        source.data?.layer === 'view' && target.data?.layer === 'state',
+                    verb: t('verb.reactsTo')
+                },
+                {
+                    name: 'Notificación de Evento',
+                    condition: (source, target, label) =>
+                        label === 'calls' && source.data?.layer === 'view' && target.data?.layer === 'state',
+                    verb: t('verb.notifies')
+                },
+                {
+                    name: 'Composición de UI',
+                    condition: (source, target, label) =>
+                        label === 'instance-of' && source.data?.layer === 'view' && target.data?.layer === 'view',
+                    verb: t('verb.buildsAndShows')
+                },
+                {
+                    name: 'Delegación a Servicio',
+                    condition: (source, target, label) =>
+                        label === 'calls' && source.data?.layer === 'state' && target.data?.layer === 'service',
+                    verb: t('verb.delegates')
+                },
+                {
+                    name: 'Gestión de Modelo',
+                    condition: (source, target, label) =>
+                        label === 'reads-from' && source.data?.layer === 'state' && target.data?.layer === 'model',
+                    verb: t('verb.managesState')
+                },
+                {
+                    name: 'Ensamblaje de Modelo',
+                    condition: (source, target, label) =>
+                        label === 'instance-of' && source.data?.layer === 'service' && target.data?.layer === 'model',
+                    verb: t('verb.assembles')
+                },
+                {
+                    name: 'Composición de Modelo',
+                    condition: (source, target, label) =>
+                        source.data?.layer === 'model' && target.data?.layer === 'model',
+                    verb: t('verb.composedOf')
+                },
+                {
+                    name: 'Reporte de Analíticas',
+                    condition: (source, target, label) =>
+                        label === 'calls' && target.label.toLowerCase().includes('analytics'),
+                    verb: t('verb.reportsEvent')
+                },
+                {
+                    name: 'Muestra un Mensaje al Usuario',
+                    condition: (source, target, label) =>
+                        label === 'calls' && 
+                        (target.label.toLowerCase().includes('dialog') || target.label.toLowerCase().includes('snackbar') || target.label.toLowerCase().includes('alert')),
+                    verb: t('verb.showsUser')
+                },
+                {
+                    name: 'Formatea Datos',
+                    condition: (source, target, label) =>
+                        label === 'calls' && target.label.toLowerCase().includes('formatter'),
+                    verb: t('verb.formats')
+                }
+            ];
+
+            /**
+             * Determina el verbo semántico más apropiado para describir una relación entre nodos.
+             * Aplica reglas inteligentes basadas en las capas arquitectónicas y tipos de relación
+             * para generar descripciones más naturales que las etiquetas técnicas por defecto.
+             * @param {Object} sourceNode - Nodo origen de la relación
+             * @param {Object} targetNode - Nodo destino de la relación  
+             * @param {string} label - Etiqueta técnica de la relación (calls, extends, etc.)
+             * @returns {string} Verbo semántico descriptivo
+             */
+            function getSmartVerb(sourceNode, targetNode, label) {
+                if (!sourceNode || !targetNode || !label) {
+                    return DEFAULT_VERBS.unknown;
+                }
+
+                for (const rule of SMART_VERB_RULES) {
+                    if (rule.condition(sourceNode, targetNode, label)) {
+                        return rule.verb;
+                    }
+                }
+
+                return DEFAULT_VERBS[label] || DEFAULT_VERBS.unknown;
+            }
+
+            window.addEventListener('message', event => {
+                vscode.postMessage({ command: 'log', args: [`[DETAILS DEBUG] GEGEGE}`] });
+                   
+                const message = event.data;
+                if (message.command === 'update' && message.data) {
+                    vscode.postMessage({ command: 'log', args: [`[DETAILS DEBUG] Mensaje recibido con datos: ${message.data}`] });
+                    contentEl.innerHTML = buildRichHtml(message.data);
+                } else if (message.command === 'clear') {
+                    contentEl.innerHTML = `<p class="placeholder">${t('details.placeholder')}</p>`;
+                }
+            });
+
+            /**
+             * Construye el HTML completo del panel de detalles.
+             * Combina el análisis semántico del nodo con sus colaboraciones,
+             * organizando la información en un formato narrativo comprensible.
+             * @param {Object} data - Datos del nodo incluyendo edges y semantics
+             * @returns {string} HTML formateado para mostrar en el panel
+             */
+            function buildRichHtml(data) {
+                const { focusedNodeLabel, edges, semantics } = data;
+                
+                if (!Array.isArray(edges) || edges.length === 0) {
+                    return `<h3 class="panel-title"><strong>${focusedNodeLabel}</strong> ${t('details.noCollaborations')}</h3>`;
+                }
+                
+                let finalHtml = `<h3 class="panel-title">${t('details.analysisOf')} <strong>${focusedNodeLabel}</strong></h3>`;
+                
+                if (semantics) {
+                    finalHtml += buildSemanticsHtml(semantics);
+                }
+                
+                const relationsByVerb = edges.reduce((acc, edge) => {
+                    if (!edge || !edge.sourceNode || !edge.targetNode) return acc;
+
+                    const labelClass = (edge.label || 'unknown').toLowerCase().replace(/_/g, '-');
+                    const verb = getSmartVerb(edge.sourceNode, edge.targetNode, labelClass);
+                    const otherNode = edge.sourceNode.label === focusedNodeLabel ? edge.targetNode : edge.sourceNode;
+
+                    if (otherNode.label === focusedNodeLabel) {
+                        return acc;
+                    }
+
+                    if (!acc[verb]) {
+                        acc[verb] = {
+                            verb,
+                            labelClass,
+                            nodes: []
+                        };
+                    }
+                    acc[verb].nodes.push(otherNode);
+                    return acc;
+                }, {});
+
+                if (semantics && Object.keys(relationsByVerb).length > 0) {
+                    finalHtml += `<h4 style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--vscode-panel-border);">${t('details.collaborations')}</h4>`;
+                }
+
+                for (const verbKey in relationsByVerb) {
+                    const group = relationsByVerb[verbKey];
+                    const verbText = `<span class="rel-verb rel-text-${group.labelClass}">${group.verb}</span>`;
+
+                    const collaboratorsHtml = group.nodes.map(node => 
+                        `<div class="rel-node" data-node-id="${node.id}" title="${node.label}">${node.label}</div>`
+                    ).join('');
+
+                    let narrativeText = '';
+                    
+                    if (group.nodes.length === 1) {
+                        const partner = group.nodes[0].label;
+                        narrativeText = `<p class="narrative-text">${buildNarrativeSentence(focusedNodeLabel, partner, group.verb)}</p>`;
+                    } else {
+                        narrativeText = `<p class="narrative-text">${t('details.multipleComponents', focusedNodeLabel, group.verb.toLowerCase(), group.nodes.length.toString())}</p>`;
+                    }
+                    const category = getVerbCategory(group.verb);
+                    finalHtml += `
+                        <div class="rel-card narrative" data-category="${category}">
+                            <div class="narrative-verb">${verbText}:</div>
+                            <div class="narrative-collaborators">${collaboratorsHtml}</div>
+                            ${narrativeText}
+                        </div>
+                    `;
+                }
+                
+                return finalHtml || `<p class="placeholder">${t('details.noValidRelations')}</p>`;
+            }
+
+            /**
+             * Genera el HTML para la sección de análisis semántico.
+             * Crea tarjetas visuales para responsabilidades, decisiones, validaciones
+             * y patrones de colaboración del objeto analizado.
+             * @param {Object} semantics - Objeto con arrays de análisis semántico
+             * @returns {string} HTML de la sección semántica
+             */
+            function buildSemanticsHtml(semantics) {
+                let html = '<div id="semantics-section">';
+                
+                if (semantics.responsibilities?.length > 0) {
+                    html += '<div class="rel-card narrative" data-category="responsibilities">';
+                    html += `<div class="narrative-verb"><span class="rel-verb">${t('details.responsibilities')}</span>:</div>`;
+                    html += '<div class="narrative-collaborators">';
+                    semantics.responsibilities.forEach(resp => {
+                        html += `<div class="rel-node">${resp}</div>`;
+                    });
+                    html += '</div>';
+                    html += `<p class="narrative-text">${t('details.responsibilities.count', semantics.responsibilities.length)}</p>`;
+                    html += '</div>';
+                    html += '<div style="margin-bottom: 12px;"></div>';
+                }
+                
+                if (semantics.decisions?.length > 0) {
+                    html += '<div class="rel-card narrative" data-category="logic">';
+                    html += `<div class="narrative-verb"><span class="rel-verb">${t('details.decisions')}</span>:</div>`;
+                    html += '<div class="narrative-collaborators">';
+                    semantics.decisions.forEach(decision => {
+                        html += `<div class="rel-node">${decision}</div>`;
+                    });
+                    html += '</div>';
+                    html += `<p class="narrative-text">${t('details.decisions.count', semantics.decisions.length)}</p>`;
+                    html += '</div>';
+                    html += '<div style="margin-bottom: 12px;"></div>';
+                }
+                
+                if (semantics.validations?.length > 0) {
+                    html += '<div class="rel-card narrative" data-category="data">';
+                    html += `<div class="narrative-verb"><span class="rel-verb">${t('details.validations')}</span>:</div>`;
+                    html += '<div class="narrative-collaborators">';
+                    semantics.validations.forEach(validation => {
+                        html += `<div class="rel-node">${validation}</div>`;
+                    });
+                    html += '</div>';
+                    html += `<p class="narrative-text">${t('details.validations.count', semantics.validations.length)}</p>`;
+                    html += '</div>';
+                    html += '<div style="margin-bottom: 12px;"></div>';
+                }
+                
+                if (semantics.collaborations?.length > 0) {
+                    html += '<div class="rel-card narrative" data-category="other">';
+                    html += `<div class="narrative-verb"><span class="rel-verb">${t('details.behaviors')}</span>:</div>`;
+                    html += '<div class="narrative-collaborators">';
+                    semantics.collaborations.forEach(pattern => {
+                        html += `<div class="rel-node">${pattern}</div>`;
+                    });
+                    html += '</div>';
+                    html += `<p class="narrative-text">${t('details.behaviors.count', semantics.collaborations.length)}</p>`;
+                    html += '</div>';
+                    html += '<div style="margin-bottom: 12px;"></div>';
+                }
+                
+                html += '</div>';
+                return html;
+            }
+
+            /**
+             * Construye oraciones narrativas descriptivas para relaciones específicas.
+             * Convierte verbos técnicos en explicaciones comprensibles sobre cómo
+             * interactúan los componentes del sistema.
+             * @param {string} source - Nombre del componente origen
+             * @param {string} target - Nombre del componente destino
+             * @param {string} verb - Verbo semántico de la relación
+             * @returns {string} Oración descriptiva de la relación
+             */
+            function buildNarrativeSentence(source, target, verb) {
+                const A = `<strong>${source}</strong>`;
+                const B = `<strong>${target}</strong>`;
+
+                if (verb === t('verb.showsUser')) {
+                    return t('narrative.verb.showsUser', A, B);
+                } else if (verb === t('verb.readsFrom')) {
+                    return t('narrative.verb.readsFrom', A, B);
+                } else if (verb === t('verb.buildsAndShows')) {
+                    return t('narrative.verb.buildsAndShows', A, B);
+                } else if (verb === t('verb.instanceOf')) {
+                    return t('narrative.verb.instanceOf', A, B);
+                } else if (verb === t('verb.notifies')) {
+                    return t('narrative.verb.notifies', A, B);
+                } else if (verb === t('verb.delegates')) {
+                    return t('narrative.verb.delegates', A, B);
+                } else if (verb === t('verb.formats')) {
+                    return t('narrative.verb.formats', A, B);
+                } else if (verb === t('verb.managesState')) {
+                    return t('narrative.verb.managesState', A, B);
+                } else if (verb === t('verb.reactsTo')) {
+                    return t('narrative.verb.reactsTo', A, B);
+                } else if (verb === t('verb.implements')) {
+                    return t('narrative.verb.implements', A, B);
+                } else if (verb === t('verb.extends')) {
+                    return t('narrative.verb.extends', A, B);
+                } else {
+                    return t('narrative.default', A, B);
+                }
+            }
+
+            /**
+             * Categoriza verbos semánticos para aplicar estilos visuales consistentes.
+             * Agrupa tipos de relaciones similares bajo categorías temáticas
+             * para diferenciación visual mediante colores y bordes.
+             * @param {string} verb - Verbo semántico a categorizar
+             * @returns {string} Categoría CSS para aplicar estilos
+             */
+            function getVerbCategory(verb) {
+                switch (verb) {
+                    case t('verb.showsUser'):
+                    case t('verb.buildsAndShows'):
+                        return 'ui';
+                    case t('verb.readsFrom'):
+                    case t('verb.managesState'):
+                        return 'data';
+                    case t('verb.delegates'):
+                    case t('verb.notifies'):
+                        return 'logic';
+                    case t('verb.extends'):
+                    case t('verb.implements'):
+                        return 'inheritance';
+                    case t('verb.composedOf'):
+                        return 'composition';
+                    case t('verb.formats'):
+                        return 'formatting';
+                    default:
+                        return 'other';
+                }
+            }
+            
+            if (contentEl.querySelector('.placeholder')) {
+                contentEl.innerHTML = `<p class="placeholder">${t('details.placeholder')}</p>`;
+            }
+
+        }());
+    </script>
+</body>
+</html>

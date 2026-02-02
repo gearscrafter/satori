@@ -1,0 +1,1 @@
+export { activate } from './ui/extension_lifecycle';

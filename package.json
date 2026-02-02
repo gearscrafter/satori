@@ -1,0 +1,116 @@
+{
+  "publisher": "gearscrafter",
+  "name": "satori",
+  "displayName": "Satori",
+  "version": "0.0.1",
+  "description": "Interactive architecture visualizer for Flutter/Dart projects. Achieve sudden enlightenment of your code structure.",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "extensionDependencies": [
+    "Dart-Code.dart-code"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "node esbuild.js --production",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "watch": "npm-run-all -p watch:*",
+    "watch-tests": "npm run compile-tests && tsc -p . --outDir out --watch",
+    "compile-tests": "tsc -p . --outDir out",
+    "test": "npm run compile-tests && node ./out/test/runTest.js",
+    "pretest": "npm run compile-tests && npm run lint",
+    "lint": "eslint src --ext ts"
+  },
+  "activationEvents": [
+    "workspaceContains:pubspec.yaml"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.showProjectDiagram",
+        "title": "Show Project Diagram (Folder)",
+        "category": "satori"
+      },
+      {
+        "command": "ast-diag.testLsp",
+        "title": "AST Diag: Test LSP Call Hierarchy",
+        "category": "satori"
+      },
+      {
+        "command": "satori.toggleDebugLogs",
+        "title": "Toggle Debug Logs",
+        "category": "satori"
+      }
+    ],
+    "configuration": {
+      "properties": {
+        "satori.language": {
+          "type": "string",
+          "default": "en",
+          "enum": [
+            "es",
+            "en"
+          ],
+          "enumDescriptions": [
+            "Español",
+            "English"
+          ],
+          "description": "Language for the extension interface"
+        },
+        "satori.enableDebugLogs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable detailed debug logs (may slow down processing)"
+        },
+        "satori.dartSdkPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Dart SDK (e.g., /usr/local/opt/dart)"
+        }
+      }
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "satori-analysis",
+          "title": "Satori",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "satori-analysis": [
+        {
+          "id": "ast-graph.detailsView",
+          "name": "Relationship Analysis",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.17.24",
+    "@types/vscode": "^1.98.0",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.21.0",
+    "glob": "^10.4.5",
+    "mocha": "^11.7.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.7.3"
+  }
+}

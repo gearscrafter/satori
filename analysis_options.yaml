@@ -1,0 +1,12 @@
+analyzer:
+  exclude:
+    - .dart_tool/**
+    - .pub/**
+    - build/**
+    - node_modules/**
+    - .idea/**
+    - .vscode/**
+linter:
+  rules:
+    - camel_case_types
+    - avoid_print
