@@ -92,7 +92,7 @@
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/gearscrafter/satori/blob/master/assets/icon.png"
+    "url": "https://github.com/gearscrafter/satori.git"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1",
