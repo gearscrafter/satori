@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.0] - 02-08-2026
+
+### Added
+
+- **Automatic Project Analysis**: New `satori.analyzeProject` command for automatic analysis of the current project
+- Automatically detects project root using `pubspec.yaml`
+- Updated README with detection strategy
+
 ## [0.0.1] - 01-02-2026
 
 ### Added

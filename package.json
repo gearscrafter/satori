@@ -2,7 +2,7 @@
   "publisher": "gearscrafter",
   "name": "satori",
   "displayName": "Satori",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Interactive architecture visualizer for Flutter/Dart projects. Achieve sudden enlightenment of your code structure.",
   "engines": {
     "vscode": "^1.98.0"
@@ -27,6 +27,12 @@
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "satori.analyzeProject",
+        "title": "Analyze Current Project",
+        "category": "satori",
+        "icon": "$(graph)"
+      },
       {
         "command": "extension.showProjectDiagram",
         "title": "Show Project Diagram (Folder)",

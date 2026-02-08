@@ -17,8 +17,8 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 1. **Install prerequisites**: Ensure Dart-Code extension is installed and active
 2. **Open a Flutter/Dart project** in VS Code
 3. **Wait for Dart analysis** to complete (status bar shows "Analysis complete")
-4. **Press `Ctrl+Shift+P`** → "Satori: Show Project Diagram"
-5. **Select project folder** when prompted
+4. **Press `Ctrl+Shift+P`** → "Satori: Analyze Current Project"
+5. **Wait for analysis** to complete and view your diagram
 
 <img src="./assets/extension1.png" width="600" alt="Focus View">
 
@@ -89,8 +89,8 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 
 ### 1. **Overview View - Architectural Exploration**
 ```
-Command: "Satori: Show Project Diagram"
-Shortcut: Ctrl+Shift+P → Search "Show Project Diagram"
+Command: "Satori: Analyze Current Project"
+Shortcut: Ctrl+Shift+P → Search "Analyze Current Project"
 ```
 
 - Navigate through architectural layers (View, State, Service, Model)
@@ -144,6 +144,7 @@ Navigation slider: Exploration by abstraction levels
 
 | Command | Description |
 |---------|-------------|
+| `satori.analyzeProject` | Automatically analyze current project |
 | `satori.showProjectDiagram` | Open project diagram |
 | `satori.toggleDebugLogs` | Enable/disable debug logs |
 
@@ -234,7 +235,7 @@ npm run test:coverage
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for more details.
+Apache License 2.0 - See [LICENSE](LICENSE) for more details.
 
 ## 🤝 Contributing
 

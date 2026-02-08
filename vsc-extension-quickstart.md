@@ -20,7 +20,8 @@
 * Press `F5` to open a new window with your extension loaded.
 * Open a Flutter/Dart project in the new window.
 * Run the command from the command palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac):
-  - Type `Satori: Show Project Diagram` to see the main visualization
+  - Type `Satori: Analyze Current Project` to automatically analyze the open project
+  - Or type `Satori: Show Project Diagram` to manually select a project folder
   - Type `Satori: Toggle Debug Logs` to enable debugging output
 * Set breakpoints in your code inside `src/extension.ts` or other TypeScript files to debug.
 * Find output from your extension in the debug console and the "Satori" output channel.
@@ -47,6 +48,7 @@ src/
 
 ## Key Commands
 
+- `satori.analyzeProject` - Automatically analyze the current project
 - `satori.showProjectDiagram` - Main visualization command
 - `satori.toggleDebugLogs` - Enable/disable debug logging
 - `satori.testLsp` - Test LSP connection (development only)
@@ -80,6 +82,7 @@ src/
 ## Testing with Flutter projects
 
 The extension works best with:
+
 - Flutter projects with clear architectural patterns
 - Projects using BLoC, Provider, or similar state management
 - Projects with multiple packages and dependencies
