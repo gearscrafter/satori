@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 03-26-2026
+
+### Changed
+
+- **`updateFocusViewForFolderLevel`** — Replaced radial layout with a
+  left-to-right topological column view. Edges only between adjacent columns,
+  colored gray->purple by depth. Cards show name + member count only.
+
 ## [0.1.0] - 02-08-2026
 
 ### Added

@@ -75,6 +75,14 @@
         .edge-path.instance-of { stroke: #007bff; }
         .edge-path.uses-as-type { stroke: #6c757d; }
         .edge-path.unknown { stroke: #adb5bd; }
+        .level-1 .edge-path.extends { stroke: #4caf50; stroke-width: 2px; }
+        .level-1 .edge-path.implements { stroke: #2196f3; stroke-width: 2px; }
+        .level-1 .edge-path.calls { stroke: #9c27b0; stroke-width: 2px; }
+        .level-1 .edge-path.reads-from { stroke: #ff9800; stroke-width: 2px; stroke-dasharray: 5,5; }
+        .level-1 .edge-path.writes-to { stroke: #dc3545; stroke-width: 2px; stroke-dasharray: 5,5; }
+        .level-1 .edge-path.instance-of { stroke: #007bff; stroke-width: 2px; }
+        .level-1 .edge-path.uses-as-type { stroke: #6c757d; stroke-width: 2px; }
+
 
         .edge-path.hidden {
             display: none;
@@ -5104,198 +5112,423 @@
         }
 
         /**
-         * Updates the focus view to display a specific folder level.
-         * Determines the appropriate layout type (radial vs. hierarchical) based on
-         * the level's scope, renders nodes and connections, and handles navigation
-         * between folders by creating navigable nodes when appropriate.
+         * Updates the focus view to display a specific folder level using a
+         * hierarchical column layout. For levels with scopeScore <= 2 (file-cluster),
+         * renders class cards in topologically-sorted columns (left = least dependent,
+         * right = most dependent) with color-coded edges per column and overflow pills
+         * for columns exceeding MAX_PER_COL. For deeper levels (scopeScore > 2),
+         * falls back to a navigable folder hierarchy view.
          *
-         * @param {string} focusNodeId - ID of the focus node
-         * @param {Object} level - The folder level to display
+         * @param {string} focusNodeId - ID of the focus node (class being navigated)
+         * @param {Object} level - Folder level descriptor from buildFolderLevelsFromNode
+         * @param {number} level.scopeScore - 1=file, 2=local folder, 3=architectural
+         * @param {string} level.viewType - 'file-cluster' | 'mixed' | 'folder-hierarchy'
+         * @param {string} level.path - Relative path from lib/ (e.g. 'lib/src/ui/widgets')
+         * @param {string} level.name - Display name of the folder
+         * @param {Set}    level._expandedCols - Persisted set of expanded column indices
          */
         function updateFocusViewForFolderLevel(focusNodeId, level) {
             try {
-                vscodeApi.postMessage({ 
-                    command: 'log', 
-                    args: [`[updateFocusViewForFolderLevel] Starting for level: ${level.name}, scope: ${level.scopeScore}`] 
-                });
-
                 const levelData = getNodesAtFolderLevel(focusNodeId, level);
-
                 if (!levelData || !levelData.nodes || levelData.nodes.length === 0) {
-                    vscodeApi.postMessage({ 
-                        command: 'log', 
-                        args: [`[updateFocusViewForFolderLevel] No data to display`] 
-                    });
                     mainLayer.innerHTML = '';
                     return;
                 }
 
                 mainLayer.innerHTML = '';
-
                 const edgeLayer = createSvgElement('g', { class: 'edge-layer' });
                 const nodeLayer = createSvgElement('g', { class: 'node-layer' });
-
                 mainLayer.appendChild(edgeLayer);
                 mainLayer.appendChild(nodeLayer);
+
+                if (currentFolderLevel === 1) edgeLayer.classList.add('level-1');
+                else edgeLayer.classList.remove('level-1');
 
                 const focusNode = nodeMap.get(focusNodeId);
                 const { nodes: nodesAtLevel, edges: edgesAtLevel, stats } = levelData;
 
-                let layout;
-
-                if(level.scopeScore > 1 ){
-                    const existingLegend = document.querySelector('.legend');
-                    if (existingLegend) {
-                        existingLegend.remove();
-                    }
-                }
+                const existingLegend = document.querySelector('.legend');
+                if (existingLegend) existingLegend.remove();
 
                 if (level.scopeScore <= 2 || level.viewType === 'file-cluster') {
-                    
-                    vscodeApi.postMessage({ 
-                        command: 'log', 
-                        args: [`[Layout] Using RADIAL layout for ${level.name}`] 
-                    });
 
-                    const nodesForDisplay = nodesAtLevel.map(node => {
-                        const fileName = (node.data?.fileUri || node.label || 'unknown').split('/').pop().replace('.dart', '');
-                        return {...node, label: fileName};
-                    });
+                    const CARD_W      = 180;
+                    const CARD_H      = 38;
+                    const BADGE_R     = 9;
+                    const COL_GAP     = 300;
+                    const ROW_GAP     = 92;
+                    const MAX_PER_COL = 5;
 
-                    const centerNode = {
-                        id: `center-label:${level.name}`,
-                        label: level.name.toUpperCase(),
-                        kind: 'folder-center'
+                    const COL_PALETTE = [
+                        '#D0D0D0',  // col 0 → light gray
+                        '#90CAF9',  // col 1 → light blue
+                        '#64B5F6',  // col 2 → blue
+                        '#7986CB',  // col 3 → indigo
+                        '#9575CD',  // col 4 → medium purple
+                        '#7E57C2',  // col 5 → purple
+                        '#6f42c1',  // col 6 → deep purple
+                        '#512DA8',  // col 7 → very deep purple
+                    ];
+
+                    if (!level._expandedCols) level._expandedCols = new Set();
+                    const expandedCols = level._expandedCols;
+
+                    const layerColors = {
+                        view:    { bg: '#E3F2FD', border: '#90CAF9' },
+                        state:   { bg: '#FFFDE7', border: '#FFF59D' },
+                        service: { bg: '#E8F5E9', border: '#A5D6A7' },
+                        model:   { bg: '#FBE9E7', border: '#FFAB91' },
+                        utility: { bg: '#F5F5F5', border: '#E0E0E0' },
                     };
 
-                    const allNodesForLayout = [centerNode, ...nodesForDisplay];
-                    layout = calculateRadialLayout(allNodesForLayout, centerNode.id);
+                    // ── Deduplicated containers ──────────────────────────────────────
+                    const seen = new Set();
+                    const allContainers = nodesAtLevel.filter(n => {
+                        if (n.parent || seen.has(n.id)) return false;
+                        seen.add(n.id);
+                        return true;
+                    });
 
-                    allNodesForLayout.forEach(node => {
-                        renderCollapsedContainer(node, layout);
+                    const containerIdSet = new Set(allContainers.map(n => n.id));
+
+                    const degreeMap = new Map(allContainers.map(n => [n.id, 0]));
+                    edgesAtLevel.forEach(edge => {
+                        const s = getContainerId(edge.source);
+                        const t = getContainerId(edge.target);
+                        if (degreeMap.has(s)) degreeMap.set(s, degreeMap.get(s) + 1);
+                        if (degreeMap.has(t)) degreeMap.set(t, degreeMap.get(t) + 1);
+                    });
+
+                    // ── ONE edge per unordered pair ──────────────────────────────────
+                    const aggEdgeMap = new Map();
+
+                    edgesAtLevel.forEach(edge => {
+                        const srcNode = nodeMap.get(edge.source);
+                        const tgtNode = nodeMap.get(edge.target);
+                        const srcId   = (srcNode?.parent && containerIdSet.has(srcNode.parent))
+                            ? srcNode.parent : edge.source;
+                        const tgtId   = (tgtNode?.parent && containerIdSet.has(tgtNode.parent))
+                            ? tgtNode.parent : edge.target;
+
+                        if (srcId === tgtId) return;
+                        if (!containerIdSet.has(srcId) || !containerIdSet.has(tgtId)) return;
+
+                        const [a, b]  = [srcId, tgtId].sort();
+                        const pairKey = `${a}||${b}`;
+                        if (!aggEdgeMap.has(pairKey)) {
+                            aggEdgeMap.set(pairKey, { source: srcId, target: tgtId, pairKey });
+                        }
+                    });
+
+                    const aggEdges = Array.from(aggEdgeMap.values());
+
+                    vscodeApi.postMessage({
+                        command: 'log',
+                        args: [`[EDGES] Raw: ${edgesAtLevel.length} → Unique pairs: ${aggEdges.length}`]
+                    });
+
+                    // ── Topological column assignment ────────────────────────────────
+                    const colLevel = new Map(allContainers.map(n => [n.id, 0]));
+                    for (let pass = 0; pass < allContainers.length; pass++) {
+                        let changed = false;
+                        aggEdges.forEach(({ source, target }) => {
+                            const sl = colLevel.get(source) ?? 0;
+                            const tl = colLevel.get(target) ?? 0;
+                            if (tl <= sl) { colLevel.set(target, sl + 1); changed = true; }
+                        });
+                        if (!changed) break;
+                    }
+
+                    const usedLevels = [...new Set(colLevel.values())].sort((a, b) => a - b);
+                    const remap = new Map(usedLevels.map((l, i) => [l, i]));
+                    colLevel.forEach((l, id) => colLevel.set(id, remap.get(l)));
+
+                    const columns = new Map();
+                    colLevel.forEach((col, id) => {
+                        if (!columns.has(col)) columns.set(col, []);
+                        columns.get(col).push(id);
+                    });
+                    columns.forEach(ids => {
+                        ids.sort((a, b) => {
+                            if (a === focusNodeId) return -1;
+                            if (b === focusNodeId) return 1;
+                            return (degreeMap.get(b) || 0) - (degreeMap.get(a) || 0);
+                        });
+                    });
+
+                    // ── Layout ───────────────────────────────────────────────────────
+                    const sourcetrailLayout = new Map();
+                    const visibleIds        = new Set();
+                    const overflowMap       = new Map();
+
+                    const sortedCols = [...columns.keys()].sort((a, b) => a - b);
+
+                    sortedCols.forEach(col => {
+                        const ids     = columns.get(col);
+                        const isExp   = expandedCols.has(col);
+                        const limit   = isExp ? ids.length : MAX_PER_COL;
+                        const visible = ids.slice(0, limit);
+                        const hidden  = ids.slice(limit);
+
+                        if (hidden.length > 0) overflowMap.set(col, { count: hidden.length });
+
+                        const rowCount = visible.length + (hidden.length > 0 ? 1 : 0);
+                        const xPos     = col * COL_GAP;
+                        const totalH   = rowCount * CARD_H + (rowCount - 1) * ROW_GAP;
+                        let curY       = -totalH / 2 + CARD_H / 2;
+
+                        visible.forEach(id => {
+                            const node = allContainers.find(n => n.id === id);
+                            if (!node) return;
+                            sourcetrailLayout.set(id, { x: xPos, y: curY, width: CARD_W, height: CARD_H });
+                            visibleIds.add(id);
+                            curY += CARD_H + ROW_GAP;
+                        });
+
+                        if (hidden.length > 0) {
+                            sourcetrailLayout.set(`__ov__${col}`, {
+                                x: xPos, y: curY, width: CARD_W, height: CARD_H
+                            });
+                        }
+                    });
+
+                    // ── Folder pill ──────────────────────────────────────────────────
+                    const inFolderIds = new Set(
+                        allContainers
+                            .filter(node => {
+                                const uri = node.data?.fileUri || '';
+                                const rel = uri.substring(uri.indexOf('lib'));
+                                const dir = rel.substring(0, rel.lastIndexOf('/'));
+                                return dir === level.path;
+                            })
+                            .map(n => n.id)
+                            .filter(id => visibleIds.has(id))
+                    );
+
+                    const FOLDER_X = -COL_GAP;
+                    if (inFolderIds.size > 0) {
+                        const fg = createSvgElement('g', {
+                            class: 'node',
+                            transform: `translate(${FOLDER_X}, 0)`
+                        });
+                        fg.appendChild(createSvgElement('rect', {
+                            x: -CARD_W / 2, y: -CARD_H / 2, width: CARD_W, height: CARD_H,
+                            rx: 7, fill: 'rgba(111,66,193,0.06)',
+                            stroke: '#6f42c1', 'stroke-width': '1.5', 'stroke-dasharray': '5 3'
+                        }));
+                        const fi = createSvgElement('text', {
+                            x: -CARD_W / 2 + 10, y: 1,
+                            'dominant-baseline': 'middle', 'font-size': '12px'
+                        });
+                        fi.textContent = '📁';
+                        fg.appendChild(fi);
+                        const fl = createSvgElement('text', {
+                            x: -CARD_W / 2 + 28, y: 1,
+                            'dominant-baseline': 'middle',
+                            'font-size': '11px', 'font-weight': '600', fill: '#6f42c1'
+                        });
+                        fl.textContent = level.name.length > 18
+                            ? level.name.slice(0, 17) + '…' : level.name;
+                        fg.appendChild(fl);
+                        nodeLayer.appendChild(fg);
+
+                        inFolderIds.forEach(nodeId => {
+                            const tgtL = sourcetrailLayout.get(nodeId);
+                            if (!tgtL) return;
+                            const srcX = FOLDER_X + CARD_W / 2;
+                            const tgtX = tgtL.x - CARD_W / 2;
+                            const ctrl = Math.min(Math.abs(tgtX - srcX) * 0.5, 80);
+                            const p = createSvgElement('path', {
+                                d: `M ${srcX} 0 C ${srcX + ctrl} 0, ${tgtX - ctrl} ${tgtL.y}, ${tgtX} ${tgtL.y}`,
+                                'marker-end': 'url(#arrow-group-to-focus)'
+                            });
+                            p.setAttribute('style',
+                                'fill:none; stroke:#6f42c1; stroke-width:1px; stroke-dasharray:4 3; stroke-opacity:0.25;'
+                            );
+                            edgeLayer.appendChild(p);
+                        });
+                    }
+
+                    // ── Render cards ─────────────────────────────────────────────────
+                    visibleIds.forEach(id => {
+                        const node = allContainers.find(n => n.id === id);
+                        const pos  = sourcetrailLayout.get(id);
+                        if (!node || !pos) return;
+
+                        const members     = allGraphNodes.filter(m => m.parent === node.id);
+                        const colors      = layerColors[node.data?.layer] || { bg: '#FAFAFA', border: '#E0E0E0' };
+                        const isFocus     = node.id === focusNodeId;
+                        const borderColor = isFocus ? '#6f42c1' : colors.border;
+
+                        const g = createSvgElement('g', {
+                            class: `node node-container-class color-${node.data?.layer || 'default'}`,
+                            transform: `translate(${pos.x}, ${pos.y})`,
+                            'data-id': node.id
+                        });
+
+                        g.appendChild(createSvgElement('rect', {
+                            x: -CARD_W / 2, y: -CARD_H / 2, width: CARD_W, height: CARD_H,
+                            rx: 7, fill: colors.bg, stroke: borderColor,
+                            'stroke-width': isFocus ? 2.5 : 1.5,
+                            filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.06))'
+                        }));
+
+                        const labelText = node.label.length > 20
+                            ? node.label.slice(0, 19) + '…' : node.label;
+
+                        const nameEl = createSvgElement('text', {
+                            x: -CARD_W / 2 + 10, y: 1,
+                            'dominant-baseline': 'middle', 'font-size': '11px',
+                            'font-weight': isFocus ? '700' : '500', fill: '#1a1a2e'
+                        });
+                        nameEl.textContent = labelText;
+                        g.appendChild(nameEl);
+
+                        if (members.length > 0) {
+                            const bx = CARD_W / 2 - BADGE_R - 6;
+                            g.appendChild(createSvgElement('circle', {
+                                cx: bx, cy: 0, r: BADGE_R, fill: '#9E9E9E'
+                            }));
+                            const bt = createSvgElement('text', {
+                                x: bx, y: 1,
+                                'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                                'font-size': '9px', 'font-weight': 'bold', fill: '#fff'
+                            });
+                            bt.textContent = members.length;
+                            g.appendChild(bt);
+                        }
+
+                        g.addEventListener('click',     e => { e.stopPropagation(); pushRoute(node.id); render(); });
+                        g.addEventListener('mouseover', e => { e.stopPropagation(); highlight(node.id, true,  e); });
+                        g.addEventListener('mouseout',  e => { e.stopPropagation(); highlight(null,    false, e); });
+                        nodeLayer.appendChild(g);
+                    });
+
+                    // ── Overflow pills ────────────────────────────────────────────────
+                    overflowMap.forEach(({ count }, col) => {
+                        const pos = sourcetrailLayout.get(`__ov__${col}`);
+                        if (!pos) return;
+
+                        const isExp = expandedCols.has(col);
+                        const label = isExp ? '▲ Show less' : `+${count} more  ▼`;
+
+                        const g = createSvgElement('g', {
+                            transform: `translate(${pos.x}, ${pos.y})`,
+                            style: 'cursor: pointer'
+                        });
+                        g.appendChild(createSvgElement('rect', {
+                            x: -CARD_W / 2, y: -CARD_H / 2, width: CARD_W, height: CARD_H,
+                            rx: 7, fill: '#FAFAFA', stroke: '#E0E0E0',
+                            'stroke-width': '1', 'stroke-dasharray': '4 2'
+                        }));
+                        const t = createSvgElement('text', {
+                            x: 0, y: 1,
+                            'text-anchor': 'middle', 'dominant-baseline': 'middle',
+                            'font-size': '11px', fill: '#6f42c1', 'font-weight': '500'
+                        });
+                        t.textContent = label;
+                        g.appendChild(t);
+
+                        g.addEventListener('click', e => {
+                            e.stopPropagation();
+                            if (expandedCols.has(col)) expandedCols.delete(col);
+                            else expandedCols.add(col);
+                            updateFocusViewForFolderLevel(focusNodeId, level);
+                            autoFit(svg, mainLayer);
+                        });
+                        nodeLayer.appendChild(g);
+                    });
+
+                    // ── Edges: adjacent columns only, colored by source column ────────
+                    // Only draw col N → col N+1 connections.
+                    // Long-range deps (N → N+3) are omitted — hierarchy is implied
+                    // by the left-to-right column layout itself.
+                    const maxCol = Math.max(0, ...[...colLevel.values()]);
+
+                    aggEdges.forEach(edge => {
+                        if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return;
+
+                        const srcCol = colLevel.get(edge.source) ?? 0;
+                        const tgtCol = colLevel.get(edge.target) ?? 0;
+
+                        // Skip non-adjacent column connections
+                        if (Math.abs(tgtCol - srcCol) !== 1) return;
+
+                        const srcL = sourcetrailLayout.get(edge.source);
+                        const tgtL = sourcetrailLayout.get(edge.target);
+                        if (!srcL || !tgtL) return;
+
+                        const strokeColor = COL_PALETTE[Math.min(srcCol, COL_PALETTE.length - 1)];
+                        const opacity     = maxCol > 0
+                            ? (0.5 + 0.5 * (srcCol / maxCol)).toFixed(2)
+                            : '0.6';
+
+                        const srcX = srcL.x + CARD_W / 2;
+                        const tgtX = tgtL.x - CARD_W / 2;
+                        const srcY = srcL.y;
+                        const tgtY = tgtL.y;
+                        const ctrl = Math.abs(tgtX - srcX) * 0.4;
+
+                        const path = createSvgElement('path', {
+                            d: `M ${srcX} ${srcY} C ${srcX + ctrl} ${srcY}, ${tgtX - ctrl} ${tgtY}, ${tgtX} ${tgtY}`,
+                            'data-aggregation-key': edge.pairKey,
+                            'marker-end': 'url(#arrow-unknown)'
+                        });
+                        path.setAttribute('style',
+                            `fill:none; stroke:${strokeColor}; stroke-width:2px; stroke-opacity:${opacity};`
+                        );
+                        edgeLayer.appendChild(path);
                     });
 
                 } else {
-                    
-                    vscodeApi.postMessage({ 
-                        command: 'log', 
-                        args: [`[Layout] Using HIERARCHICAL layout for ${level.name}`] 
-                    });
 
-                    const folderNodesMap = new Map();
+                    // ── HIERARCHICAL for deeper folder levels ─────────────────────────
+                    const folderNodesMap    = new Map();
                     const fileToFolderIdMap = new Map();
 
                     nodesAtLevel.forEach(node => {
                         if (!node.data?.fileUri) return;
-
                         const relativeUri = node.data.fileUri.substring(node.data.fileUri.indexOf('lib'));
-
-                        if (relativeUri.startsWith(level.path + '/')) {
-                            const subPath = relativeUri.substring(level.path.length + 1);
-                            const directChildFolder = subPath.split('/')[0];
-
-                            if (directChildFolder && !directChildFolder.endsWith('.dart')) {
-                                const folderId = `folder:${level.path}/${directChildFolder}`;
-                                
-                                fileToFolderIdMap.set(node.id, folderId);
-                                
-                                if (!folderNodesMap.has(folderId)) {
-                                    const folderNode = {
-                                        id: folderId,
-                                        label: directChildFolder,
-                                        kind: 'group',
-                                        folderPath: `${level.path}/${directChildFolder}`,
-                                        parentLevel: level,
-                                        focusNodeId: focusNodeId,
-                                        canNavigateDown: true, 
-                                        depth: level.depth + 1,
-                                        isNavigableFolder: true 
-                                    };
-                                    
-                                    vscodeApi.postMessage({ 
-                                        command: 'log', 
-                                        args: [`[FOLDER CREATION] 📁 Creating navigable folder:`, 
-                                            `  ID: ${folderId}`, 
-                                            `  Label: ${directChildFolder}`, 
-                                            `  Path: ${folderNode.folderPath}`, 
-                                            `  canNavigateDown: ${folderNode.canNavigateDown}`] 
-                                    });
-                                    
-                                    folderNodesMap.set(folderId, folderNode);
-                                }
-                            }
+                        if (!relativeUri.startsWith(level.path + '/')) return;
+                        const subPath           = relativeUri.substring(level.path.length + 1);
+                        const directChildFolder = subPath.split('/')[0];
+                        if (!directChildFolder || directChildFolder.endsWith('.dart')) return;
+                        const folderId = `folder:${level.path}/${directChildFolder}`;
+                        fileToFolderIdMap.set(node.id, folderId);
+                        if (!folderNodesMap.has(folderId)) {
+                            folderNodesMap.set(folderId, {
+                                id: folderId, label: directChildFolder, kind: 'group',
+                                folderPath: `${level.path}/${directChildFolder}`,
+                                parentLevel: level, focusNodeId,
+                                canNavigateDown: true, depth: level.depth + 1, isNavigableFolder: true
+                            });
                         }
                     });
 
-                    const nodesForLayout = Array.from(folderNodesMap.values());
-                    
-                    vscodeApi.postMessage({ 
-                        command: 'log', 
-                        args: [`[Layout] Created ${nodesForLayout.length} navigable folders`,
-                            `Carpetas:`, nodesForLayout.map(n => `${n.label} (canNavigate: ${n.canNavigateDown})`)] 
-                    });
-
+                    const nodesForLayout  = Array.from(folderNodesMap.values());
                     const aggregatedEdges = new Map();
 
                     edgesAtLevel.forEach(edge => {
-                        const sourceFolderId = fileToFolderIdMap.get(getContainerId(edge.source));
-                        const targetFolderId = fileToFolderIdMap.get(getContainerId(edge.target));
-
-                        if (sourceFolderId && targetFolderId && sourceFolderId !== targetFolderId) {
-                            const key = `${sourceFolderId}->${targetFolderId}`;
-                            if (!aggregatedEdges.has(key)) {
-                                aggregatedEdges.set(key, {
-                                    source: sourceFolderId,
-                                    target: targetFolderId,
-                                    weight: 0
-                                });
-                            }
-                            aggregatedEdges.get(key).weight++;
+                        const sf = fileToFolderIdMap.get(getContainerId(edge.source));
+                        const tf = fileToFolderIdMap.get(getContainerId(edge.target));
+                        if (!sf || !tf || sf === tf) return;
+                        const key = `${sf}->${tf}`;
+                        if (!aggregatedEdges.has(key)) {
+                            aggregatedEdges.set(key, { source: sf, target: tf, weight: 0 });
                         }
+                        aggregatedEdges.get(key).weight++;
                     });
 
                     const edgesForLayout = Array.from(aggregatedEdges.values());
                     layout = calculateColumnLayout(nodesForLayout, edgesForLayout);
-                    
                     renderFolderEdgesHorizontal(edgesForLayout, layout, edgeLayer);
-
                     nodesForLayout.forEach(node => {
-                        vscodeApi.postMessage({ 
-                            command: 'log', 
-                            args: [`[RENDER DECISION] 🎨 Evaluating node: ${node.label}`, 
-                                `  canNavigateDown: ${node.canNavigateDown}`, 
-                                `  folderPath: ${node.folderPath}`, 
-                                `  isNavigableFolder: ${node.isNavigableFolder}`] 
-                        });
-
-                        if (node.canNavigateDown && node.folderPath) {
-                            vscodeApi.postMessage({ 
-                                command: 'log', 
-                                args: [`[RENDER DECISION] ✅ Using renderNavigableFolderContainer for: ${node.label}`] 
-                            });
-                            renderNavigableFolderContainer(node, layout);
-                        } else {
-                            vscodeApi.postMessage({ 
-                                command: 'log', 
-                                args: [`[RENDER DECISION] ❌ Using renderCollapsedContainer for: ${node.label}`] 
-                            });
-                            renderCollapsedContainer(node, layout);
-                        }
+                        if (node.canNavigateDown && node.folderPath) renderNavigableFolderContainer(node, layout);
+                        else renderCollapsedContainer(node, layout);
                     });
                 }
 
                 autoFit(svg, mainLayer);
-
-                vscodeApi.postMessage({
-                    command: 'log',
-                    args: [
-                        `[Folder Level View] Completed for: ${level.name}`,
-                        ` View type: ${level.viewType || 'default'}`,
-                        ` Depth: ${level.depth}`,
-                        ` Nodes: ${stats.displayedNodes}/${stats.totalNodesInLevel}`,
-                        ` Connections: ${edgesAtLevel.length} edges`
-                    ]
-                });
 
             } catch (e) {
                 vscodeApi.postMessage({
