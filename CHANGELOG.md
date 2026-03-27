@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 03-27-2026
+
+### Fixed
+
+- **Slider drag** — Fixed rapid level flickering when dragging beyond the track bounds.
+
 ## [0.2.0] - 03-26-2026
 
 ### Changed

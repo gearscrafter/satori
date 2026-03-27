@@ -4702,25 +4702,32 @@
             
             document.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
-                
+
                 const rect = track.getBoundingClientRect();
+                
+                const verticalDistance = Math.abs(e.clientY - (rect.top + rect.height / 2));
+                if (verticalDistance > 50) {
+                    isDragging = false;
+                    thumb.classList.remove('dragging');
+                    return;
+                }
+
                 const deltaX = e.clientX - startX;
                 const newX = startLeft + deltaX;
                 const percentage = Math.max(0, Math.min(1, newX / rect.width));
-                
+
+                const exactPosition = percentage * 100;
+                thumb.style.left = `${exactPosition}%`;
+
                 if (navigationMode === 'folders' && folderLevels) {
                     const levelIndex = Math.round(percentage * (folderLevels.levels.length - 1));
-                    const exactPosition = percentage * 100;
-                    thumb.style.left = `${exactPosition}%`;
-                    
+                    updateLabelColors(levelIndex);
                     if (levelIndex !== currentFolderLevel) {
                         navigateToFolderLevel(levelIndex);
                     }
                 } else {
                     const layerIndex = Math.round(percentage * (layerOrder.length - 1));
-                    const exactPosition = percentage * 100;
-                    thumb.style.left = `${exactPosition}%`;
-                    
+                    updateLabelColors(layerIndex);
                     if (layerIndex !== currentLayerIndex) {
                         navigateToLayer(layerIndex);
                     }
