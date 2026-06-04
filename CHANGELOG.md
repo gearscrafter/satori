@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] - 06-03-2026
+
+### Fixed
+
+- Adjusted string parsing behavior for Windows-generated output.
+
 ## [0.2.1] - 03-27-2026
 
 ### Fixed

@@ -218,7 +218,12 @@ export async function createWebview(
   sanitizeObjectStrings(dataForWebview); 
   log.debug('[Sanitize] String sanitization completed.');
   
-  const astJson = JSON.stringify(dataForWebview).replace(/</g, '\\u003c');
+  const astJson = JSON.stringify(dataForWebview, (key, value) => {
+    if (typeof value === 'string') {
+      return value.replace(/\\/g, '/');
+    }
+    return value;
+  }).replace(/</g, '\\u003c');
 
   log.debug(`[DEBUG_JSON] Total length of astJson: ${astJson.length}`);
   const errorPosition = 832271;

@@ -245,7 +245,7 @@ async function analyzeProject(
             errorCount++;
         }
         
-        filesDataArray.push({ file: u.fsPath, fileUri: u.toString(), symbols: syms });
+        filesDataArray.push({ file: normalizePath(u.fsPath),  fileUri: u.toString(), symbols: syms });
 
         const progressIncrement = 40 / uniqueUris.length; 
         progress.report({ 
@@ -275,7 +275,7 @@ async function analyzeProject(
         log.debug(`🚀 Calling createWebview function...`);
         
         const result = await createWebview(context, { 
-            projectRoot: root, 
+            projectRoot: normalizePath(root),
             files: filesDataArray 
         });
 
@@ -656,6 +656,10 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         return originalResolveWebviewView(webviewView, ...args);
     };
+}
+
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/');
 }
 
 /**

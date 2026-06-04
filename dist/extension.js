@@ -2128,7 +2128,12 @@ async function createWebview(context, data) {
   log.debug("[Sanitize] Starting string sanitization for JSON....");
   sanitizeObjectStrings(dataForWebview);
   log.debug("[Sanitize] String sanitization completed.");
-  const astJson = JSON.stringify(dataForWebview).replace(/</g, "\\u003c");
+  const astJson = JSON.stringify(dataForWebview, (key, value) => {
+    if (typeof value === "string") {
+      return value.replace(/\\/g, "/");
+    }
+    return value;
+  }).replace(/</g, "\\u003c");
   log.debug(`[DEBUG_JSON] Total length of astJson: ${astJson.length}`);
   const errorPosition = 832271;
   const snippetRadius = 100;
@@ -2495,7 +2500,7 @@ async function analyzeProject(rootUri, context, progress) {
       log.error(`\u26A0\uFE0F Error getting symbols for ${import_path7.default.basename(u.fsPath)}: ${e.message}`);
       errorCount++;
     }
-    filesDataArray.push({ file: u.fsPath, fileUri: u.toString(), symbols: syms });
+    filesDataArray.push({ file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms });
     const progressIncrement = 40 / uniqueUris.length;
     progress.report({
       increment: progressIncrement,
@@ -2518,7 +2523,7 @@ async function analyzeProject(rootUri, context, progress) {
   try {
     log.debug(`\u{1F680} Calling createWebview function...`);
     const result = await createWebview(context, {
-      projectRoot: root,
+      projectRoot: normalizePath(root),
       files: filesDataArray
     });
     const { panel, graph } = result;
@@ -2798,6 +2803,9 @@ async function activate(context) {
     });
     return originalResolveWebviewView(webviewView, ...args);
   };
+}
+function normalizePath(p) {
+  return p.replace(/\\/g, "/");
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
