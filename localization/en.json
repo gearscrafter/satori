@@ -129,6 +129,9 @@
   "validations.preventsNull": "Prevents null errors",
   "collaborations.intensiveCollaboration": "Collaborates intensively with other objects",
   "collaborations.coordinatesAsync": "Coordinates asynchronous operations",
-  "collaborations.listensReactively": "Listens to changes reactively"
+  "collaborations.listensReactively": "Listens to changes reactively",
+
+  "legend.inDegree": "Dependents — classes that depend on this",
+  "legend.outDegree": "Dependencies — classes this depends on"
 
 }

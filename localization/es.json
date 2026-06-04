@@ -130,6 +130,8 @@
   "validations.preventsNull": "Previene errores de null",
   "collaborations.intensiveCollaboration": "Colabora intensivamente con otros objetos",
   "collaborations.coordinatesAsync": "Coordina operaciones asíncronas",
-  "collaborations.listensReactively": "Escucha cambios reactivamente"
+  "collaborations.listensReactively": "Escucha cambios reactivamente",
 
+  "legend.inDegree": "Dependientes — cuántas clases dependen de esta",
+  "legend.outDegree": "Dependencias — cuántas clases usa esta"
 }

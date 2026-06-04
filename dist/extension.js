@@ -2199,7 +2199,9 @@ async function createWebview(context, data) {
     "narrative.reactsTo": t("narrative.reactsTo"),
     "narrative.implements": t("narrative.implements"),
     "narrative.extends": t("narrative.extends"),
-    "overview.members": t("overview.members")
+    "overview.members": t("overview.members"),
+    "legend.inDegree": t("legend.inDegree"),
+    "legend.outDegree": t("legend.outDegree")
   };
   let html = fs9.readFileSync(
     import_path6.default.join(context.extensionUri.fsPath, "media", "webviewContent.html"),

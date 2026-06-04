@@ -2262,7 +2262,43 @@
                 searchInput.type = 'text';
                 searchInput.placeholder = t('search.placeholder', kind.charAt(0).toUpperCase() + kind.slice(1));
                 
+                const legend = document.createElement('div');
+                legend.className = 'list-legend';
+                legend.style.cssText = `
+                    display: flex;
+                    gap: 16px;
+                    font-size: 12px;
+                    color: #757575;
+                    margin-top: 8px;
+                    flex-wrap: wrap;
+                `;
+                legend.innerHTML = `
+                    <span style="display:flex; align-items:center; gap:4px;">
+                        <span style="
+                            background: #FFF3E0;
+                            color: #E65100;
+                            border-radius: 4px;
+                            padding: 1px 6px;
+                            font-weight: 600;
+                            font-size: 11px;
+                        ">↙ in</span>
+                        <span style="color:#9E9E9E;">${t('legend.inDegree')}</span>
+                    </span>
+                    <span style="display:flex; align-items:center; gap:4px;">
+                        <span style="
+                            background: #F3E5F5;
+                            color: #6A1B9A;
+                            border-radius: 4px;
+                            padding: 1px 6px;
+                            font-weight: 600;
+                            font-size: 11px;
+                        ">↗ out</span>
+                        <span style="color:#9E9E9E;">${t('legend.outDegree')}</span>
+                    </span>
+                `;
+
                 searchContainer.appendChild(searchInput);
+                searchContainer.appendChild(legend);
                 listContainer.appendChild(searchContainer);
 
                 const resultsContainer = document.createElement('div');
@@ -2450,10 +2486,26 @@
 
                         let indicatorsHTML = '';
                         if (inDegree > 0) {
-                            indicatorsHTML += `<span class="indicator-in" title="Responsibility: ${inDegree} files depend on this">📥 ${inDegree}</span>`;
+                            indicatorsHTML += `
+                                <span style="
+                                    background: #FFF3E0;
+                                    color: #E65100;
+                                    border-radius: 4px;
+                                    padding: 1px 7px;
+                                    font-weight: 600;
+                                    font-size: 11px;
+                                " title="${t('legend.inDegree')}">↙ ${inDegree}</span>`;
                         }
                         if (outDegree > 0) {
-                            indicatorsHTML += `<span class="indicator-out" title="Dependency: This file depends on${outDegree} others">📤 ${outDegree}</span>`;
+                            indicatorsHTML += `
+                                <span style="
+                                    background: #F3E5F5;
+                                    color: #6A1B9A;
+                                    border-radius: 4px;
+                                    padding: 1px 7px;
+                                    font-weight: 600;
+                                    font-size: 11px;
+                                " title="${t('legend.outDegree')}">↗ ${outDegree}</span>`;
                         }
                         indicatorsDiv.innerHTML = indicatorsHTML;
 

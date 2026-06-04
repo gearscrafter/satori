@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.3] - 06-03-2026
+
+### Changed
+
+- **List view indicators**: replaced emoji icons (📥📤) with directional
+  arrow badges (`↙` / `↗`) using distinct color ramps — orange for
+  incoming dependencies, purple for outgoing — for faster visual scanning.
+
 ## [0.2.2] - 06-03-2026
 
 ### Fixed

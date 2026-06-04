@@ -294,7 +294,9 @@ export async function createWebview(
     'narrative.reactsTo': t('narrative.reactsTo'),
     'narrative.implements': t('narrative.implements'),
     'narrative.extends': t('narrative.extends'),
-    'overview.members': t('overview.members')
+    'overview.members': t('overview.members'),
+    'legend.inDegree': t('legend.inDegree'),
+    'legend.outDegree': t('legend.outDegree'),
   };
 
   let html = fs.readFileSync(
