@@ -112,7 +112,7 @@
 
         .aggregated-edge {
             stroke: #888;
-            stroke-width: 2.5px;
+            stroke-width: 1.5px;
         }
 
 
@@ -792,6 +792,7 @@
         let folderLevels = null;
         let currentFolderLevel = 0;
         let isDragging = false;
+        let _animationInProgress = false;
         const layerOrder = ['view', 'state', 'service', 'model', 'utility'];
 
 
@@ -935,104 +936,115 @@
                 const diagramContainer = document.getElementById('diagram-container');
                 const listContainer = document.getElementById('list-view-container');
 
-                mainLayer.classList.remove('graph-unfocused');
-                mainLayer.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
-                tooltip.classList.remove('visible');
-
-                const historyDepth = historyStack.length;
-                const currentId = historyDepth > 0 ? historyStack[historyStack.length - 1] : 'overview';
+                const currentId = historyStack.length > 0 
+                    ? historyStack[historyStack.length - 1] 
+                    : 'overview';
+                const previousId = historyStack.length > 1 
+                    ? historyStack[historyStack.length - 2] 
+                    : null;
                 const state = getRouteState(currentId);
+                const prevState = previousId ? getRouteState(previousId) : null;
 
-                applyNavUI(state);
+                const goingDeeper = state === 'focus' && prevState !== 'focus';
+                const goingBack = prevState === 'focus' && state !== 'focus';
+                const focusToFocus = state === 'focus' && prevState === 'focus' && currentId !== previousId;
+                const shouldAnimate = (goingDeeper || goingBack) && previousId !== null;
 
-                if (state === 'overview') {
-                    listContainer.style.display = 'none';
-                    diagramContainer.style.display = 'block';
-                    pinnedRelationshipData = null;
-                    vscodeApi.postMessage({ command: 'clearRelationships' });
-                    renderOverview();
-                    hideLayerSlider();
-                    hideBackToOverviewButton();
+                const executeRender = () => {
+                    mainLayer.classList.remove('graph-unfocused');
+                    mainLayer.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+                    tooltip.classList.remove('visible');
 
-                } else if (state === 'overview-list') {
-                    pinnedRelationshipData = null;
-                    vscodeApi.postMessage({ command: 'clearRelationships' });
-                    renderListView(currentId.split('-')[1])
-                    hideLayerSlider();;
+                    applyNavUI(state);
 
-                } else if (state === 'folders') {
-                    pinnedRelationshipData = null;
-                    vscodeApi.postMessage({ command: 'clearRelationships' });
+                    if (state === 'overview') {
+                        listContainer.style.display = 'none';
+                        diagramContainer.style.display = 'block';
+                        pinnedRelationshipData = null;
+                        vscodeApi.postMessage({ command: 'clearRelationships' });
+                        renderOverview();
+                        hideLayerSlider();
+                        hideBackToOverviewButton();
 
-                    listContainer.style.display = 'none';
-                    diagramContainer.style.display = 'block';
+                    } else if (state === 'overview-list') {
+                        pinnedRelationshipData = null;
+                        vscodeApi.postMessage({ command: 'clearRelationships' });
+                        renderListView(currentId.split('-')[1]);
+                        hideLayerSlider();
 
-                    const base = currentId.substring('folders:'.length);
-                    const pathParts = base === '.' ? [] : base.split('/');
-                    renderFolderDiagram(pathParts);
-                    hideBackToOverviewButton();
+                    } else if (state === 'folders') {
+                        pinnedRelationshipData = null;
+                        vscodeApi.postMessage({ command: 'clearRelationships' });
+                        listContainer.style.display = 'none';
+                        diagramContainer.style.display = 'block';
+                        const base = currentId.substring('folders:'.length);
+                        const pathParts = base === '.' ? [] : base.split('/');
+                        renderFolderDiagram(pathParts);
+                        hideBackToOverviewButton();
 
-                } else if (state === 'folder-list') {
-                    pinnedRelationshipData = null;
-                    vscodeApi.postMessage({ command: 'clearRelationships' });
+                    } else if (state === 'folder-list') {
+                        pinnedRelationshipData = null;
+                        vscodeApi.postMessage({ command: 'clearRelationships' });
+                        listContainer.style.display = 'block';
+                        diagramContainer.style.display = 'none';
+                        const folderId = currentId.split(':')[1];
+                        const folderName = folderId.replace(/^folder-/, '');
+                        const nodesToList = allGraphNodes
+                            .filter(n => !n.parent && ['class','enum','mixin'].includes(n.kind))
+                            .filter(n => getFolderOfNode(n) === folderName);
+                        listContainer.innerHTML = '';
+                        const header = document.createElement('h2');
+                        header.className = 'list-view-header';
+                        header.textContent = t('folder.label', folderName);
+                        listContainer.appendChild(header);
+                        const listWrap = document.createElement('div');
+                        listContainer.appendChild(listWrap);
+                        displayFilteredList(nodesToList, listWrap);
+                        hideBackToOverviewButton();
 
-                    listContainer.style.display = 'block';
-                    diagramContainer.style.display = 'none';
-
-                    const folderId = currentId.split(':')[1];
-                    const folderName = folderId.replace(/^folder-/, '');
-
-                    const nodesToList = allGraphNodes
-                        .filter(n => !n.parent && ['class','enum','mixin'].includes(n.kind))
-                        .filter(n => getFolderOfNode(n) === folderName);
-
-                    listContainer.innerHTML = '';
-                    const header = document.createElement('h2');
-                    header.className = 'list-view-header';
-                    header.textContent = t('folder.label', folderName);
-                    listContainer.appendChild(header);
-
-                    const listWrap = document.createElement('div');
-                    listContainer.appendChild(listWrap);
-                    displayFilteredList(nodesToList, listWrap);
-                    hideBackToOverviewButton();
-
-                } else { 
-                    listContainer.style.display = 'none';
-                    diagramContainer.style.display = 'block';
-                    hideBackToOverviewButton();
-
-                    const node = nodeMap.get(currentId);
-                    if (node) {
-                        const contextNodeId = node.parent || node.id;
-                        const contextNode = nodeMap.get(contextNodeId);
-                        const allConnectedEdges = findConnectedDetailedEdges(contextNodeId);
-                        const uniqueConnectedEdges = getDeduplicatedRelationships(allConnectedEdges, nodeMap);
-                        pinnedRelationshipData = uniqueConnectedEdges.map(edge => ({
-                        ...edge,
-                        sourceNode: nodeMap.get(getContainerId(edge.source)),
-                        targetNode: nodeMap.get(getContainerId(edge.target))
-                        }));
-
-                        if (!contextNode) throw new Error(`contextNode not found for id: ${contextNodeId}`);
-
-                        vscodeApi.postMessage({
-                            command: 'showRelationships',
-                            data: { focusedNodeLabel: contextNode.label, focusedNodeId: contextNode.id, edges: pinnedRelationshipData }
-                        });
-
-                        renderFocusView(contextNodeId, currentId);
                     } else {
-                        historyStack = [];
-                        render();
-                    }
-                }
+                        listContainer.style.display = 'none';
+                        diagramContainer.style.display = 'block';
+                        hideBackToOverviewButton();
 
-                updateNavButtonsState();
+                        const node = nodeMap.get(currentId);
+                        if (node) {
+                            const contextNodeId = node.parent || node.id;
+                            const contextNode = nodeMap.get(contextNodeId);
+                            const allConnectedEdges = findConnectedDetailedEdges(contextNodeId);
+                            const uniqueConnectedEdges = getDeduplicatedRelationships(allConnectedEdges, nodeMap);
+                            pinnedRelationshipData = uniqueConnectedEdges.map(edge => ({
+                                ...edge,
+                                sourceNode: nodeMap.get(getContainerId(edge.source)),
+                                targetNode: nodeMap.get(getContainerId(edge.target))
+                            }));
+
+                            if (!contextNode) throw new Error(`contextNode not found for id: ${contextNodeId}`);
+
+                            vscodeApi.postMessage({
+                                command: 'showRelationships',
+                                data: { focusedNodeLabel: contextNode.label, focusedNodeId: contextNode.id, edges: pinnedRelationshipData }
+                            });
+
+                            renderFocusView(contextNodeId, currentId);
+                        } else {
+                            historyStack = [];
+                            render();
+                        }
+                    }
+
+                    updateNavButtonsState();
+                };
+
+                if (shouldAnimate) {
+                    animateViewTransition(goingDeeper, executeRender);
+                } else {
+                    executeRender();
+                }
 
             } catch (e) {
                 vscodeApi.postMessage({ command: 'log',
-                args: [`[WebView-ERROR] Critical failure in render: ${e.message}`, `Stack: ${e.stack}`]
+                    args: [`[WebView-ERROR] Critical failure in render: ${e.message}`, `Stack: ${e.stack}`]
                 });
             }
         }
@@ -2932,9 +2944,14 @@
                     args: [`[DEBUG renderFocusView] Visible types: ${Array.from(visibleNodeKinds).join(', ')}`]
                 });
 
-                const visibleEdgeLabels = new Set(edgesToRender.map(e => e.label).filter(Boolean));
+                const visibleEdgeLabels = new Set();
+                edgesToRender.forEach(e => {
+                    if (e.label) visibleEdgeLabels.add(e.label);
+                    if (e.kind)  visibleEdgeLabels.add(e.kind);
+                    if (e.isVirtual) visibleEdgeLabels.add('group-to-focus');
+                });
 
-                renderLegend(svg, visibleNodeKinds, visibleEdgeLabels);
+                renderLegend(visibleNodeKinds, visibleEdgeLabels);
                
                 autoFit(svg, mainLayer);
                 showLayerSlider();
@@ -3193,7 +3210,14 @@
                     args: [`[DEBUG] All kinds captured: ${Array.from(visibleNodeKinds).join(', ')}`]
                 });
 
-                const visibleEdgeLabels = new Set(edgesToRender.map(e => e.label));
+                const visibleEdgeLabels = new Set();
+                edgesToRender.forEach(e => {
+                    if (e.label) visibleEdgeLabels.add(e.label);
+                    if (e.kind)  visibleEdgeLabels.add(e.kind);
+                    if (e.isVirtual) visibleEdgeLabels.add('group-to-focus');
+                });
+
+                renderLegend(visibleNodeKinds, visibleEdgeLabels);
 
                 renderAggregatedEdgesForFocusView(edgesToRender, finalLayout, edgeLayer);
                 renderDetailedEdgesForFocusView(edgesToRender, finalLayout, edgeLayer);
@@ -3406,8 +3430,25 @@
                         e.stopPropagation();
                         const containerId = getContainerId(node.id);
                         if (historyStack[historyStack.length - 1] !== containerId) {
-                            historyStack.push(containerId);
-                            render();
+
+                            const focusNode = nodeMap.get(focusedContainerId);
+                            const clickedNode = nodeMap.get(containerId);
+                            let direction = 'scale';
+
+                            if (focusedContainerId && focusNode && clickedNode) {
+                                const focusEl = mainLayer.querySelector(`g[data-id='${focusedContainerId}']`);
+                                const clickedEl = mainLayer.querySelector(`g[data-id='${containerId}']`);
+                                if (focusEl && clickedEl) {
+                                    const focusRect   = focusEl.getBoundingClientRect();
+                                    const clickedRect = clickedEl.getBoundingClientRect();
+                                    direction = clickedRect.left < focusRect.left ? 'right' : 'left';
+                                }
+                            }
+
+                            animateViewTransition(true, () => {
+                                historyStack.push(containerId);
+                                render();
+                            }, direction);
                         }
                     });
                 } else {
@@ -3620,18 +3661,42 @@
             if (!edges || !layout || !layer) return;
             const seen = new Set();
 
-            
-            const calculateHorizontalCurve = (source, target) => {
-                const dx = target.x - source.x;
-                const controlOffset = Math.min(Math.abs(dx) * 0.3, 80);
-                return `M ${source.x} ${source.y} C ${source.x + controlOffset} ${source.y}, ${target.x - controlOffset} ${target.y}, ${target.x} ${target.y}`;
-            };
+            function getBorderPoint(rectX, rectY, rectW, rectH, fromX, fromY) {
+                const hw = rectW / 2;
+                const hh = rectH / 2;
+                const dx = fromX - rectX;
+                const dy = fromY - rectY;
 
-            const calculateVerticalCurve = (source, target) => {
-                const dy = target.y - source.y;
-                const controlOffset = Math.min(Math.abs(dy) * 0.3, 60);
-                return `M ${source.x} ${source.y} C ${source.x} ${source.y + controlOffset}, ${target.x} ${target.y - controlOffset}, ${target.x} ${target.y}`;
-            };
+                if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+                    return { x: rectX + hw, y: rectY };
+                }
+
+                const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+                const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+                const t  = Math.min(tx, ty);
+
+                return {
+                    x: rectX + dx * t,
+                    y: rectY + dy * t
+                };
+            }
+
+            function buildCurve(src, tgt) {
+                const dx   = tgt.x - src.x;
+                const dy   = tgt.y - src.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const ctrl = Math.min(dist * 0.45, 140);
+
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                const cp1x = src.x + nx * ctrl;
+                const cp1y = src.y + ny * ctrl;
+                const cp2x = tgt.x - nx * ctrl;
+                const cp2y = tgt.y - ny * ctrl;
+
+                return `M ${src.x} ${src.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${tgt.x} ${tgt.y}`;
+            }
 
             edges.forEach(edge => {
                 const sourceId = getContainerId(edge.source);
@@ -3644,74 +3709,39 @@
                 const targetLayout = layout.get(targetId);
                 if (!sourceLayout || !targetLayout) return;
 
-                let pathData;
-                let sourcePoint, targetPoint;
-
-                const focusNodeLayout = layout.get(lastFocusData?.focusNode?.id);
-                const isImportConnection = focusNodeLayout && (
-                    (targetLayout.y < focusNodeLayout.y - 50) || 
-                    (targetLayout.y > focusNodeLayout.y + 50)   
+                const sourcePoint = getBorderPoint(
+                    sourceLayout.x, sourceLayout.y,
+                    sourceLayout.width, sourceLayout.height,
+                    targetLayout.x, targetLayout.y
                 );
 
-                if (isImportConnection) {
-                    
-                    const isTargetAbove = targetLayout.y < sourceLayout.y;
-                    
-                    if (isTargetAbove) {
-                        
-                        sourcePoint = { 
-                            x: sourceLayout.x, 
-                            y: sourceLayout.y - sourceLayout.height / 2 
-                        };
-                        targetPoint = { 
-                            x: targetLayout.x, 
-                            y: targetLayout.y + targetLayout.height / 2 
-                        };
-                    } else {
-                        
-                        sourcePoint = { 
-                            x: sourceLayout.x, 
-                            y: sourceLayout.y + sourceLayout.height / 2 
-                        };
-                        targetPoint = { 
-                            x: targetLayout.x, 
-                            y: targetLayout.y - targetLayout.height / 2 
-                        };
-                    }
-                    
-                    pathData = calculateVerticalCurve(sourcePoint, targetPoint);
-                } else {
-                    
-                    if (Math.abs(targetLayout.x - sourceLayout.x) > Math.abs(targetLayout.y - sourceLayout.y)) {
-                       
-                        sourcePoint = { x: sourceLayout.x + sourceLayout.width / 2, y: sourceLayout.y };
-                        targetPoint = { x: targetLayout.x - targetLayout.width / 2, y: targetLayout.y };
-                        pathData = calculateHorizontalCurve(sourcePoint, targetPoint);
-                    } else {
-                        
-                        const isTargetAbove = targetLayout.y < sourceLayout.y;
-                        sourcePoint = { x: sourceLayout.x, y: isTargetAbove ? sourceLayout.y - sourceLayout.height / 2 : sourceLayout.y + sourceLayout.height / 2 };
-                        targetPoint = { x: targetLayout.x, y: isTargetAbove ? targetLayout.y + targetLayout.height / 2 : targetLayout.y - targetLayout.height / 2 };
-                        pathData = calculateVerticalCurve(sourcePoint, targetPoint);
-                    }
-                }
-                
+                const targetPoint = getBorderPoint(
+                    targetLayout.x, targetLayout.y,
+                    targetLayout.width, targetLayout.height,
+                    sourceLayout.x, sourceLayout.y
+                );
+
+                const pathData = buildCurve(sourcePoint, targetPoint);
+
                 const labelClass = (edge.label || 'unknown').toLowerCase().replace(/_/g, '-');
-                
-               
+
+                const isImportConnection = (() => {
+                    const focusNodeLayout = layout.get(lastFocusData?.focusNode?.id);
+                    return focusNodeLayout && (
+                        (targetLayout.y < focusNodeLayout.y - 50) ||
+                        (targetLayout.y > focusNodeLayout.y + 50)
+                    );
+                })();
+
                 let markerEnd = '';
-                
                 if (edge.isVirtual || edge.kind === 'group-to-focus') {
                     if (!isImportConnection) {
-                       
                         markerEnd = 'url(#arrow-group-to-focus)';
                     }
-                    
                 } else {
-                    
                     markerEnd = `url(#arrow-${labelClass})`;
                 }
-                
+
                 const path = createSvgElement('path', {
                     d: pathData,
                     class: `edge-path aggregated-edge ${labelClass} ${edge.isVirtual ? 'edge-virtual' : ''}`,
@@ -3789,24 +3819,21 @@
          */
         function ensureDynamicMarker(svg, markerId, color, angle) {
             if (svg.querySelector(`#${markerId}`)) return;
-            
             const defs = svg.querySelector('defs');
             const marker = createSvgElement('marker', {
                 'id': markerId,
-                'viewBox': '0 -3 8 6',
-                'refX': 7,
-                'refY': 0,
-                'markerWidth': 4,
-                'markerHeight': 4,
-                'orient': `${angle}deg` 
+                'viewBox': '0 0 12 12',
+                'refX': '4',
+                'refY': '6',
+                'markerWidth': '8',
+                'markerHeight': '8',
+                'orient': 'auto',
+                'markerUnits': 'userSpaceOnUse'
             });
-            
-            const path = createSvgElement('path', {
-                'd': 'M0,-3L8,0L0,3Z',
+            marker.appendChild(createSvgElement('path', {
+                'd': 'M 0 2 L 10 6 L 0 10 L 2.5 6 z',
                 'fill': color
-            });
-            
-            marker.appendChild(path);
+            }));
             defs.appendChild(marker);
         }
 
@@ -3847,8 +3874,8 @@
             
             const controlOffset = Math.min(Math.abs(dx) * 0.4, 100);
 
-            const cp2x = targetPoint.x - controlOffset;
-            const cp2y = targetPoint.y - dy * 0.1;
+            const cp2x = targetPoint.x - controlOffset * 0.2;
+            const cp2y = targetPoint.y - dy * 0.5;
 
             const tangentX = targetPoint.x - cp2x;
             const tangentY = targetPoint.y - cp2y;
@@ -3910,62 +3937,66 @@
          */
         function setupMarkers(svg) {
             const defs = createSvgElement('defs');
-            const defaultColor = '#adb5bd';
 
             const virtualMarker = createSvgElement('marker', {
                 id: 'arrow-group-to-focus',
-                viewBox: '0 -5 10 10',
-                refX: 8,
-                refY: 0,
-                markerWidth: 6,
-                markerHeight: 6,
+                viewBox: '0 0 12 12',
+                refX: '12',
+                refY: '6',
+                markerWidth: '5',
+                markerHeight: '5',
                 orient: 'auto'
             });
-            const virtualPath = createSvgElement('path', {
-                d: 'M0,-5L10,0L0,5',
-                fill: '#8FCB9B' 
-            });
-            virtualMarker.appendChild(virtualPath);
+            virtualMarker.appendChild(createSvgElement('path', {
+                d: 'M 0 2 L 10 6 L 0 10 L 2.5 6 z',
+                fill: '#8FCB9B'
+            }));
             defs.appendChild(virtualMarker);
 
-
             const defaultMarker = createSvgElement('marker', {
-                'id': `arrow-default`,
-                'viewBox': '0 -5 10 10', 'refX': 8, 'refY': 0,
-                'markerWidth': 6, 'markerHeight': 6, 'orient': '0'
+                id: 'arrow-default',
+                viewBox: '0 0 12 12',
+                refX: '12',
+                refY: '6',
+                markerWidth: '5',
+                markerHeight: '5',
+                orient: 'auto'
             });
-            const defaultPath = createSvgElement('path', { 'd': 'M0,-5L10,0L0,5', 'fill': defaultColor });
-            defaultMarker.appendChild(defaultPath);
+            defaultMarker.appendChild(createSvgElement('path', {
+                d: 'M 0 2 L 10 6 L 0 10 L 2.5 6 z',
+                fill: '#adb5bd'
+            }));
             defs.appendChild(defaultMarker);
 
             const markerTypes = [
-                { id: 'extends', color: '#28a745' },      // Green for inheritance
-                { id: 'implements', color: '#17a2b8' },   // Cyan for interfaces
-                { id: 'calls', color: '#6f42c1' },       // Purple for calls
-                { id: 'reads-from', color: '#fd7e14' },   // Orange for data reading
-                { id: 'writes-to', color: '#dc3545' },    // Red for writing
-                { id: 'instance-of', color: '#007bff' },  // Blue
-                { id: 'uses-as-type', color: '#6c757d' }, // Gray
-                { id: 'unknown', color: '#adb5bd' }      // Light gray for default
+                { id: 'extends',      color: '#28a745' },
+                { id: 'implements',   color: '#17a2b8' },
+                { id: 'calls',        color: '#6f42c1' },
+                { id: 'reads-from',   color: '#fd7e14' },
+                { id: 'writes-to',    color: '#dc3545' },
+                { id: 'instance-of',  color: '#007bff' },
+                { id: 'uses-as-type', color: '#6c757d' },
+                { id: 'unknown',      color: '#adb5bd' },
             ];
 
             markerTypes.forEach(type => {
                 const marker = createSvgElement('marker', {
                     'id': `arrow-${type.id}`,
-                    'viewBox': '0 -3 8 6',      // Smaller ViewBox
-                    'refX': 7,                   // Adjusted reference point
-                    'refY': 0,
-                    'markerWidth': 4,            // Smaller marker
-                    'markerHeight': 4,           // Smaller marker
-                    'orient': '0'
+                    'viewBox': '0 0 12 12',
+                    'refX': '4',
+                    'refY': '6',
+                    'markerWidth': '8',
+                    'markerHeight': '8',
+                    'orient': 'auto',
+                    'markerUnits': 'userSpaceOnUse'
                 });
-                const path = createSvgElement('path', { 
-                    'd': 'M0,-3L8,0L0,3Z',      // Smaller, closed arrow with Z
-                    'fill': type.color 
-                });
-                marker.appendChild(path);
+                marker.appendChild(createSvgElement('path', {
+                    'd': 'M 0 2 L 10 6 L 0 10 L 2.5 6 z',
+                    'fill': type.color
+                }));
                 defs.appendChild(marker);
             });
+
             svg.appendChild(defs);
         }
 
@@ -4057,160 +4088,151 @@
          * creates visual representations with appropriate colors, and organizes
          * the information into separate sections for symbols and relationships.
          *
-         * @param {SVGElement} svgElement - SVG element to add the legend to
          * @param {Set<string>} visibleNodeKinds - Set of visible node kinds
          * @param {Set<string>} visibleEdgeLabels - Set of visible edge labels
          */
-        function renderLegend(svgElement, visibleNodeKinds, visibleEdgeLabels) {
-            const oldLegend = svgElement.querySelector('.legend');
-            if (oldLegend) oldLegend.remove();
-            
-            const legendGroup = createSvgElement('g', { 'class': 'legend', 'transform': 'translate(15, 15)' });
-            let currentY = 0;
+        function renderLegend(visibleNodeKinds, visibleEdgeLabels) {
+            const old = document.getElementById('html-legend');
+            if (old) old.remove();
 
-            const legendDefinitions = {
-                method: {
-                    label: t('legend.responsibilities'),
-                    color: '#FBE9A8',
-                    kinds: ['method', 'function', 'constructor']
-                },
-                field: {
-                    label: t('legend.attributes'),
-                    color: 'var(--pill-field-bg)',
-                    kinds: ['field', 'property']
-                },
-                primitive: {
+            const definitions = [
+                {
+                    color: '#EFEFEF', border: '#bdbdbd',
                     label: t('legend.collaborators'),
-                    color: 'var(--pill-primitive-bg)',
-                    kinds: ['class', 'enum', 'mixin', 'extension', 'typedef', 'primitive', 'widget', 'model', 'package_container']
+                    kinds: ['class','enum','mixin','extension','typedef',
+                            'primitive','widget','model','package_container']
                 },
-                'grouped-members': {
+                {
+                    color: '#FBE9A8', border: '#e6c93a',
+                    label: t('legend.responsibilities'),
+                    kinds: ['method','function','constructor']
+                },
+                {
+                    color: '#A8D1FB', border: '#5aabf7',
+                    label: t('legend.attributes'),
+                    kinds: ['field','property']
+                },
+                {
+                    color: '#4CAF50', border: '#388e3c',
                     label: t('legend.groupedObjects'),
-                    color: '#28a745',
-                    kinds: ['group', 'grouped-members']
-                }
-            };
-
-            vscodeApi.postMessage({
-                command: 'log',
-                args: [`[DEBUG] visibleNodeKinds: ${Array.from(visibleNodeKinds).join(', ')}`]
-            });
-
-            const activeItems = [];
-            
-            for (const [legendKey, definition] of Object.entries(legendDefinitions)) {
-                 const hasVisibleKind = definition.kinds.some(kind => visibleNodeKinds.has(kind));
-                
-                if (hasVisibleKind) {
-                    activeItems.push({
-                        key: legendKey,
-                        label: definition.label,
-                        color: definition.color
-                    });
-                }
-            }
-
-            vscodeApi.postMessage({
-                command: 'log',
-                args: [`[DEBUG] Active legend items: ${activeItems.map(i => i.label).join(', ')}`]
-            });
-
-            if (activeItems.length > 0) {
-                const title = createSvgElement('text', { 
-                    y: currentY + 15, 
-                    'font-weight': 'bold', 
-                    'font-size': '14px', 
-                    'fill': '#212121' 
-                });
-                title.textContent = t('legend.symbols');
-                legendGroup.appendChild(title);
-                currentY += 30;
-
-                activeItems.forEach(item => {
-                    const itemGroup = createSvgElement('g', { transform: `translate(0, ${currentY})` });
-
-                    const rect = createSvgElement('rect', {
-                        x: 0,
-                        y: -8,
-                        width: 16,
-                        height: 16,
-                        rx: 3,
-                        stroke: '#ccc',
-                        fill: item.color
-                    });
-
-                    const text = createSvgElement('text', {
-                        x: 25,
-                        y: 0,
-                        'dominant-baseline': 'middle',
-                        'font-size': '14px',
-                        'fill': '#212121'
-                    });
-                    text.textContent = item.label;
-
-                    itemGroup.appendChild(rect);
-                    itemGroup.appendChild(text);
-                    legendGroup.appendChild(itemGroup);
-                    currentY += 25;
-                });
-            }
-
-            const edgeLegendItems = [
-                { label: t('edge.extends'), edgeType: 'EXTENDS', class: 'extends' },
-                { label: t('edge.implements'), edgeType: 'IMPLEMENTS', class: 'implements' },
-                { label: t('edge.calls'), edgeType: 'CALLS', class: 'calls' },
-                { label: t('edge.readsFrom'), edgeType: 'READS_FROM', class: 'reads-from' },
-                { label: t('edge.writesTo'), edgeType: 'WRITES_TO', class: 'writes-to' }
+                    kinds: ['group']
+                },
             ];
 
-            const activeEdgeItems = edgeLegendItems.filter(item => visibleEdgeLabels.has(item.edgeType));
+            const activeSymbols = definitions.filter(d =>
+                d.kinds.some(k => visibleNodeKinds.has(k))
+            );
 
-            if (activeEdgeItems.length > 0) {
-                currentY += 10;
-                const title = createSvgElement('text', {
-                    y: currentY + 15,
-                    'font-weight': 'bold',
-                    'font-size': '14px',
-                    'fill': '#212121'
-                });
-                title.textContent = t('legend.relationships');
-                legendGroup.appendChild(title);
-                currentY += 30;
+            const edgeTypes = [
+                { color: '#28a745', label: t('edge.extends'),    keys: ['EXTENDS','extends'] },
+                { color: '#17a2b8', label: t('edge.implements'), keys: ['IMPLEMENTS','implements'] },
+                { color: '#6f42c1', label: t('edge.calls'),      keys: ['CALLS','calls'] },
+                { color: '#fd7e14', label: t('edge.readsFrom'),  keys: ['READS_FROM','reads-from','READS FROM'] },
+                { color: '#dc3545', label: t('edge.writesTo'),   keys: ['WRITES_TO','writes-to','WRITES TO'] },
+                { color: '#8FCB9B', label: t('legend.collaborators'), keys: ['group-to-focus','VIRTUAL'] },
+            ];
 
-                activeEdgeItems.forEach(item => {
-                    const strokeColor = getColorFromClass(item.class);
-                    ensureArrowheadMarker(svgElement, item.class, strokeColor);
+            const activeEdges = edgeTypes.filter(e =>
+                e.keys.some(k => visibleEdgeLabels.has(k))
+            );
 
-                    const itemGroup = createSvgElement('g', { transform: `translate(0, ${currentY})` });
+            vscodeApi.postMessage({ command: 'log', args: [
+                `[Legend] visibleNodeKinds: ${[...visibleNodeKinds].join(', ')}`,
+                `[Legend] visibleEdgeLabels: ${[...visibleEdgeLabels].join(', ')}`,
+                `[Legend] activeSymbols: ${activeSymbols.map(s=>s.label).join(', ')}`,
+                `[Legend] activeEdges: ${activeEdges.map(e=>e.label).join(', ')}`
+            ]});
 
-                    const line = createSvgElement('line', {
-                        x1: 0,
-                        y1: 0,
-                        x2: 22,
-                        y2: 0,
-                        'stroke-width': 2,
-                        'stroke': strokeColor,
-                        'marker-end': `url(#arrowhead-${item.class})`
-                    });
+            if (activeSymbols.length === 0 && activeEdges.length === 0) return;
 
-                    const text = createSvgElement('text', {
-                        x: 25,
-                        y: 0,
-                        'dominant-baseline': 'middle',
-                        'font-size': '14px',
-                        'font-weight': '400',
-                        'fill': '#212121'
-                    });
-                    text.textContent = item.label;
+            const legend = document.createElement('div');
+            legend.id = 'html-legend';
+            legend.style.cssText = `
+                position: absolute;
+                top: 15px;
+                left: 15px;
+                background: rgba(255,255,255,0.96);
+                border: 0.5px solid #e0e0e0;
+                border-radius: 10px;
+                padding: 10px 14px;
+                font-size: 12px;
+                line-height: 1.6;
+                box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+                z-index: 10;
+                min-width: 160px;
+                font-family: var(--font-family, system-ui, sans-serif);
+            `;
 
-                    itemGroup.appendChild(line);
-                    itemGroup.appendChild(text);
-                    legendGroup.appendChild(itemGroup);
-                    currentY += 25;
+            const header = document.createElement('div');
+            header.style.cssText = `
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                cursor: pointer;
+                user-select: none;
+                margin-bottom: 8px;
+            `;
+            header.innerHTML = `
+                <span style="font-weight:600;font-size:11px;color:#888;text-transform:uppercase;
+                    letter-spacing:0.5px;">Legend</span>
+                <span id="legend-toggle-icon" style="font-size:10px;color:#999;
+                    transition:transform 0.2s;">▲</span>
+            `;
+
+            const body = document.createElement('div');
+            body.id = 'legend-body';
+
+            if (activeSymbols.length > 0) {
+                const title = document.createElement('div');
+                title.style.cssText = 'font-weight:600;margin-bottom:5px;color:#333;font-size:11px;';
+                title.textContent = t('legend.symbols');
+                body.appendChild(title);
+
+                activeSymbols.forEach(d => {
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:5px;';
+                    row.innerHTML = `
+                        <span style="width:13px;height:13px;border-radius:3px;
+                            background:${d.color};border:1.5px solid ${d.border};
+                            flex-shrink:0;display:inline-block;"></span>
+                        <span style="color:#444;font-size:12px;">${d.label}</span>
+                    `;
+                    body.appendChild(row);
                 });
             }
 
-            svgElement.appendChild(legendGroup);
+            if (activeEdges.length > 0) {
+                const title = document.createElement('div');
+                title.style.cssText = 'font-weight:600;margin:8px 0 5px;color:#333;font-size:11px;';
+                title.textContent = t('legend.relationships');
+                body.appendChild(title);
+
+                activeEdges.forEach(e => {
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:5px;';
+                    row.innerHTML = `
+                        <svg width="22" height="10" style="flex-shrink:0;">
+                            <line x1="0" y1="5" x2="15" y2="5"
+                                stroke="${e.color}" stroke-width="2"/>
+                            <polygon points="13,2 20,5 13,8" fill="${e.color}"/>
+                        </svg>
+                        <span style="color:#444;font-size:12px;">${e.label}</span>
+                    `;
+                    body.appendChild(row);
+                });
+            }
+
+            legend.appendChild(header);
+            legend.appendChild(body);
+            document.getElementById('diagram-container').appendChild(legend);
+
+            let collapsed = false;
+            header.addEventListener('click', () => {
+                collapsed = !collapsed;
+                body.style.display = collapsed ? 'none' : 'block';
+                const icon = document.getElementById('legend-toggle-icon');
+                if (icon) icon.style.transform = collapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+            });
         }
 
         /**
@@ -4254,20 +4276,18 @@
             const marker = createSvgElement('marker', {
                 id: id,
                 viewBox: '0 0 10 10',
-                refX: 10,
-                refY: 5,
-                markerWidth: 6,
-                markerHeight: 6,
-                orient: 'auto-start-reverse',
+                refX: '2',
+                refY: '5',
+                markerWidth: '8',
+                markerHeight: '8',
+                orient: 'auto',
+                markerUnits: 'userSpaceOnUse'
             });
-
-            const path = createSvgElement('path', {
+            marker.appendChild(createSvgElement('path', {
                 d: 'M 0 0 L 10 5 L 0 10 z',
                 fill: color,
                 stroke: 'none'
-            });
-
-            marker.appendChild(path);
+            }));
             defs.appendChild(marker);
         }
 
@@ -4751,6 +4771,8 @@
                 e.preventDefault();
                 e.stopPropagation();
             });
+
+            let navigationTimeout = null;
             
             document.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
@@ -4775,7 +4797,10 @@
                     const levelIndex = Math.round(percentage * (folderLevels.levels.length - 1));
                     updateLabelColors(levelIndex);
                     if (levelIndex !== currentFolderLevel) {
-                        navigateToFolderLevel(levelIndex);
+                        clearTimeout(navigationTimeout);
+                        navigationTimeout = setTimeout(() => {
+                            navigateToFolderLevel(levelIndex);
+                        }, 150);
                     }
                 } else {
                     const layerIndex = Math.round(percentage * (layerOrder.length - 1));
@@ -4790,10 +4815,17 @@
                 if (isDragging) {
                     isDragging = false;
                     thumb.classList.remove('dragging');
+                    clearTimeout(navigationTimeout)
                     
-                    if (navigationMode === 'folders') {
-                        updateSliderPosition(currentFolderLevel);
+                    const rect = track.getBoundingClientRect();
+                    const thumbLeft = parseFloat(thumb.style.left) / 100;
+                    
+                    if (navigationMode === 'folders' && folderLevels) {
+                        const levelIndex = Math.round(thumbLeft * (folderLevels.levels.length - 1));
+                        navigateToFolderLevel(levelIndex);
                     } else {
+                        const layerIndex = Math.round(thumbLeft * (layerOrder.length - 1));
+                        navigateToLayer(layerIndex);
                         updateSliderPosition(currentLayerIndex);
                     }
                 }
@@ -5457,7 +5489,13 @@
                             g.appendChild(bt);
                         }
 
-                        g.addEventListener('click',     e => { e.stopPropagation(); pushRoute(node.id); render(); });
+                        g.addEventListener('click', e => {
+                            e.stopPropagation();
+                            animateViewTransition(true, () => {
+                                pushRoute(node.id);
+                                render();
+                            });
+                        });
                         g.addEventListener('mouseover', e => { e.stopPropagation(); highlight(node.id, true,  e); });
                         g.addEventListener('mouseout',  e => { e.stopPropagation(); highlight(null,    false, e); });
                         nodeLayer.appendChild(g);
@@ -6330,42 +6368,24 @@
          * @param {number} levelIndex - Index of the target level
          */
         function navigateToFolderLevel(levelIndex) {
-            if (!folderLevels || levelIndex < 0 || levelIndex >= folderLevels.levels.length) {
-                vscodeApi.postMessage({ 
-                    command: 'log', 
-                    args: [`[Navigation] Invalid index: ${levelIndex}`] 
-                });
-                return;
-            }
+            if (!folderLevels || levelIndex < 0 || levelIndex >= folderLevels.levels.length) return;
 
-            currentFolderLevel = levelIndex;
-            updateSliderPosition(levelIndex, folderLevels.levels.length);
+            const goingDeeper = levelIndex < currentFolderLevel;
 
-            updateLabelColors(levelIndex);
+            animateViewTransition(goingDeeper, () => {
+                currentFolderLevel = levelIndex;
+                updateSliderPosition(levelIndex, folderLevels.levels.length);
+                updateLabelColors(levelIndex);
 
-            const level = folderLevels.levels[levelIndex];
-            const focusNodeId = folderLevels.currentNodeId;
+                const level = folderLevels.levels[levelIndex];
+                const focusNodeId = folderLevels.currentNodeId;
 
-            vscodeApi.postMessage({ 
-                command: 'log', 
-                args: [`[Slider Navigation] Navigating to level ${levelIndex}: ${level.name}, focusNodeId: ${focusNodeId}`] 
+                if (levelIndex === 0) {
+                    renderFocusView(focusNodeId, focusNodeId);
+                } else {
+                    updateFocusViewForFolderLevel(focusNodeId, level);
+                }
             });
-
-            if (levelIndex === 0) {
-                // Nivel más específico: vista de foco original
-                vscodeApi.postMessage({ 
-                    command: 'log', 
-                    args: [`[Slider Navigation] Rendering original focus view`] 
-                });
-                renderFocusView(focusNodeId, focusNodeId);
-            } else {
-                // Otros niveles: vista de carpetas
-                vscodeApi.postMessage({ 
-                    command: 'log', 
-                    args: [`[Slider Navigation] Rendering folder view for level: ${level.name}`] 
-                });
-                updateFocusViewForFolderLevel(focusNodeId, level);
-            }
         }
         
         /**
@@ -6405,6 +6425,59 @@
                     .multiply(transform);
                 layer.setAttribute('transform', `matrix(${newMatrix.a} ${newMatrix.b} ${newMatrix.c} ${newMatrix.d} ${newMatrix.e} ${newMatrix.f})`);
             });
+        }
+
+
+        function animateViewTransition(goingDeeper, callback, direction = 'scale') {
+            if (_animationInProgress) {
+                callback();
+                return;
+            }
+            _animationInProgress = true;
+
+            const svgEl = document.getElementById('diagram');
+
+            let exitTransform, enterTransform;
+
+            if (direction === 'left') {
+                exitTransform  = 'translateX(-60px)';
+                enterTransform = 'translateX(60px)';
+            } else if (direction === 'right') {
+                exitTransform  = 'translateX(60px)';
+                enterTransform = 'translateX(-60px)';
+            } else {
+                const exitScale = goingDeeper ? '1.08' : '0.93';
+                exitTransform  = `scale(${exitScale})`;
+                enterTransform = goingDeeper ? 'scale(0.93)' : 'scale(1.08)';
+            }
+
+            if (svgEl) {
+                svgEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+                svgEl.style.transformOrigin = 'center center';
+                svgEl.style.opacity = '0';
+                svgEl.style.transform = exitTransform;
+            }
+
+            setTimeout(() => {
+                if (svgEl) {
+                    svgEl.style.transition = 'none';
+                    svgEl.style.transform = enterTransform;
+                    svgEl.style.opacity = '0';
+                }
+
+                callback();
+
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (svgEl) {
+                            svgEl.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
+                            svgEl.style.opacity = '1';
+                            svgEl.style.transform = 'none';
+                        }
+                        _animationInProgress = false;
+                    });
+                });
+            }, 180);
         }
     })();
 

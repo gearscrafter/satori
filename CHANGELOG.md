@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.4] - 06-04-2026
+
+### Fixed
+- **HTML floating legend**: replaced SVG-based legend with a collapsible
+  HTML overlay (top-left of diagram) showing only the symbols and
+  relationship types visible on screen. Supports expand/collapse with
+  animated toggle icon.
+
 ## [0.2.3] - 06-03-2026
 
 ### Changed
