@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5] - 06-04-2026
+
+### Performance
+ 
+- **~55% reduction in analysis time** for large Flutter projects
+- LSP reference results cached by symbol position — repeated lookups for the same symbol skip the Dart language server entirely
+
 ## [0.2.4] - 06-04-2026
 
 ### Fixed

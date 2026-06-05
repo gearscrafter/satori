@@ -1,4 +1,4 @@
-import { ProjectGraphModel, ProjectGraphEdge } from "../../types/index";
+import { ProjectGraphModel, ProjectGraphEdge, ExternalPackageInfo } from "../../types/index";
 import { findAllPackages } from "../package_discovery";
 import { createPackageContainerNodes } from "./container_nodes";
 import { createInterPackageDependencyEdges } from "./dependency_edges";
@@ -21,20 +21,19 @@ export async function integrateExternalPackages(
   projectRoot: string,
   generatedNodeIds: Set<string>,
   createEdge: (sourceId: string, targetId: string, label: ProjectGraphEdge['label']) => void,
+  cachedPackages?: ExternalPackageInfo[]
 ): Promise<void> {
   log.debug(`[ExternalPackages] 🔍 Integrating external packages..`);
 
-  const externalPackages = findAllPackages(projectRoot);
-  
+  const externalPackages = cachedPackages ?? findAllPackages(projectRoot);
+
   if (externalPackages.length === 0) {
-    log.debug(`[ExternalPackages] No relevant external packages found`);
-    return;
+      log.debug(`[ExternalPackages] No relevant external packages found`);
+      return;
   }
 
   createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds);
-
   assignNodesToPackageContainers(projectGraph, externalPackages);
-
   createInterPackageDependencyEdges(projectGraph, externalPackages, createEdge);
 
   log.debug(`[ExternalPackages] ✅ External package integration completed`);

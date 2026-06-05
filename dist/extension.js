@@ -35,7 +35,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ui/extension_lifecycle.ts
-var vscode22 = __toESM(require("vscode"));
+var vscode23 = __toESM(require("vscode"));
 var import_path7 = __toESM(require("path"));
 var fs10 = __toESM(require("fs"));
 
@@ -745,11 +745,12 @@ function extractPackageImportsFromFile(fileUri) {
 }
 
 // src/ui/webview_creator.ts
-var vscode20 = __toESM(require("vscode"));
+var vscode21 = __toESM(require("vscode"));
 var fs9 = __toESM(require("fs"));
 var import_path6 = __toESM(require("path"));
 
 // src/analysis/validation.ts
+var vscode8 = __toESM(require("vscode"));
 function validateEnrichedData(enrichedFiles) {
   const symbolMap = /* @__PURE__ */ new Map();
   function recurse(symbols) {
@@ -757,10 +758,10 @@ function validateEnrichedData(enrichedFiles) {
       if (sym.uniqueId) {
         symbolMap.set(sym.uniqueId, sym);
       }
-      if (sym.kind === 5) {
+      if (sym.kind === vscode8.SymbolKind.Class) {
         log.debug(`[VALIDATE] Class: ${sym.name}`);
       }
-      if (sym.kind === 9) {
+      if (sym.kind === vscode8.SymbolKind.Constructor) {
         if (!sym.parameters && sym.detail) {
           log.debug(`[WARN] Constructor '${sym.name}' has detail but no parameters were extracted.`);
         }
@@ -769,14 +770,14 @@ function validateEnrichedData(enrichedFiles) {
           if (!parent) {
             log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
           } else {
-            if (parent.kind !== 5) {
-              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind !== 5)`);
+            if (parent.kind !== vscode8.SymbolKind.Class) {
+              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind: ${parent.kind}, expected: ${vscode8.SymbolKind.Class})`);
             }
             if (Array.isArray(sym.parameters) && Array.isArray(parent.children)) {
               const parentFields = new Set(parent.children.map((c) => c.name));
               for (const param of sym.parameters) {
                 if (param.name && !parentFields.has(param.name)) {
-                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' that is not found as property in '${parent.name}'`);
+                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' not found as property in '${parent.name}'`);
                 }
               }
             }
@@ -794,17 +795,17 @@ function validateEnrichedData(enrichedFiles) {
       recurse(file.symbols);
     }
   } catch (err) {
-    log.error(`Error running validateEnrichedData:, ${err}`);
+    log.error(`Error running validateEnrichedData: ${err}`);
   }
 }
 
 // src/graph/graph_builder.ts
-var vscode14 = __toESM(require("vscode"));
+var vscode15 = __toESM(require("vscode"));
 
 // src/graph/layer_classifier.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 function getArchitecturalLayer(symbol, relations) {
-  if (symbol.kind !== vscode8.SymbolKind.Class && symbol.kind !== vscode8.SymbolKind.Enum) {
+  if (symbol.kind !== vscode9.SymbolKind.Class && symbol.kind !== vscode9.SymbolKind.Enum) {
     return "member";
   }
   const name = symbol.name.toLowerCase();
@@ -816,9 +817,9 @@ function getArchitecturalLayer(symbol, relations) {
   if (allRelations.includes("statelesswidget") || allRelations.includes("statefulwidget") || allRelations.includes("hookwidget") || allRelations.includes("widget")) {
     return "view";
   }
-  if (symbol.kind === vscode8.SymbolKind.Class && symbol.children) {
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
     const hasBuildMethod = symbol.children.some(
-      (c) => c.kind === vscode8.SymbolKind.Method && c.name === "build"
+      (c) => c.kind === vscode9.SymbolKind.Method && c.name === "build"
     );
     if (hasBuildMethod) {
       return "view";
@@ -838,12 +839,12 @@ function getArchitecturalLayer(symbol, relations) {
   if (allRelations.includes("changenotifier") || allRelations.includes("statenotifier") || allRelations.includes("bloc") || allRelations.includes("cubit") || allRelations.includes("provider") || allRelations.includes("controller")) {
     return "state";
   }
-  if (symbol.kind === vscode8.SymbolKind.Class && symbol.children) {
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
     const hasStateStream = symbol.children.some(
-      (c) => (c.kind === vscode8.SymbolKind.Field || c.kind === vscode8.SymbolKind.Property) && (c.name === "stream" || c.name === "state")
+      (c) => (c.kind === vscode9.SymbolKind.Field || c.kind === vscode9.SymbolKind.Property) && (c.name === "stream" || c.name === "state")
     );
     const hasEventMethod = symbol.children.some(
-      (c) => c.kind === vscode8.SymbolKind.Method && (c.name === "add" || c.name === "emit" || c.name === "on")
+      (c) => c.kind === vscode9.SymbolKind.Method && (c.name === "add" || c.name === "emit" || c.name === "on")
     );
     if (hasStateStream && hasEventMethod) {
       return "state";
@@ -855,8 +856,8 @@ function getArchitecturalLayer(symbol, relations) {
   if (name.includes("bloc") || name.includes("cubit") || name.includes("provider") || name.includes("controller") || name.includes("notifier") || name.includes("state")) {
     return "state";
   }
-  if (symbol.kind === vscode8.SymbolKind.Class && symbol.children) {
-    const methods = symbol.children.filter((c) => c.kind === vscode8.SymbolKind.Method);
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const methods = symbol.children.filter((c) => c.kind === vscode9.SymbolKind.Method);
     const asyncMethods = methods.filter(
       (m) => m.returnType?.toLowerCase().includes("future") || m.returnType?.toLowerCase().includes("stream") || m.name.toLowerCase().includes("async")
     );
@@ -875,10 +876,10 @@ function getArchitecturalLayer(symbol, relations) {
   if (name.includes("service") || name.includes("repository") || name.includes("api") || name.includes("client") || name.includes("gateway") || name.includes("adapter")) {
     return "service";
   }
-  if (symbol.kind === vscode8.SymbolKind.Class && symbol.children) {
-    const methods = symbol.children.filter((c) => c.kind === vscode8.SymbolKind.Method);
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const methods = symbol.children.filter((c) => c.kind === vscode9.SymbolKind.Method);
     const fields = symbol.children.filter(
-      (c) => c.kind === vscode8.SymbolKind.Field || c.kind === vscode8.SymbolKind.Property
+      (c) => c.kind === vscode9.SymbolKind.Field || c.kind === vscode9.SymbolKind.Property
     );
     const businessMethods = methods.filter(
       (m) => !["toString", "hashcode", "operator==", "copyWith", "toJson", "fromJson"].includes(m.name.toLowerCase())
@@ -893,14 +894,14 @@ function getArchitecturalLayer(symbol, relations) {
   if (name.includes("model") || name.includes("entity") || name.includes("dto") || name.includes("data")) {
     return "model";
   }
-  if (symbol.kind === vscode8.SymbolKind.Enum) {
+  if (symbol.kind === vscode9.SymbolKind.Enum) {
     return "model";
   }
   if (name.endsWith("util") || name.endsWith("utils") || name.endsWith("helper") || name.endsWith("extension") || name.endsWith("mixin") || name.endsWith("constants") || name.endsWith("config") || name.endsWith("settings")) {
     return "utility";
   }
-  if (symbol.kind === vscode8.SymbolKind.Class && symbol.children) {
-    const methods = symbol.children.filter((c) => c.kind === vscode8.SymbolKind.Method);
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const methods = symbol.children.filter((c) => c.kind === vscode9.SymbolKind.Method);
     const staticMethods = methods.filter(
       (m) => m.detail?.toLowerCase().includes("static")
     );
@@ -961,14 +962,25 @@ function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById,
 }
 
 // src/analysis/source_analyzer.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 var fs6 = __toESM(require("fs"));
+var fileContentCache = /* @__PURE__ */ new Map();
+function clearFileContentCache() {
+  fileContentCache.clear();
+}
 function getSourceCodeForSymbol(symbol) {
   const rangeToUse = symbol.range || symbol.selectionRange;
   if (!rangeToUse || !symbol.fileUri) return "";
   try {
-    const filePath = vscode9.Uri.parse(symbol.fileUri).fsPath;
-    const fileContent = fs6.readFileSync(filePath, "utf8");
+    const filePath = vscode10.Uri.parse(symbol.fileUri).fsPath;
+    let fileContent = fileContentCache.get(symbol.fileUri);
+    if (fileContent === void 0) {
+      log.debug(`[Cache MISS] Reading file: ${symbol.fileUri}`);
+      fileContent = fs6.readFileSync(filePath, "utf8");
+      fileContentCache.set(symbol.fileUri, fileContent);
+    } else {
+      log.debug(`[Cache HIT] ${symbol.fileUri}`);
+    }
     const lines = fileContent.split(/\r?\n/);
     const start = rangeToUse.start;
     const end = rangeToUse.end;
@@ -988,42 +1000,79 @@ function getSourceCodeForSymbol(symbol) {
 }
 
 // src/lsp/reference_analysis.ts
-var vscode10 = __toESM(require("vscode"));
-async function tryAddReadsFromEdge(projectGraph, sourceNode, targetNode, targetSymbol, sourceCodeText, createEdge) {
-  const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+var vscode11 = __toESM(require("vscode"));
+var nodesByFileCache = null;
+function getNodesByFile(nodes) {
+  if (nodesByFileCache) return nodesByFileCache;
+  nodesByFileCache = /* @__PURE__ */ new Map();
+  for (const node of nodes) {
+    const uri = node.data.fileUri;
+    if (!nodesByFileCache.has(uri)) nodesByFileCache.set(uri, []);
+    nodesByFileCache.get(uri).push(node);
+  }
+  log.debug(`[RefAnalysis] nodesByFile index built: ${nodesByFileCache.size} files`);
+  return nodesByFileCache;
+}
+function clearNodesByFileCache() {
+  nodesByFileCache = null;
+  referencesCache.clear();
+  log.debug(`[RefAnalysis] nodesByFile + references cache cleared.`);
+}
+var referencesCache = /* @__PURE__ */ new Map();
+async function getReferencesForSymbol(symbol) {
+  const { line, character } = symbol.selectionRange.start;
+  const cacheKey = `${symbol.fileUri}:${line}:${character}`;
+  if (referencesCache.has(cacheKey)) {
+    const cached = referencesCache.get(cacheKey);
+    log.debug(`[RefCache HIT] '${symbol.name}' \u2192 ${cached?.length ?? 0} refs`);
+    return cached;
+  }
   try {
-    const references = await vscode10.commands.executeCommand(
+    const references = await vscode11.commands.executeCommand(
       "vscode.executeReferenceProvider",
-      vscode10.Uri.parse(targetSymbol.fileUri),
-      targetSymbol.selectionRange.start
+      vscode11.Uri.parse(symbol.fileUri),
+      symbol.selectionRange.start
     );
-    if (references && references.length > 0) {
-      log.debug(`[LSP] \u2705 Found  ${references.length} references for '${targetSymbol.name}'`);
-      for (const ref of references) {
-        const refLsp = {
-          uri: ref.uri.toString(),
-          range: ref.range
-        };
-        const container = findEnclosingFunctionOrMethodNode(projectGraph.nodes, refLsp);
-        if (container) {
-          log.debug(`[LSP] Reference found within function: ${container.label}`);
-        }
-        if (container && container.id === sourceNode.id) {
-          log.debug(`[LSP] \u{1F3AF} READS_FROM: '${sourceNode.label}' \u2192 '${targetNode.label}'`);
-          createEdge(sourceNode.id, targetNode.id, "READS_FROM");
-          return;
-        }
-      }
-      log.debug(`[LSP] \u{1F9ED} No reference found within container '${sourceNode.label}'`);
-    } else {
-      log.debug(`[LSP] \u274C No references found for  '${targetSymbol.name}'`);
-    }
+    const result = references && references.length > 0 ? references : null;
+    referencesCache.set(cacheKey, result);
+    log.debug(`[LSP] \u2705 Found ${result?.length ?? 0} references for '${symbol.name}' [cached]`);
+    return result;
   } catch (err) {
-    log.error(`[GraphBuilder] \u26A0\uFE0F LSP fallback for '${targetSymbol.name}'`);
+    referencesCache.set(cacheKey, null);
+    log.error(`[GraphBuilder] \u26A0\uFE0F LSP error for '${symbol.name}'`);
+    return null;
   }
 }
-function findEnclosingFunctionOrMethodNode(nodes, ref) {
-  const nodesInFile = nodes.filter((n) => n.data.fileUri === ref.uri);
+async function tryAddReadsFromEdge(projectGraph, sourceNode, targetNode, targetSymbol, sourceCodeText, createEdge) {
+  const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+  if (!cleanedSource.includes(targetSymbol.name)) {
+    log.debug(`[LSP] Skipping '${targetSymbol.name}' \u2014 not found in source of '${sourceNode.label}'`);
+    return;
+  }
+  const references = await getReferencesForSymbol(targetSymbol);
+  if (!references) {
+    log.debug(`[LSP]  No references found for '${targetSymbol.name}'`);
+    return;
+  }
+  const nodesByFile = getNodesByFile(projectGraph.nodes);
+  for (const ref of references) {
+    const container = findEnclosingFunctionOrMethodNode(nodesByFile, {
+      uri: ref.uri.toString(),
+      range: ref.range
+    });
+    if (container) {
+      log.debug(`[LSP] Reference found within function: ${container.label}`);
+    }
+    if (container && container.id === sourceNode.id) {
+      log.debug(`[LSP] \u{1F3AF} READS_FROM: '${sourceNode.label}' \u2192 '${targetNode.label}'`);
+      createEdge(sourceNode.id, targetNode.id, "READS_FROM");
+      return;
+    }
+  }
+  log.debug(`[LSP] \u{1F9ED} No reference found within container '${sourceNode.label}'`);
+}
+function findEnclosingFunctionOrMethodNode(nodesByFile, ref) {
+  const nodesInFile = nodesByFile.get(ref.uri) ?? [];
   const pos = ref.range.start;
   return nodesInFile.find((n) => {
     const range = n.data.range;
@@ -1031,9 +1080,84 @@ function findEnclosingFunctionOrMethodNode(nodes, ref) {
   });
 }
 
+// src/graph/edge_creator.ts
+async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEdge, projectRoot, generatedNodeIds, cachedPackages) {
+  log.debug(`[GraphBuilder] Creating edges...`);
+  const classNodeIndex = /* @__PURE__ */ new Map();
+  for (const node of projectGraph.nodes) {
+    if (node.kind === "class") {
+      classNodeIndex.set(node.label, node);
+    }
+  }
+  const symbolNameIndex = /* @__PURE__ */ new Map();
+  for (const enriched of symbolMapById.values()) {
+    const name = enriched.name;
+    if (!symbolNameIndex.has(name)) symbolNameIndex.set(name, []);
+    symbolNameIndex.get(name).push(enriched);
+  }
+  const nodeBySymbol = /* @__PURE__ */ new Map();
+  for (const node of projectGraph.nodes) {
+    const sym = symbolMapById.get(node.id);
+    if (sym) nodeBySymbol.set(sym, node);
+  }
+  const symbolPatterns = /* @__PURE__ */ new Map();
+  for (const name of symbolNameIndex.keys()) {
+    symbolPatterns.set(name, new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`));
+  }
+  log.debug(`[EdgeCreator] Pre-compiled ${symbolPatterns.size} RegExp patterns.`);
+  for (const sourceNode of projectGraph.nodes) {
+    const sourceSymbol = symbolMapById.get(sourceNode.id);
+    if (!sourceSymbol) continue;
+    if (sourceSymbol.relations) {
+      sourceSymbol.relations.extends?.forEach((ext) => {
+        const parentName = typeof ext === "string" ? ext : ext.name;
+        const baseName = parentName.split("<")[0].trim();
+        const targetNode = classNodeIndex.get(baseName);
+        if (targetNode) createEdge(sourceNode.id, targetNode.id, "EXTENDS");
+      });
+      sourceSymbol.relations.implements?.forEach((impl) => {
+        const interfaceName = typeof impl === "string" ? impl : impl.name;
+        const baseName = interfaceName.split("<")[0].trim();
+        const targetNode = classNodeIndex.get(baseName);
+        if (targetNode) createEdge(sourceNode.id, targetNode.id, "IMPLEMENTS");
+      });
+    }
+    if (sourceNode.kind === "method" || sourceNode.kind === "function" || sourceNode.kind === "constructor") {
+      const sourceCodeText = getSourceCodeForSymbol(sourceSymbol);
+      if (!sourceCodeText) continue;
+      const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+      const mentionedNames = [];
+      for (const [name, pattern] of symbolPatterns) {
+        if (pattern.test(cleanedSource)) {
+          mentionedNames.push(name);
+        }
+      }
+      for (const targetName of mentionedNames) {
+        const targetSymbols = symbolNameIndex.get(targetName);
+        for (const targetSymbol of targetSymbols) {
+          const targetNode = nodeBySymbol.get(targetSymbol);
+          if (!targetNode || sourceNode.id === targetNode.id) continue;
+          if (targetNode.kind === "method" || targetNode.kind === "function") {
+            createEdge(sourceNode.id, targetNode.id, "CALLS");
+          } else {
+            await tryAddReadsFromEdge(
+              projectGraph,
+              sourceNode,
+              targetNode,
+              targetSymbol,
+              sourceCodeText,
+              createEdge
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
 // src/packages/package_discovery.ts
 var import_path3 = __toESM(require("path"));
-var vscode11 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var fs8 = __toESM(require("fs"));
 
 // src/packages/package_analyzer.ts
@@ -1163,7 +1287,7 @@ function findAllPackages(searchStartPath) {
         log.debug(`   original URI: ${pkg.rootUri}`);
         let packagePath;
         if (pkg.rootUri.startsWith("file://")) {
-          packagePath = vscode11.Uri.parse(pkg.rootUri).fsPath;
+          packagePath = vscode12.Uri.parse(pkg.rootUri).fsPath;
         } else {
           const dartToolDir = import_path3.default.dirname(packageConfigPath);
           packagePath = import_path3.default.resolve(dartToolDir, pkg.rootUri);
@@ -1192,16 +1316,16 @@ function findAllPackages(searchStartPath) {
 }
 
 // src/packages/graph_integration/container_nodes.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 function createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds) {
   log.debug(`[PackageContainers] Creating container nodes for${externalPackages.length} paquetes...`);
   for (const pkg of externalPackages) {
     const containerNodeId = `package_container:${pkg.name}`;
     if (!generatedNodeIds.has(containerNodeId)) {
       generatedNodeIds.add(containerNodeId);
-      const fakeRange = new vscode12.Range(
-        new vscode12.Position(0, 0),
-        new vscode12.Position(0, pkg.name.length)
+      const fakeRange = new vscode13.Range(
+        new vscode13.Position(0, 0),
+        new vscode13.Position(0, pkg.name.length)
       );
       const containerNode = {
         id: containerNodeId,
@@ -1238,14 +1362,18 @@ function createPackageContainerNodes(externalPackages, projectGraph, generatedNo
 // src/packages/graph_integration/dependency_edges.ts
 function createInterPackageDependencyEdges(projectGraph, externalPackages, createEdge) {
   log.debug(`[InterPackageDeps] Analyzing dependencies between packages...`);
+  const nodeMap = /* @__PURE__ */ new Map();
+  for (const node of projectGraph.nodes) {
+    nodeMap.set(node.id, node);
+  }
   const packageContainerMap = /* @__PURE__ */ new Map();
   for (const pkg of externalPackages) {
     packageContainerMap.set(pkg.name, `package_container:${pkg.name}`);
   }
   let interPackageEdges = 0;
   for (const edge of projectGraph.edges) {
-    const sourceNode = projectGraph.nodes.find((n) => n.id === edge.source);
-    const targetNode = projectGraph.nodes.find((n) => n.id === edge.target);
+    const sourceNode = nodeMap.get(edge.source);
+    const targetNode = nodeMap.get(edge.target);
     if (!sourceNode || !targetNode) continue;
     const sourcePackage = sourceNode.data.source?.packageName;
     const targetPackage = targetNode.data.source?.packageName;
@@ -1261,8 +1389,7 @@ function createInterPackageDependencyEdges(projectGraph, externalPackages, creat
     if (!sourcePackage && targetPackage) {
       const targetContainerId = packageContainerMap.get(targetPackage);
       if (targetContainerId) {
-        const projectContainerId = "project_root";
-        createEdge(projectContainerId, targetContainerId, "USES_AS_TYPE");
+        createEdge("project_root", targetContainerId, "USES_AS_TYPE");
       }
     }
   }
@@ -1271,11 +1398,11 @@ function createInterPackageDependencyEdges(projectGraph, externalPackages, creat
 
 // src/packages/source_detector.ts
 var import_path4 = __toESM(require("path"));
-var vscode13 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 function determineFileSource(fileUri, allPackages) {
   try {
     if (!fileUri) return { type: "project" };
-    const filePath = vscode13.Uri.parse(fileUri).fsPath;
+    const filePath = vscode14.Uri.parse(fileUri).fsPath;
     if (filePath.includes("dart-sdk/lib") || filePath.includes("flutter/bin/cache/dart-sdk")) {
       return { type: "sdk", packageType: "sdk" };
     }
@@ -1327,9 +1454,9 @@ function assignNodesToPackageContainers(projectGraph, externalPackages) {
 }
 
 // src/packages/graph_integration/integration.ts
-async function integrateExternalPackages(projectGraph, projectRoot, generatedNodeIds, createEdge) {
+async function integrateExternalPackages(projectGraph, projectRoot, generatedNodeIds, createEdge, cachedPackages) {
   log.debug(`[ExternalPackages] \u{1F50D} Integrating external packages..`);
-  const externalPackages = findAllPackages(projectRoot);
+  const externalPackages = cachedPackages ?? findAllPackages(projectRoot);
   if (externalPackages.length === 0) {
     log.debug(`[ExternalPackages] No relevant external packages found`);
     return;
@@ -1340,125 +1467,41 @@ async function integrateExternalPackages(projectGraph, projectRoot, generatedNod
   log.debug(`[ExternalPackages] \u2705 External package integration completed`);
 }
 
-// src/graph/edge_creator.ts
-async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEdge, projectRoot, generatedNodeIds) {
-  log.debug(`[GraphBuilder] Creating edges...`);
-  if (projectRoot && generatedNodeIds) {
-    log.debug(`[GraphBuilder] Integrating external packages...`);
-    const nodesBefore = projectGraph.nodes.length;
-    await integrateExternalPackages(
-      projectGraph,
-      projectRoot,
-      generatedNodeIds,
-      createEdge
-    );
-    const nodesAfter = projectGraph.nodes.length;
-    log.debug(`Package containers created: ${nodesAfter - nodesBefore}`);
-  }
-  const symbolNameIndex = /* @__PURE__ */ new Map();
-  for (const enriched of symbolMapById.values()) {
-    const name = enriched.name;
-    if (!symbolNameIndex.has(name)) {
-      symbolNameIndex.set(name, []);
-    }
-    symbolNameIndex.get(name).push(enriched);
-  }
-  for (const sourceNode of projectGraph.nodes) {
-    const sourceSymbol = symbolMapById.get(sourceNode.id);
-    if (!sourceSymbol) {
-      log.debug(`\u26A0\uFE0F Node without symbol: ${sourceNode.id}`);
-      continue;
-    }
-    if (sourceSymbol.relations) {
-      log.debug(`[DEBUG] ${sourceSymbol.name} relations: ${JSON.stringify(sourceSymbol.relations)}`);
-      const findClassNodeByName = (name) => {
-        const baseName = name.split("<")[0].trim();
-        return projectGraph.nodes.find((n) => n.kind === "class" && n.label === baseName);
-      };
-      sourceSymbol.relations.extends?.forEach((ext) => {
-        const parentName = typeof ext === "string" ? ext : ext.name;
-        const targetNode = findClassNodeByName(parentName);
-        if (targetNode) createEdge(sourceNode.id, targetNode.id, "EXTENDS");
-      });
-      sourceSymbol.relations.implements?.forEach((impl) => {
-        const interfaceName = typeof impl === "string" ? impl : impl.name;
-        const targetNode = findClassNodeByName(interfaceName);
-        if (targetNode) createEdge(sourceNode.id, targetNode.id, "IMPLEMENTS");
-      });
-    }
-    if (sourceNode.kind === "method" || sourceNode.kind === "function" || sourceNode.kind === "constructor") {
-      const sourceCodeText = getSourceCodeForSymbol(sourceSymbol);
-      if (!sourceCodeText) return;
-      log.debug(`[DEBUG] ${sourceSymbol.name} - sourceCodeText length: ${sourceCodeText?.length}`);
-      const cleanedSource = stripCommentsAndStrings(sourceCodeText);
-      const mentionedNames = Array.from(symbolNameIndex.keys()).filter((name) => {
-        const callPattern = new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`);
-        return callPattern.test(cleanedSource);
-      });
-      log.debug(`[DEBUG] ${sourceSymbol.name} mentions: ${mentionedNames.join(", ")}`);
-      for (const targetName of mentionedNames) {
-        const targetSymbols = symbolNameIndex.get(targetName);
-        for (const targetSymbol of targetSymbols) {
-          const targetNode = projectGraph.nodes.find(
-            (n) => symbolMapById.get(n.id) === targetSymbol
-          );
-          if (!targetNode || sourceNode.id === targetNode.id) continue;
-          if (targetNode.kind === "method" || targetNode.kind === "function") {
-            createEdge(sourceNode.id, targetNode.id, "CALLS");
-          } else {
-            await tryAddReadsFromEdge(
-              projectGraph,
-              sourceNode,
-              targetNode,
-              targetSymbol,
-              sourceCodeText,
-              createEdge
-            );
-          }
-        }
-      }
-    }
-  }
-  ;
-}
-
 // src/graph/graph_builder.ts
 var import_path5 = __toESM(require("path"));
 async function buildGraphModel(enrichedFiles, projectRoot) {
+  clearFileContentCache();
+  clearNodesByFileCache();
   const projectGraph = { nodes: [], edges: [] };
   const generatedNodeIds = /* @__PURE__ */ new Set();
   const symbolMapById = /* @__PURE__ */ new Map();
   let edgeIdCounter = 0;
   const edgeCounts = {};
+  const edgeSet = /* @__PURE__ */ new Set();
   const createEdge = (sourceId, targetId, label) => {
-    if (sourceId && targetId && sourceId !== targetId && generatedNodeIds.has(sourceId) && generatedNodeIds.has(targetId)) {
-      const edgeExists = projectGraph.edges.some((e) => e.source === sourceId && e.target === targetId && e.label === label);
-      if (!edgeExists) {
-        projectGraph.edges.push({ id: `e${edgeIdCounter++}`, source: sourceId, target: targetId, label });
-        if (label) {
-          edgeCounts[label] = (edgeCounts[label] || 0) + 1;
-        }
-      }
-    }
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    if (!generatedNodeIds.has(sourceId) || !generatedNodeIds.has(targetId)) return;
+    const edgeKey = `${sourceId}|${targetId}|${label}`;
+    if (edgeSet.has(edgeKey)) return;
+    edgeSet.add(edgeKey);
+    projectGraph.edges.push({ id: `e${edgeIdCounter++}`, source: sourceId, target: targetId, label });
+    if (label) edgeCounts[label] = (edgeCounts[label] || 0) + 1;
   };
   log.debug(`[GraphBuilder] Creating nodes...`);
   createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById, generateGlobalSymbolId, generatedNodeIds);
   log.debug(`  -> ${projectGraph.nodes.length} nodes created.`);
-  log.debug(`[GraphBuilder] \u{1F50D} Validating constructors and detail...`);
-  log.debug(`[GraphBuilder] Creating edges...`);
+  log.debug(`[GraphBuilder] Calling findAllPackages once...`);
+  const allPackages = projectRoot ? findAllPackages(projectRoot) : [];
+  log.debug(`[GraphBuilder] Found ${allPackages.length} packages`);
   if (projectRoot) {
     log.debug(`[GraphBuilder] Extracting symbols from external packages...`);
-    const externalSymbols = await extractSymbolsFromExternalPackages(projectRoot);
+    const externalSymbols = await extractSymbolsFromExternalPackages(projectRoot, allPackages);
     for (const [id, symbol] of externalSymbols) {
       symbolMapById.set(id, symbol);
     }
     if (externalSymbols.size > 0) {
-      const externalFileData = [{
-        fileUri: "external_packages",
-        symbols: Array.from(externalSymbols.values())
-      }];
       createGraphNodesFromSymbols(
-        externalFileData,
+        [{ fileUri: "external_packages", symbols: Array.from(externalSymbols.values()) }],
         projectGraph,
         symbolMapById,
         generateGlobalSymbolId,
@@ -1467,42 +1510,32 @@ async function buildGraphModel(enrichedFiles, projectRoot) {
       log.debug(`-> ${externalSymbols.size} external symbols added`);
     }
   }
-  const symbolNameIndex = /* @__PURE__ */ new Map();
-  for (const enriched of symbolMapById.values()) {
-    const name = enriched.name;
-    if (!symbolNameIndex.has(name)) {
-      symbolNameIndex.set(name, []);
-    }
-    symbolNameIndex.get(name).push(enriched);
-  }
-  await createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEdge, projectRoot, generatedNodeIds);
-  log.debug(`[GraphBuilder] Edge Breakdown:: ${JSON.stringify(edgeCounts)}`);
-  log.debug(`  -> Final total of edges: ${projectGraph.edges.length}`);
-  if (projectRoot) {
+  await createGraphEdgesFromSymbols(
+    projectGraph,
+    symbolMapById,
+    createEdge,
+    projectRoot,
+    generatedNodeIds,
+    allPackages
+  );
+  log.debug(`[GraphBuilder] Edge breakdown: ${JSON.stringify(edgeCounts)}`);
+  log.debug(`  -> Final total edges: ${projectGraph.edges.length}`);
+  if (projectRoot && allPackages.length > 0) {
     log.debug(`[GraphBuilder] \u{1F4E6} Integrating external packages...`);
     const nodesBefore = projectGraph.nodes.length;
     await integrateExternalPackages(
       projectGraph,
       projectRoot,
       generatedNodeIds,
-      createEdge
+      createEdge,
+      allPackages
     );
-    const nodesAfter = projectGraph.nodes.length;
     const packageContainers = projectGraph.nodes.filter((n) => n.kind === "package_container");
-    log.debug(`[GraphBuilder] \u2705 External packages integrated:`);
-    log.debug(`    \u2022 Nodes before: ${nodesBefore}, despu\xE9s: ${nodesAfter}`);
-    log.debug(`    \u2022 Package containers created: ${packageContainers.length}`);
-    log.debug(`    \u2022 Names: ${packageContainers.map((p) => p.label).join(", ")}`);
-    if (packageContainers.length > 0) {
-      log.debug(`  \u2022 Package containers found:`);
-      packageContainers.forEach((node) => {
-        log.debug(`    - ${node.label} (${node.data.source?.packageType || "unknown"})`);
-      });
-    } else {
-      log.debug(`  \u274C NO PACKAGE CONTAINERS FOUND - ISSUE IN EXTENSION`);
-    }
-    log.debug(`[GraphBuilder] \u2705 External packages integrated. Final nodes: ${projectGraph.nodes.length}, Aristas finales: ${projectGraph.edges.length}`);
+    log.debug(`[GraphBuilder] \u2705 Nodes before: ${nodesBefore}, after: ${projectGraph.nodes.length}`);
+    log.debug(`    \u2022 Package containers: ${packageContainers.map((p) => p.label).join(", ")}`);
   }
+  clearFileContentCache();
+  clearNodesByFileCache();
   return projectGraph;
 }
 function getRelevantExternalPackages(packages) {
@@ -1510,9 +1543,8 @@ function getRelevantExternalPackages(packages) {
     (pkg) => pkg.type === "third_party" || pkg.type === "custom" || pkg.type === "flutter_official" && !["flutter", "flutter_test"].includes(pkg.name)
   );
 }
-async function extractSymbolsFromExternalPackages(projectRoot) {
+async function extractSymbolsFromExternalPackages(projectRoot, allPackages) {
   const externalSymbols = /* @__PURE__ */ new Map();
-  const allPackages = findAllPackages(projectRoot);
   const relevantPackages = getRelevantExternalPackages(allPackages);
   for (const pkg of relevantPackages) {
     if (!pkg.hasLibFolder || pkg.dartFiles.length === 0) continue;
@@ -1522,8 +1554,8 @@ async function extractSymbolsFromExternalPackages(projectRoot) {
     }).slice(0, 1);
     for (const dartFile of mainFiles) {
       try {
-        const fileUri = vscode14.Uri.file(dartFile);
-        const symbols = await vscode14.commands.executeCommand(
+        const fileUri = vscode15.Uri.file(dartFile);
+        const symbols = await vscode15.commands.executeCommand(
           "vscode.executeDocumentSymbolProvider",
           fileUri
         );
@@ -1539,10 +1571,10 @@ async function extractSymbolsFromExternalPackages(projectRoot) {
 var resolvedTypesCache = /* @__PURE__ */ new Map();
 
 // src/analysis/symbol_processor.ts
-var vscode19 = __toESM(require("vscode"));
+var vscode20 = __toESM(require("vscode"));
 
 // src/analysis/enrichment/basic_enrichment.ts
-var vscode15 = __toESM(require("vscode"));
+var vscode16 = __toESM(require("vscode"));
 function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies) {
   log.debug(`${logPrefix}  [Basic Info] Enriching  '${enrichedSym.name}'...`);
   enrichedSym.fileUri = enrichedSym.fileUri || currentFileUri;
@@ -1553,7 +1585,7 @@ function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencie
   if (enrichedSym.parentId) {
     log.debug(`${logPrefix}   \u21B3 parentId: ${enrichedSym.parentId}`);
   }
-  if (enrichedSym.kind === vscode15.SymbolKind.Class) {
+  if (enrichedSym.kind === vscode16.SymbolKind.Class) {
     const classKey = `${enrichedSym.fileUri}#${enrichedSym.name.split("<")[0].trim()}`;
     log.debug(`${logPrefix}    \u21B3 It's a class. Searching relationships with key:  "${classKey}"`);
     const relations = dependencies.projectClassRelations.get(classKey);
@@ -1577,36 +1609,65 @@ function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencie
 }
 
 // src/analysis/enrichment/detail_enrichment.ts
-var vscode17 = __toESM(require("vscode"));
+var vscode18 = __toESM(require("vscode"));
 
 // src/analysis/enrichment/type-resolver.ts
-var vscode16 = __toESM(require("vscode"));
+var vscode17 = __toESM(require("vscode"));
+var _typeIndex = null;
+function buildTypeIndex(allProjectFilesData) {
+  _typeIndex = /* @__PURE__ */ new Map();
+  for (const file of allProjectFilesData) {
+    for (const symbol of file.symbols) {
+      if (symbol.kind === vscode17.SymbolKind.Class || symbol.kind === vscode17.SymbolKind.Enum || symbol.kind === 22) {
+        if (!_typeIndex.has(symbol.name)) {
+          _typeIndex.set(symbol.name, symbol);
+        }
+      }
+    }
+  }
+  log.debug(`[TypeIndex] Built index with ${_typeIndex.size} types.`);
+}
+function clearTypeIndex() {
+  _typeIndex = null;
+  log.debug(`[TypeIndex] Index cleared.`);
+}
 async function resolveTypeByName(typeName, dependencies) {
-  const { allProjectFilesData } = dependencies;
   const baseTypeName = parseBaseTypeName(typeName);
   if (!baseTypeName) return void 0;
   if (resolvedTypesCache.has(typeName)) {
-    log.debug(`\u{1F9E0} [Cache HIT] ${typeName}`);
+    log.debug(` [Cache HIT] ${typeName}`);
     return resolvedTypesCache.get(typeName);
   }
-  for (const file of allProjectFilesData) {
-    for (const symbol of file.symbols) {
-      if ((symbol.kind === vscode16.SymbolKind.Class || symbol.kind === vscode16.SymbolKind.Enum || symbol.kind === 22) && symbol.name === baseTypeName) {
-        const result = {
-          name: typeName,
-          definition: {
-            name: symbol.name,
-            kind: symbol.kind,
-            fileUri: symbol.fileUri,
-            selectionRange: symbol.selectionRange,
-            isSDK: !!symbol.isSDK
-          }
-        };
-        resolvedTypesCache.set(typeName, result);
-        log.debug(`\u{1F4E6} [Cache SET] ${typeName}`);
-        return result;
+  let foundSymbol;
+  if (_typeIndex) {
+    foundSymbol = _typeIndex.get(baseTypeName);
+    log.debug(`\u{1F5C2}\uFE0F [Index ${foundSymbol ? "HIT" : "MISS"}] ${baseTypeName}`);
+  } else {
+    log.debug(`\u26A0\uFE0F [TypeIndex] Index not built, falling back to linear search for '${baseTypeName}'`);
+    for (const file of dependencies.allProjectFilesData) {
+      for (const symbol of file.symbols) {
+        if ((symbol.kind === vscode17.SymbolKind.Class || symbol.kind === vscode17.SymbolKind.Enum || symbol.kind === 22) && symbol.name === baseTypeName) {
+          foundSymbol = symbol;
+          break;
+        }
       }
+      if (foundSymbol) break;
     }
+  }
+  if (foundSymbol) {
+    const result = {
+      name: typeName,
+      definition: {
+        name: foundSymbol.name,
+        kind: foundSymbol.kind,
+        fileUri: foundSymbol.fileUri,
+        selectionRange: foundSymbol.selectionRange,
+        isSDK: !!foundSymbol.isSDK
+      }
+    };
+    resolvedTypesCache.set(typeName, result);
+    log.debug(`\u{1F4E6} [Cache SET] ${typeName}`);
+    return result;
   }
   const fallbackResult = { name: typeName };
   resolvedTypesCache.set(typeName, fallbackResult);
@@ -1620,7 +1681,7 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
   log.debug(`[DEBUG-ENRICH-DETAIL] Enriching ${symbol.name}, detail: ${symbol.detail}`);
   log.debug(`${logPrefix}  [DEBUG] symbol.kind: ${symbol.kind}, symbol.detail: ${symbol.detail}`);
   log.debug(`${logPrefix}  [Type Detail] Analyzing detail: "${symbol.detail}"`);
-  if ((symbol.kind === vscode17.SymbolKind.Field || symbol.kind === vscode17.SymbolKind.Property) && !enrichedSym.resolvedType) {
+  if ((symbol.kind === vscode18.SymbolKind.Field || symbol.kind === vscode18.SymbolKind.Property) && !enrichedSym.resolvedType) {
     const fieldTypeMatch = symbol.detail.match(
       /^\s*(?:(?:@[\w.]+\s*)*(?:late|final|const|static|required|covariant)\s+)*([\w<>\[\]\{\},?().\s]+?)\s+[\w$]+\s*(?:=.*)?$/
     );
@@ -1784,7 +1845,7 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
       }
       log.debug(`${logPrefix}  \u21B3 Detail: Resolved types for ${enrichedSym.parameters.length} parameters in '${symbol.name}'.`);
     }
-    if (symbol.kind !== vscode17.SymbolKind.Constructor && !enrichedSym.returnType) {
+    if (symbol.kind !== vscode18.SymbolKind.Constructor && !enrichedSym.returnType) {
       const normalizedDetail = symbol.detail.replace(/@[\w.]+\s*/g, "").replace(/\b(static|external|async|sync|factory|late|final|const|required)\b\s*/g, "").trim();
       const escapedName = symbol.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const returnTypeRegex = new RegExp(
@@ -1803,7 +1864,7 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
       }
     }
   }
-  if (symbol.kind === vscode17.SymbolKind.Constructor && enrichedSym.parameters?.length === 0 && /^\s*\(\s*\{\s*this\.[\w$]+/.test(symbol.detail)) {
+  if (symbol.kind === vscode18.SymbolKind.Constructor && enrichedSym.parameters?.length === 0 && /^\s*\(\s*\{\s*this\.[\w$]+/.test(symbol.detail)) {
     const fallbackThisRegex = /this\.([\w$]+)/g;
     const fallbackParams = [];
     let match;
@@ -1874,76 +1935,106 @@ ${codeSnippet}`);
 }
 
 // src/lsp/hover_enrichment.ts
-var vscode18 = __toESM(require("vscode"));
+var vscode19 = __toESM(require("vscode"));
+var hoverCache = /* @__PURE__ */ new Map();
+function clearHoverCache() {
+  hoverCache.clear();
+  log.debug(`[HoverCache] Cache cleared.`);
+}
 async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
-  const needsTypeInfo = (enrichedSym.kind === vscode18.SymbolKind.Field || enrichedSym.kind === vscode18.SymbolKind.Property) && !enrichedSym.resolvedType || (enrichedSym.kind === vscode18.SymbolKind.Method || enrichedSym.kind === vscode18.SymbolKind.Function) && !enrichedSym.returnType || enrichedSym.kind === vscode18.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0);
+  const needsTypeInfo = (enrichedSym.kind === vscode19.SymbolKind.Field || enrichedSym.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType || (enrichedSym.kind === vscode19.SymbolKind.Method || enrichedSym.kind === vscode19.SymbolKind.Function) && !enrichedSym.returnType || enrichedSym.kind === vscode19.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0);
   if (!enrichedSym.fileUri || !enrichedSym.selectionRange || !needsTypeInfo) {
     log.debug(`${logPrefix}  \u26A0\uFE0F Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) \u2192 needsTypeInfo: ${needsTypeInfo}`);
     return;
   }
   if (enrichedSym.hoverChecked) return;
   enrichedSym.hoverChecked = true;
-  const escapedSymName = escapeRegExp(enrichedSym.name);
-  try {
-    const hoverResultArray = await vscode18.commands.executeCommand(
-      "vscode.executeHoverProvider",
-      vscode18.Uri.parse(enrichedSym.fileUri),
-      enrichedSym.selectionRange.start
-    );
-    const hoverResult = hoverResultArray && hoverResultArray.length > 0 ? hoverResultArray[0] : null;
-    if (!hoverResult?.contents?.length) {
+  const { line, character } = enrichedSym.selectionRange.start;
+  const positionKey = `${enrichedSym.fileUri}:${line}:${character}`;
+  let contentString;
+  if (hoverCache.has(positionKey)) {
+    contentString = hoverCache.get(positionKey);
+    log.debug(`${logPrefix}  [HoverCache HIT] ${positionKey}`);
+  } else {
+    try {
+      const hoverResultArray = await vscode19.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        vscode19.Uri.parse(enrichedSym.fileUri),
+        enrichedSym.selectionRange.start
+      );
+      const hoverResult = hoverResultArray && hoverResultArray.length > 0 ? hoverResultArray[0] : null;
+      if (!hoverResult?.contents?.length) {
+        hoverCache.set(positionKey, null);
+        return;
+      }
+      contentString = hoverResult.contents.map(
+        (content) => typeof content === "string" ? content : content.value
+      ).join("\n");
+      hoverCache.set(positionKey, contentString);
+      log.debug(`${logPrefix}  \u{1F4E6} [HoverCache SET] ${positionKey}`);
+    } catch (e) {
+      log.error(`${logPrefix}  \u26A0\uFE0F Error in Hover for ${enrichedSym.name}: ${e.message}`);
+      hoverCache.set(positionKey, null);
       return;
     }
-    log.debug(`${logPrefix}  \u{1F9EA} Checking if '${enrichedSym.name}' is constructor`);
-    log.debug(`${logPrefix}     \u2192 kind: ${enrichedSym.kind} (${vscode18.SymbolKind[enrichedSym.kind]})`);
-    log.debug(`${logPrefix}     \u2192 parameters: ${enrichedSym.parameters?.length ?? "undefined"}`);
-    const contentString = hoverResult.contents.map(
-      (content) => typeof content === "string" ? content : content.value
-    ).join("\n");
-    if ((enrichedSym.kind === vscode18.SymbolKind.Field || enrichedSym.kind === vscode18.SymbolKind.Property) && !enrichedSym.resolvedType) {
-      const fieldRegex = new RegExp("```dart\\s*(?:[\\w\\s]+\\s)?(.+?)\\s+" + escapedSymName);
-      const match = contentString.match(fieldRegex);
-      if (match && match[1]) {
-        enrichedSym.resolvedType = match[1].trim();
-        log.debug(`${logPrefix}  \u21B3 Hover: Field '${enrichedSym.name}' resolved type: ${enrichedSym.resolvedType}`);
-      }
-    } else if ((enrichedSym.kind === vscode18.SymbolKind.Method || enrichedSym.kind === vscode18.SymbolKind.Function) && !enrichedSym.returnType) {
-      const methodRegex = new RegExp("```dart\\s*(?:static\\s+)?(.+?)\\s+(?:get\\s+)?[\"'`]?" + escapedSymName + "[\"'`]?s*\\(");
-      const match = contentString.match(methodRegex);
-      if (match && match[1]) {
-        const returnType = match[1].trim();
-        if (returnType.toLowerCase() !== "void") {
-          enrichedSym.returnType = returnType;
-          log.debug(`${logPrefix}  \u21B3 Hover: Method '${enrichedSym.name}' return type: ${enrichedSym.returnType}`);
-        }
-      }
-    } else if (enrichedSym.kind === vscode18.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0)) {
-      log.debug(`${logPrefix}  [DEBUG-CONSTRUCTOR] Constructor found: ${enrichedSym.name}`);
-      const paramRegex = /this\.(\w+)/g;
-      const matches = [...contentString.matchAll(paramRegex)];
-      if (matches.length > 0) {
-        enrichedSym.parameters = matches.map((match) => ({
-          name: match[1],
-          type: `self_field:${match[1]}`
-        }));
-        log.debug(`${logPrefix}  \u21B3 Hover: Constructor '${enrichedSym.name}' extracted parameters: ${enrichedSym.parameters.map((p) => p.name).join(", ")}`);
-      } else {
-        log.debug(`${logPrefix}  \u26A0\uFE0F Constructor '${enrichedSym.name}' without extractable parameters via hover`);
+  }
+  if (!contentString) return;
+  const escapedSymName = escapeRegExp(enrichedSym.name);
+  if ((enrichedSym.kind === vscode19.SymbolKind.Field || enrichedSym.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType) {
+    const fieldRegex = new RegExp("```dart\\s*(?:[\\w\\s]+\\s)?(.+?)\\s+" + escapedSymName);
+    const match = contentString.match(fieldRegex);
+    if (match?.[1]) {
+      enrichedSym.resolvedType = match[1].trim();
+      log.debug(`${logPrefix}  \u21B3 Hover: Field '${enrichedSym.name}' resolved type: ${enrichedSym.resolvedType}`);
+    }
+  } else if ((enrichedSym.kind === vscode19.SymbolKind.Method || enrichedSym.kind === vscode19.SymbolKind.Function) && !enrichedSym.returnType) {
+    const methodRegex = new RegExp("```dart\\s*(?:static\\s+)?(.+?)\\s+(?:get\\s+)?[\"'`]?" + escapedSymName + "[\"'`]?\\s*\\(");
+    const match = contentString.match(methodRegex);
+    if (match?.[1]) {
+      const returnType = match[1].trim();
+      if (returnType.toLowerCase() !== "void") {
+        enrichedSym.returnType = returnType;
+        log.debug(`${logPrefix}  \u21B3 Hover: Method '${enrichedSym.name}' return type: ${enrichedSym.returnType}`);
       }
     }
-  } catch (e) {
-    log.error(`${logPrefix}  \u26A0\uFE0F Error in Hover for ${enrichedSym.name}: ${e.message}`);
+  } else if (enrichedSym.kind === vscode19.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0)) {
+    log.debug(`${logPrefix}  [DEBUG-CONSTRUCTOR] Constructor found: ${enrichedSym.name}`);
+    const paramRegex = /this\.(\w+)/g;
+    const matches = [...contentString.matchAll(paramRegex)];
+    if (matches.length > 0) {
+      enrichedSym.parameters = matches.map((match) => ({
+        name: match[1],
+        type: `self_field:${match[1]}`
+      }));
+      log.debug(`${logPrefix}  \u21B3 Hover: Constructor '${enrichedSym.name}' extracted parameters: ${enrichedSym.parameters.map((p) => p.name).join(", ")}`);
+    } else {
+      log.debug(`${logPrefix}  \u26A0\uFE0F Constructor '${enrichedSym.name}' without extractable parameters via hover`);
+    }
   }
 }
 
 // src/analysis/symbol_processor.ts
+var LSP_CONCURRENCY_LIMIT = 5;
+async function withConcurrencyLimit(tasks, limit) {
+  const results = [];
+  let index = 0;
+  async function runNext() {
+    if (index >= tasks.length) return;
+    const current = index++;
+    results[current] = await tasks[current]();
+    await runNext();
+  }
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, runNext);
+  await Promise.all(workers);
+  return results;
+}
 async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, dependencies, depth = 0, parentEnrichedSymbol) {
   const logPrefix = "  ".repeat(depth);
   if (!symbolToProcess.selectionRange) {
-    log.debug(`${logPrefix}\u26A0\uFE0F Symbol '${symbolToProcess.name}' (Kind: ${symbolToProcess.kind}) skipped from enrichment. No selectionRange.`);
+    log.debug(`${logPrefix}\u26A0\uFE0F Symbol '${symbolToProcess.name}' skipped. No selectionRange.`);
     return symbolToProcess;
   }
-  log.debug(`${logPrefix}\u{1F50D} Processing symbol: ${symbolToProcess.name} (Kind: ${symbolToProcess.kind})`);
+  log.debug(`${logPrefix}\u{1F50D} Processing: ${symbolToProcess.name} (Kind: ${symbolToProcess.kind})`);
   const enrichedSym = {
     ...symbolToProcess,
     fileUri: symbolToProcess.fileUri ?? currentFileUri
@@ -1968,12 +2059,18 @@ async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, depend
     log.debug(`${logPrefix}\u26A0\uFE0F Error in enrichWithSourceRegexTypes: ${e instanceof Error ? e.message : e}`);
   }
   if (enrichedSym.children && enrichedSym.children.length > 0) {
-    const parentForNextRecursion = enrichedSym.kind === vscode19.SymbolKind.Class ? enrichedSym : parentEnrichedSymbol;
-    enrichedSym.children = await Promise.all(
-      enrichedSym.children.map(
-        (child) => processSymbolRecursiveLSP(child, enrichedSym.fileUri, dependencies, depth + 1, parentForNextRecursion)
+    const parentForNextRecursion = enrichedSym.kind === vscode20.SymbolKind.Class ? enrichedSym : parentEnrichedSymbol;
+    const tasks = enrichedSym.children.map(
+      (child) => () => processSymbolRecursiveLSP(
+        child,
+        enrichedSym.fileUri,
+        dependencies,
+        depth + 1,
+        parentForNextRecursion
       )
     );
+    log.debug(`${logPrefix} Processing ${tasks.length} children with concurrency limit ${LSP_CONCURRENCY_LIMIT}`);
+    enrichedSym.children = await withConcurrencyLimit(tasks, LSP_CONCURRENCY_LIMIT);
   }
   return enrichedSym;
 }
@@ -1981,17 +2078,17 @@ async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, depend
 // src/ui/webview_creator.ts
 async function createWebview(context, data) {
   function getLanguage() {
-    const config = vscode20.workspace.getConfiguration("satori");
+    const config = vscode21.workspace.getConfiguration("satori");
     return config.get("language", "en");
   }
-  const panel = vscode20.window.createWebviewPanel(
+  const panel = vscode21.window.createWebviewPanel(
     "astDiagram",
     "AST Diagram",
-    vscode20.ViewColumn.Beside,
+    vscode21.ViewColumn.Beside,
     {
       enableScripts: true,
       localResourceRoots: [
-        vscode20.Uri.joinPath(context.extensionUri, "media")
+        vscode21.Uri.joinPath(context.extensionUri, "media")
       ]
     }
   );
@@ -2004,58 +2101,60 @@ async function createWebview(context, data) {
   ].join("; ");
   log.debug("Starting data enrichment for webview..");
   resolvedTypesCache.clear();
-  const allFilePaths = data.files.map((f) => f.file);
+  clearHoverCache();
   const projectClassRelations = buildClassRelationsFromSymbols(data.files);
-  log.debug(`Verifying files and symbols before enrichment:`);
-  log.debug(`AST relations detected: ${projectClassRelations.size}classes.`);
+  log.debug(`AST relations detected: ${projectClassRelations.size} classes.`);
+  buildTypeIndex(data.files);
+  log.debug("[TypeIndex] Type index built \u2014 starting enrichment.");
   const processedFilesPromises = data.files.map(async (f_item) => {
     const fileContent = fs9.readFileSync(f_item.file, "utf8");
-    const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode20.Uri.file(f_item.file).toString();
+    const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode21.Uri.file(f_item.file).toString();
     const enrichmentDeps = {
       projectClassRelations,
       fileContent,
       allProjectFilesData: data.files.map((df) => ({
         ...df,
-        fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode20.Uri.file(df.file).toString()
+        fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode21.Uri.file(df.file).toString()
       }))
     };
     const processedSymbols = f_item.symbols ? await Promise.all(f_item.symbols.map(
-      (sym) => {
-        return processSymbolRecursiveLSP(
-          sym,
-          fileUriString,
-          enrichmentDeps,
-          0,
-          void 0
-        );
-      }
+      (sym) => processSymbolRecursiveLSP(sym, fileUriString, enrichmentDeps, 0, void 0)
     )) : [];
     return { ...f_item, fileUri: fileUriString, symbols: processedSymbols };
   });
   data.files = await Promise.all(processedFilesPromises);
   log.debug("\u2705 Deep enrichment of all files completed.");
+  clearTypeIndex();
+  log.debug("\u2705 Deep enrichment of all files completed.");
   log.debug("Phase 2: Building project graph model...");
   const projectGraph = await buildGraphModel(data.files, data.projectRoot);
-  log.debug(`Phase 2: Graph model built. Nodes:  Nodos: ${projectGraph.nodes.length}, Aristas: ${projectGraph.edges.length}`);
+  log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
   log.debug("Calculating coupling degrees (in/out degree) of nodes...");
   calculateNodeDegrees(projectGraph);
   log.debug("\u2705 Coupling degrees calculated.");
-  log.debug("Phase 2 (Continuation): Starting resolution of this.fieldName in constructors...");
+  log.debug("Phase 3: Starting resolution of this.fieldName in constructors...");
+  const existingUniqueIds = /* @__PURE__ */ new Set();
   data.files.forEach((fileData) => {
-    const existingUniqueIds = /* @__PURE__ */ new Set();
+    function collectUniqueIds(symbols) {
+      if (!symbols) return;
+      for (const s of symbols) {
+        if (s.uniqueId) existingUniqueIds.add(s.uniqueId);
+        if (s.children) collectUniqueIds(s.children);
+      }
+    }
+    collectUniqueIds(fileData.symbols);
+  });
+  data.files.forEach((fileData) => {
     function findClassAndResolveThisFieldsRecursive(symbols) {
       if (!symbols) return;
       for (const s of symbols) {
         log.debug(`[DEBUG-KIND-CHECK] Symbol: ${s.name}, kind: ${s.kind}, children: ${s.children?.length ?? 0}`);
-        if (s.uniqueId) {
-          existingUniqueIds.add(s.uniqueId);
-        }
-        if (s.kind === 5 && s.children) {
+        if (s.kind === vscode21.SymbolKind.Class && s.children) {
           const classSymbol = s;
           log.debug(`[DEBUG-CLASS] Class detected: ${classSymbol.name}`);
           classSymbol.children?.forEach((member) => {
             log.debug(`[DEBUG-MEMBER] ${classSymbol.name}.${member.name || "(anon)"} - kind: ${member.kind}, params: ${member.parameters?.length ?? 0}`);
-            if (member.kind === 9) {
+            if (member.kind === vscode21.SymbolKind.Constructor) {
               log.debug(`[DEBUG-CONSTRUCTOR] Constructor found: ${member.name}`);
               if (!member.parameters || member.parameters.length === 0) {
                 if (member.detail?.includes("this.")) {
@@ -2067,26 +2166,26 @@ async function createWebview(context, data) {
               if (member.parameters && member.parameters.length > 0) {
                 if (!member.parentId && classSymbol.uniqueId) {
                   member.parentId = classSymbol.uniqueId;
-                  log.debug(`[DEBUG-RELATIONSHIP] Established parent of constructor  ${member.name || "(default)"} -> ${classSymbol.uniqueId}`);
+                  log.debug(`[DEBUG-RELATIONSHIP] Established parent of constructor ${member.name || "(default)"} -> ${classSymbol.uniqueId}`);
                 }
                 log.debug(`  [ResolveThisField] Processing constructor ${classSymbol.name}.${member.name || "(default)"}`);
                 member.parameters.forEach((param) => {
                   if (param.type?.startsWith("self_field:")) {
                     const fieldName = param.type.substring("self_field:".length);
                     const fieldSymbol = classSymbol.children?.find(
-                      (f) => f.name === fieldName && (f.kind === 7 || f.kind === 8)
+                      (f) => f.name === fieldName && (f.kind === vscode21.SymbolKind.Field || f.kind === vscode21.SymbolKind.Constructor)
                     );
                     if (fieldSymbol) {
                       if (fieldSymbol.resolvedType) {
-                        log.debug(`    \u21B3 Param '${param.name || fieldName}' (this.${fieldName}): tipo actualizado de '${param.type}' a '${fieldSymbol.resolvedType}'. Def. enlazada: ${!!fieldSymbol.resolvedTypeRef?.definition}`);
+                        log.debug(`    \u21B3 Param '${param.name || fieldName}' (this.${fieldName}): type updated from '${param.type}' to '${fieldSymbol.resolvedType}'. Linked def: ${!!fieldSymbol.resolvedTypeRef?.definition}`);
                         param.type = fieldSymbol.resolvedType;
                         param.typeRef = fieldSymbol.resolvedTypeRef ? { ...fieldSymbol.resolvedTypeRef } : { name: fieldSymbol.resolvedType };
                       } else {
-                        log.debug(`    \u26A0\uFE0F Param '${param.name || fieldName}' (this.${fieldName}): Campo encontrado pero sin resolvedType en ${classSymbol.name}`);
+                        log.debug(`    \u26A0\uFE0F Param '${param.name || fieldName}' (this.${fieldName}): field found but no resolvedType in ${classSymbol.name}`);
                         param.typeRef = { name: param.type };
                       }
                     } else {
-                      log.debug(`    \u274C Param '${param.name || fieldName}': Campo '${fieldName}' NO encontrado en ${classSymbol.name}`);
+                      log.debug(`    \u274C Param '${param.name || fieldName}': field '${fieldName}' NOT found in ${classSymbol.name}`);
                       param.typeRef = { name: param.type };
                     }
                   }
@@ -2101,31 +2200,28 @@ async function createWebview(context, data) {
       }
     }
     if (fileData.symbols) {
-      let validateParentIds2 = function(symbols) {
-        if (!symbols) return;
-        for (const sym of symbols) {
-          if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
-            log.debug(`\u274C Inconsistency detected: parentId'${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
-          }
-          if (sym.children) {
-            validateParentIds2(sym.children);
-          }
-        }
-      };
-      var validateParentIds = validateParentIds2;
       findClassAndResolveThisFieldsRecursive(fileData.symbols);
-      log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId...`);
-      validateParentIds2(fileData.symbols);
     } else {
       log.debug(`[DEBUG] \u26A0\uFE0F fileData.symbols is empty for: ${fileData.fileUri}`);
     }
   });
+  log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId...`);
+  function validateParentIds(symbols) {
+    if (!symbols) return;
+    for (const sym of symbols) {
+      if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
+        log.debug(`\u274C Inconsistency detected: parentId '${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
+      }
+      if (sym.children) validateParentIds(sym.children);
+    }
+  }
+  data.files.forEach((fileData) => validateParentIds(fileData.symbols));
   log.debug("[\u2713] Resolution of this.fieldName fields in constructors completed.");
   const dataForWebview = {
     projectRoot: data.projectRoot,
     graph: projectGraph
   };
-  log.debug("[Sanitize] Starting string sanitization for JSON....");
+  log.debug("[Sanitize] Starting string sanitization for JSON...");
   sanitizeObjectStrings(dataForWebview);
   log.debug("[Sanitize] String sanitization completed.");
   const astJson = JSON.stringify(dataForWebview, (key, value) => {
@@ -2135,21 +2231,7 @@ async function createWebview(context, data) {
     return value;
   }).replace(/</g, "\\u003c");
   log.debug(`[DEBUG_JSON] Total length of astJson: ${astJson.length}`);
-  const errorPosition = 832271;
-  const snippetRadius = 100;
-  const startSnippet = Math.max(0, errorPosition - snippetRadius);
-  const endSnippet = Math.min(astJson.length, errorPosition + snippetRadius);
-  const problematicSnippet = astJson.substring(startSnippet, endSnippet);
-  log.debug(`[DEBUG_JSON] Snippet around position ${errorPosition}:`);
-  log.debug(`>>>SNIPPET_START>>>`);
-  log.debug(problematicSnippet);
-  log.debug(`<<<SNIPPET_END<<<`);
   validateEnrichedData(data.files);
-  let charCodes = [];
-  for (let i = 0; i < problematicSnippet.length; i++) {
-    charCodes.push(problematicSnippet.charCodeAt(i));
-  }
-  log.debug(`[DEBUG_JSON] Character codes of snippet: ${charCodes.join(", ")}`);
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
   const translations = {
@@ -2213,50 +2295,48 @@ async function createWebview(context, data) {
     if (m.command === "log") {
       log.debug(m.args.join(" "));
     } else if (m.command === "openClass") {
-      const uri = vscode20.Uri.parse(m.file);
-      const start = new vscode20.Position(m.start.line, m.start.character);
-      const end = new vscode20.Position(m.end.line, m.end.character);
-      const range = new vscode20.Range(start, end);
-      const existing = vscode20.window.visibleTextEditors.find(
-        (e) => e.document.uri.fsPath === m.file && e.viewColumn === vscode20.ViewColumn.Two
+      const uri = vscode21.Uri.parse(m.file);
+      const start = new vscode21.Position(m.start.line, m.start.character);
+      const end = new vscode21.Position(m.end.line, m.end.character);
+      const range = new vscode21.Range(start, end);
+      const existing = vscode21.window.visibleTextEditors.find(
+        (e) => e.document.uri.fsPath === m.file && e.viewColumn === vscode21.ViewColumn.Two
       );
       if (existing) {
-        existing.selection = new vscode20.Selection(start, end);
-        existing.revealRange(range, vscode20.TextEditorRevealType.InCenter);
+        existing.selection = new vscode21.Selection(start, end);
+        existing.revealRange(range, vscode21.TextEditorRevealType.InCenter);
         return;
       }
       panel.reveal(panel.viewColumn, true);
-      const doc = await vscode20.workspace.openTextDocument(uri);
-      const editor = await vscode20.window.showTextDocument(doc, {
-        viewColumn: vscode20.ViewColumn.Two,
+      const doc = await vscode21.workspace.openTextDocument(uri);
+      const editor = await vscode21.window.showTextDocument(doc, {
+        viewColumn: vscode21.ViewColumn.Two,
         preview: true
       });
-      editor.selection = new vscode20.Selection(start, end);
-      editor.revealRange(range, vscode20.TextEditorRevealType.InCenter);
+      editor.selection = new vscode21.Selection(start, end);
+      editor.revealRange(range, vscode21.TextEditorRevealType.InCenter);
     } else if (m.command === "openFile") {
       const filePath = m.filePath;
-      if (!filePath) {
-        return;
-      }
-      const alreadyOpenEditor = vscode20.window.visibleTextEditors.find(
+      if (!filePath) return;
+      const alreadyOpenEditor = vscode21.window.visibleTextEditors.find(
         (e) => e.document.uri.fsPath === filePath
       );
       if (alreadyOpenEditor) {
-        vscode20.window.showTextDocument(alreadyOpenEditor.document, {
+        vscode21.window.showTextDocument(alreadyOpenEditor.document, {
           viewColumn: alreadyOpenEditor.viewColumn,
           preserveFocus: false
         });
         return;
       }
-      const uri = vscode20.Uri.parse(filePath);
+      const uri = vscode21.Uri.parse(filePath);
       try {
-        const doc = await vscode20.workspace.openTextDocument(uri);
-        await vscode20.window.showTextDocument(doc, {
-          viewColumn: vscode20.ViewColumn.Two,
+        const doc = await vscode21.workspace.openTextDocument(uri);
+        await vscode21.window.showTextDocument(doc, {
+          viewColumn: vscode21.ViewColumn.Two,
           preview: true
         });
       } catch (error) {
-        log.error(`Error opening file:${filePath}`);
+        log.error(`Error opening file: ${filePath}`);
       }
     }
   });
@@ -2277,43 +2357,32 @@ function buildClassRelationsFromSymbols(filesData) {
   const implementsRegex = /implements\s+([\w<, >]+(?:\s*,\s*[\w<, >]+)*)/;
   function findClassesRecursive(symbols, fileUri) {
     for (const symbol of symbols) {
-      if (symbol.kind === vscode20.SymbolKind.Class && symbol.detail) {
-        const className = symbol.name;
+      if (symbol.kind === vscode21.SymbolKind.Class && symbol.detail) {
         const classRelations = { extends: [], with: [], implements: [] };
         const extendsMatch = symbol.detail.match(extendsRegex);
-        if (extendsMatch) {
-          classRelations.extends.push(extendsMatch[1].trim());
-        }
+        if (extendsMatch) classRelations.extends.push(extendsMatch[1].trim());
         const withMatch = symbol.detail.match(withRegex);
-        if (withMatch) {
-          classRelations.with.push(...withMatch[1].split(",").map((s) => s.trim()));
-        }
+        if (withMatch) classRelations.with.push(...withMatch[1].split(",").map((s) => s.trim()));
         const implementsMatch = symbol.detail.match(implementsRegex);
-        if (implementsMatch) {
-          classRelations.implements.push(...implementsMatch[1].split(",").map((s) => s.trim()));
-        }
-        relations.set(`${fileUri}#${className}`, classRelations);
+        if (implementsMatch) classRelations.implements.push(...implementsMatch[1].split(",").map((s) => s.trim()));
+        relations.set(`${fileUri}#${symbol.name}`, classRelations);
       }
-      if (symbol.children) {
-        findClassesRecursive(symbol.children, fileUri);
-      }
+      if (symbol.children) findClassesRecursive(symbol.children, fileUri);
     }
   }
-  for (const file of filesData) {
-    findClassesRecursive(file.symbols, file.fileUri);
-  }
+  for (const file of filesData) findClassesRecursive(file.symbols, file.fileUri);
   return relations;
 }
 
 // src/ui/command_registry.ts
-var vscode21 = __toESM(require("vscode"));
+var vscode22 = __toESM(require("vscode"));
 function registerDebugCommands(context) {
-  const toggleDebugCommand = vscode21.commands.registerCommand(
+  const toggleDebugCommand = vscode22.commands.registerCommand(
     "satori.toggleDebugLogs",
     () => {
       const currentState = log.isDebug();
       log.setDebug(!currentState);
-      vscode21.window.showInformationMessage(
+      vscode22.window.showInformationMessage(
         `Debug logs ${!currentState ? "enabled" : "disabled"}`
       );
     }
@@ -2382,14 +2451,14 @@ var ExtensionState = class {
   }
 };
 async function findFlutterProjectRoot() {
-  const workspaceFolders = vscode22.workspace.workspaceFolders;
+  const workspaceFolders = vscode23.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode22.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
+    vscode23.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
     return void 0;
   }
   for (const folder of workspaceFolders) {
-    const pubspecFiles = await vscode22.workspace.findFiles(
-      new vscode22.RelativePattern(folder, "pubspec.yaml"),
+    const pubspecFiles = await vscode23.workspace.findFiles(
+      new vscode23.RelativePattern(folder, "pubspec.yaml"),
       "**/.*",
       1
     );
@@ -2399,7 +2468,7 @@ async function findFlutterProjectRoot() {
       return folder.uri;
     }
   }
-  vscode22.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
+  vscode23.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
   return void 0;
 }
 async function analyzeProject(rootUri, context, progress) {
@@ -2421,8 +2490,8 @@ async function analyzeProject(rootUri, context, progress) {
   let totalFilesByPattern = {};
   for (const pattern of standardPatterns) {
     try {
-      const files = await vscode22.workspace.findFiles(
-        new vscode22.RelativePattern(rootUri, pattern),
+      const files = await vscode23.workspace.findFiles(
+        new vscode23.RelativePattern(rootUri, pattern),
         "**/.dart_tool/**"
       );
       uris.push(...files);
@@ -2445,8 +2514,8 @@ async function analyzeProject(rootUri, context, progress) {
     }
     for (const customDir of customDirectories) {
       try {
-        const customFiles = await vscode22.workspace.findFiles(
-          new vscode22.RelativePattern(customDir, "**/*.dart"),
+        const customFiles = await vscode23.workspace.findFiles(
+          new vscode23.RelativePattern(customDir, "**/*.dart"),
           "**/.*"
         );
         uris.push(...customFiles);
@@ -2459,11 +2528,11 @@ async function analyzeProject(rootUri, context, progress) {
   } else {
     log.debug(`\u{1F4CA} Skipping custom directory search (not in project root)`);
   }
-  const uniqueUris = Array.from(new Set(uris.map((u) => u.toString()))).map((uriString) => vscode22.Uri.parse(uriString));
+  const uniqueUris = Array.from(new Set(uris.map((u) => u.toString()))).map((uriString) => vscode23.Uri.parse(uriString));
   log.debug(`\u{1F4C4} Total unique files found: ${uniqueUris.length}`);
   if (uniqueUris.length === 0) {
     log.info("\u274C No Dart files found in the project.");
-    vscode22.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
+    vscode23.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
     return null;
   }
   log.debug(`\u{1F4C4} Sample of found files (first 5):`);
@@ -2478,7 +2547,7 @@ async function analyzeProject(rootUri, context, progress) {
   for (const u of uniqueUris) {
     let syms = [];
     try {
-      const raw = await vscode22.commands.executeCommand(
+      const raw = await vscode23.commands.executeCommand(
         "vscode.executeDocumentSymbolProvider",
         u
       );
@@ -2516,7 +2585,7 @@ async function analyzeProject(rootUri, context, progress) {
   log.debug(`   \u{1F4E6} Total files processed: ${filesDataArray.length}`);
   if (filesDataArray.every((f) => f.symbols.length === 0) && filesDataArray.length > 0) {
     log.info("\u26A0\uFE0F No classes/symbols found in any project Dart files.");
-    vscode22.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
+    vscode23.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
   }
   progress.report({ increment: 80, message: t("progress.buildingGraph") });
   log.debug(`\u{1F4E6} Preparing to create webview...`);
@@ -2533,7 +2602,7 @@ async function analyzeProject(rootUri, context, progress) {
     log.debug(`\u{1F4CA} Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
     if (!graph.nodes || graph.nodes.length === 0) {
       log.error(`\u26A0\uFE0F WARNING: Graph has no nodes!`);
-      vscode22.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
+      vscode23.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
     }
     progress.report({ increment: 95, message: t("progress.configuringInterface") });
     return { panel, graph };
@@ -2541,7 +2610,7 @@ async function analyzeProject(rootUri, context, progress) {
     log.error(`\u274C CRITICAL ERROR creating webview:`);
     log.error(`   Message: ${error.message}`);
     log.error(`   Stack: ${error.stack}`);
-    vscode22.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
+    vscode23.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
     return null;
   }
 }
@@ -2568,24 +2637,24 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
             return;
           }
           try {
-            const uri = vscode22.Uri.parse(message.file);
-            const start = new vscode22.Position(message.start.line, message.start.character);
-            const end = new vscode22.Position(message.end.line, message.end.character);
-            const range = new vscode22.Range(start, end);
-            const existingEditor = vscode22.window.visibleTextEditors.find(
-              (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode22.ViewColumn.Two
+            const uri = vscode23.Uri.parse(message.file);
+            const start = new vscode23.Position(message.start.line, message.start.character);
+            const end = new vscode23.Position(message.end.line, message.end.character);
+            const range = new vscode23.Range(start, end);
+            const existingEditor = vscode23.window.visibleTextEditors.find(
+              (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode23.ViewColumn.Two
             );
             if (existingEditor) {
-              existingEditor.selection = new vscode22.Selection(start, end);
-              existingEditor.revealRange(range, vscode22.TextEditorRevealType.InCenter);
+              existingEditor.selection = new vscode23.Selection(start, end);
+              existingEditor.revealRange(range, vscode23.TextEditorRevealType.InCenter);
             } else {
-              const doc = await vscode22.workspace.openTextDocument(uri);
-              const editor = await vscode22.window.showTextDocument(doc, {
-                viewColumn: vscode22.ViewColumn.Two,
+              const doc = await vscode23.workspace.openTextDocument(uri);
+              const editor = await vscode23.window.showTextDocument(doc, {
+                viewColumn: vscode23.ViewColumn.Two,
                 preview: true,
                 selection: range
               });
-              editor.revealRange(range, vscode22.TextEditorRevealType.InCenter);
+              editor.revealRange(range, vscode23.TextEditorRevealType.InCenter);
             }
           } catch (e) {
             console.error(e);
@@ -2655,15 +2724,15 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
 }
 async function activate(context) {
   function getLanguage() {
-    const config = vscode22.workspace.getConfiguration("satori");
+    const config = vscode23.workspace.getConfiguration("satori");
     return config.get("language", "en");
   }
   log.debug("\u{1F680} Satori: starting\u2026");
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
-  const dartExtension = vscode22.extensions.getExtension("Dart-Code.dart-code");
+  const dartExtension = vscode23.extensions.getExtension("Dart-Code.dart-code");
   if (!dartExtension || !dartExtension.isActive) {
-    vscode22.window.showErrorMessage(
+    vscode23.window.showErrorMessage(
       "Dart extension is required for Satori to work properly."
     );
     return;
@@ -2673,9 +2742,9 @@ async function activate(context) {
   const state = new ExtensionState();
   const detailsProvider = new DetailsViewProvider(context.extensionUri);
   context.subscriptions.push(
-    vscode22.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
+    vscode23.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
   );
-  const analyzeCurrentProjectCommand = vscode22.commands.registerCommand(
+  const analyzeCurrentProjectCommand = vscode23.commands.registerCommand(
     "satori.analyzeProject",
     async () => {
       log.debug("========== EXECUTING satori.analyzeProject ==========");
@@ -2685,8 +2754,8 @@ async function activate(context) {
         return;
       }
       log.debug(`\u2705 Flutter project root confirmed: ${rootUri.fsPath}`);
-      await vscode22.window.withProgress({
-        location: vscode22.ProgressLocation.Notification,
+      await vscode23.window.withProgress({
+        location: vscode23.ProgressLocation.Notification,
         title: "Satori",
         cancellable: false
       }, async (progress) => {
@@ -2695,7 +2764,7 @@ async function activate(context) {
         const result = await analyzeProject(rootUri, context, progress);
         if (!result) {
           log.debug("Analysis returned NULL - ABORTING");
-          vscode22.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
+          vscode23.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
           return;
         }
         log.debug("Analysis complete! Setting up state and handlers...");
@@ -2708,11 +2777,11 @@ async function activate(context) {
   );
   log.info("Command satori.analyzeProject registered");
   context.subscriptions.push(analyzeCurrentProjectCommand);
-  const showProjectDiagramCommand = vscode22.commands.registerCommand(
+  const showProjectDiagramCommand = vscode23.commands.registerCommand(
     "extension.showProjectDiagram",
     async () => {
       log.debug("========== EXECUTING extension.showProjectDiagram ==========");
-      const pick = await vscode22.window.showOpenDialog({
+      const pick = await vscode23.window.showOpenDialog({
         canSelectFolders: true,
         canSelectMany: false,
         openLabel: "Select project folder"
@@ -2722,8 +2791,8 @@ async function activate(context) {
         return;
       }
       log.debug(`Folder selected: ${pick[0].fsPath}`);
-      await vscode22.window.withProgress({
-        location: vscode22.ProgressLocation.Notification,
+      await vscode23.window.withProgress({
+        location: vscode23.ProgressLocation.Notification,
         title: "Satori",
         cancellable: false
       }, async (progress) => {
@@ -2732,7 +2801,7 @@ async function activate(context) {
         const result = await analyzeProject(pick[0], context, progress);
         if (!result) {
           log.debug("Analysis returned NULL - ABORTING");
-          vscode22.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
+          vscode23.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
           return;
         }
         log.debug("Analysis complete! Setting up state and handlers...");
@@ -2787,17 +2856,17 @@ async function activate(context) {
             return;
           }
           try {
-            const uri = vscode22.Uri.parse(node.data.fileUri);
-            const doc = await vscode22.workspace.openTextDocument(uri);
-            await vscode22.window.showTextDocument(doc, {
-              viewColumn: vscode22.ViewColumn.Two,
+            const uri = vscode23.Uri.parse(node.data.fileUri);
+            const doc = await vscode23.workspace.openTextDocument(uri);
+            await vscode23.window.showTextDocument(doc, {
+              viewColumn: vscode23.ViewColumn.Two,
               preview: false,
               preserveFocus: false
             });
             log.debug(`Successfully opened file: ${node.data.fileUri}`);
           } catch (error) {
             log.error(`Error opening file ${node.data.fileUri}: ${error}`);
-            vscode22.window.showErrorMessage(`Could not open file: ${node.label}`);
+            vscode23.window.showErrorMessage(`Could not open file: ${node.label}`);
           }
           return;
         }

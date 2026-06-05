@@ -6,6 +6,32 @@ import { enrichWithSourceRegexTypes } from "./enrichment/regex_enrichment";
 import { enrichWithHoverTypes } from "../lsp/hover_enrichment";
 import { log } from "../utils/logger";
 
+const LSP_CONCURRENCY_LIMIT = 5;
+
+/**
+ * Simple semaphore to limit concurrent LSP calls.
+ * Prevents flooding the Dart language server with too many
+ * simultaneous requests.
+ */
+async function withConcurrencyLimit<T>(
+    tasks: (() => Promise<T>)[],
+    limit: number
+): Promise<T[]> {
+    const results: T[] = [];
+    let index = 0;
+
+    async function runNext(): Promise<void> {
+        if (index >= tasks.length) return;
+        const current = index++;
+        results[current] = await tasks[current]();
+        await runNext();
+    }
+
+    const workers = Array.from({ length: Math.min(limit, tasks.length) }, runNext);
+    await Promise.all(workers);
+    return results;
+}
+
 /**
  * Recursively processes a symbol applying all available enrichment
  * techniques. Coordinates basic enrichment, detail analysis, LSP hover,
@@ -29,11 +55,11 @@ export async function processSymbolRecursiveLSP(
         const logPrefix = '  '.repeat(depth);
 
         if (!symbolToProcess.selectionRange) {
-            log.debug(`${logPrefix}⚠️ Symbol '${symbolToProcess.name}' (Kind: ${symbolToProcess.kind}) skipped from enrichment. No selectionRange.`);
+            log.debug(`${logPrefix}⚠️ Symbol '${symbolToProcess.name}' skipped. No selectionRange.`);
             return symbolToProcess;
         }
-        
-        log.debug(`${logPrefix}🔍 Processing symbol: ${symbolToProcess.name} (Kind: ${symbolToProcess.kind})`);
+
+        log.debug(`${logPrefix}🔍 Processing: ${symbolToProcess.name} (Kind: ${symbolToProcess.kind})`);
 
         const enrichedSym: EnrichedSymbol = {
             ...symbolToProcess,
@@ -41,17 +67,17 @@ export async function processSymbolRecursiveLSP(
         };
 
         enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies);
-        
-       try {
-          await Promise.all([
-              enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies),
-              (async () => {
-                  if (!enrichedSym.hoverChecked) {
-                      await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
-                      enrichedSym.hoverChecked = true;
-                  }
-              })()
-          ]);
+
+        try {
+            await Promise.all([
+                enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies),
+                (async () => {
+                    if (!enrichedSym.hoverChecked) {
+                        await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
+                        enrichedSym.hoverChecked = true;
+                    }
+                })()
+            ]);
         } catch (e) {
             log.debug(`${logPrefix}⚠️ Error in async enrich: ${e instanceof Error ? e.message : e}`);
         }
@@ -63,12 +89,22 @@ export async function processSymbolRecursiveLSP(
         }
 
         if (enrichedSym.children && enrichedSym.children.length > 0) {
-            const parentForNextRecursion = (enrichedSym.kind === vscode.SymbolKind.Class) ? enrichedSym : parentEnrichedSymbol;
-            enrichedSym.children = await Promise.all(
-                enrichedSym.children.map(child => 
-                    processSymbolRecursiveLSP(child, enrichedSym.fileUri!, dependencies, depth + 1, parentForNextRecursion)
+            const parentForNextRecursion = enrichedSym.kind === vscode.SymbolKind.Class
+                ? enrichedSym
+                : parentEnrichedSymbol;
+
+            const tasks = enrichedSym.children.map(child => () =>
+                processSymbolRecursiveLSP(
+                    child,
+                    enrichedSym.fileUri!,
+                    dependencies,
+                    depth + 1,
+                    parentForNextRecursion
                 )
             );
+
+            log.debug(`${logPrefix} Processing ${tasks.length} children with concurrency limit ${LSP_CONCURRENCY_LIMIT}`);
+            enrichedSym.children = await withConcurrencyLimit(tasks, LSP_CONCURRENCY_LIMIT);
         }
 
         return enrichedSym;

@@ -1,5 +1,6 @@
 import { EnrichedSymbol } from "../types/index";
 import { log } from "../utils/logger";
+import * as vscode from 'vscode';
 
 /**
  * Validates consistency and integrity of enriched data after
@@ -12,7 +13,7 @@ import { log } from "../utils/logger";
 export function validateEnrichedData(
   enrichedFiles: Array<{ fileUri: string; symbols: EnrichedSymbol[] }>
 ) {
-  const symbolMap = new Map<string, EnrichedSymbol>(); 
+  const symbolMap = new Map<string, EnrichedSymbol>();
 
   function recurse(symbols: EnrichedSymbol[]) {
     for (const sym of symbols) {
@@ -20,11 +21,11 @@ export function validateEnrichedData(
         symbolMap.set(sym.uniqueId, sym);
       }
 
-      if (sym.kind === 5) {
+      if (sym.kind === vscode.SymbolKind.Class) {
         log.debug(`[VALIDATE] Class: ${sym.name}`);
       }
 
-      if (sym.kind === 9) {
+      if (sym.kind === vscode.SymbolKind.Constructor) {
         if (!sym.parameters && sym.detail) {
           log.debug(`[WARN] Constructor '${sym.name}' has detail but no parameters were extracted.`);
         }
@@ -35,15 +36,15 @@ export function validateEnrichedData(
           if (!parent) {
             log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
           } else {
-            if (parent.kind !== 5) {
-              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind !== 5)`);
+            if (parent.kind !== vscode.SymbolKind.Class) {
+              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind: ${parent.kind}, expected: ${vscode.SymbolKind.Class})`);
             }
 
             if (Array.isArray(sym.parameters) && Array.isArray(parent.children)) {
               const parentFields = new Set(parent.children.map(c => c.name));
               for (const param of sym.parameters) {
                 if (param.name && !parentFields.has(param.name)) {
-                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' that is not found as property in '${parent.name}'`);
+                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' not found as property in '${parent.name}'`);
                 }
               }
             }
@@ -58,12 +59,12 @@ export function validateEnrichedData(
       if (sym.children) recurse(sym.children);
     }
   }
-  try{
+
+  try {
     for (const file of enrichedFiles) {
       recurse(file.symbols);
     }
-  } catch(err){
-    log.error(`Error running validateEnrichedData:, ${err}`);
+  } catch (err) {
+    log.error(`Error running validateEnrichedData: ${err}`);
   }
-  
 }
