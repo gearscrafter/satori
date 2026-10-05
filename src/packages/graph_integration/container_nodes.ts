@@ -1,6 +1,20 @@
 import { ExternalPackageInfo, FileSource, ProjectGraphModel, ProjectGraphNode } from "../../types/index";
 import * as vscode from 'vscode';
 import { log } from "../../utils/logger";
+import { isSamePath } from "../../filesystem/path_utils";
+
+/**
+ * Packages that deserve a container node. The project's own root package is left out: it is the
+ * project itself, none of its classes are placed inside a container, and it would show up as an
+ * empty "external package". Local packages of a monorepo are kept.
+ */
+export function packagesNeedingContainers(
+  packages: ExternalPackageInfo[],
+  projectRootPath: string | null | undefined
+): ExternalPackageInfo[] {
+  if (!projectRootPath) { return packages; }
+  return packages.filter(pkg => !isSamePath(pkg.path, projectRootPath));
+}
 
 /**
  * Creates special nodes to represent external packages as containers

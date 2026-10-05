@@ -795,6 +795,34 @@ function calculateNodeDegrees(graph) {
   }
 }
 
+// src/core/concurrency.ts
+var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function retryUntil(operation, isDone, delaysMs, sleep = defaultSleep) {
+  let result = await operation();
+  let attempts = 1;
+  for (const delay of delaysMs) {
+    if (isDone(result)) {
+      return { result, attempts, exhausted: false };
+    }
+    await sleep(delay);
+    result = await operation();
+    attempts++;
+  }
+  return { result, attempts, exhausted: !isDone(result) };
+}
+async function mapLimited(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
+  return results;
+}
+
 // src/graph/graph_builder.ts
 var vscode15 = __toESM(require("vscode"));
 
@@ -920,7 +948,7 @@ function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById,
       const parentId = parentClass ? generateGlobalSymbolId2(parentClass, void 0) : void 0;
       if (parentClass) {
         log.debug(`[DEBUG-PARENT] ${s.name} has parent${parentClass.name}`);
-        log.debug(`[DEBUG-PARENT-ID] ${s.name} \u2192 parentId: ${parentId}`);
+        log.debug(`[DEBUG-PARENT-ID] ${s.name} -> parentId: ${parentId}`);
       } else {
         log.debug(`[DEBUG-PARENT] ${s.name} has no parent (is top-level)`);
       }
@@ -965,6 +993,26 @@ var fs6 = __toESM(require("fs"));
 var fileContentCache = /* @__PURE__ */ new Map();
 function clearFileContentCache() {
   fileContentCache.clear();
+  fileLinesCache.clear();
+}
+var fileLinesCache = /* @__PURE__ */ new Map();
+function getFileLines(fileUri) {
+  if (fileLinesCache.has(fileUri)) {
+    return fileLinesCache.get(fileUri);
+  }
+  let lines = null;
+  try {
+    let content = fileContentCache.get(fileUri);
+    if (content === void 0) {
+      content = fs6.readFileSync(vscode10.Uri.parse(fileUri).fsPath, "utf8");
+      fileContentCache.set(fileUri, content);
+    }
+    lines = content.split(/\r?\n/);
+  } catch {
+    lines = null;
+  }
+  fileLinesCache.set(fileUri, lines);
+  return lines;
 }
 function getSourceCodeForSymbol(symbol) {
   const rangeToUse = symbol.range || symbol.selectionRange;
@@ -1001,6 +1049,84 @@ function getSourceCodeForSymbol(symbol) {
   }
 }
 
+// src/analysis/access_classifier.ts
+var ASSIGNMENT = /^(\?\?=|~\/=|>>>=|<<=|>>=|\+=|-=|\*=|\/=|%=|&=|\|=|\^=|=(?![=>]))/;
+var NON_CALL_WORDS = /* @__PURE__ */ new Set(["if", "while", "for", "switch", "catch", "assert", "return", "await", "in", "when"]);
+var THIS_PREFIX = /\bthis\s*\.\s*$/;
+function enclosingGroup(line, position) {
+  let depth = 0;
+  for (let i = position - 1; i >= 0; i--) {
+    const ch = line[i];
+    if (ch === ")") {
+      depth++;
+    } else if (ch === "(") {
+      if (depth > 0) {
+        depth--;
+        continue;
+      }
+      const before = line.slice(0, i).replace(/\s+$/, "");
+      const match = before.match(/[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*(?:<[^()]*>)?$/);
+      if (!match) {
+        return { open: true, callee: null };
+      }
+      const name = match[0].replace(/<.*$/, "").replace(/\s+/g, "");
+      return { open: true, callee: NON_CALL_WORDS.has(name) ? null : name };
+    }
+  }
+  return { open: false, callee: null };
+}
+function isConstructorName(callee, names) {
+  if (!callee) {
+    return false;
+  }
+  return names.indexOf(callee) >= 0 || names.indexOf(callee.split(".")[0]) >= 0;
+}
+function classifyAccess(line, start, end, context = {}) {
+  const before = line.slice(0, start);
+  const after = line.slice(end);
+  const names = context.constructorNames || [];
+  if (names.length && THIS_PREFIX.test(before)) {
+    const head = before.replace(THIS_PREFIX, "");
+    const group = enclosingGroup(line, start);
+    const sameLineHeader = group.open && isConstructorName(group.callee, names) && /^\s*[,)}\]]/.test(after);
+    const ownLineParameter = !group.open && /^\s*(?:(?:required|covariant|final|const)\s+)*(?:[\w$<>?,]+\s+)?$/.test(head) && /^\s*(?:=\s*[^,;)]+)?\s*[,)}\]]?\s*$/.test(after) && !/;\s*$/.test(after);
+    if (sameLineHeader || ownLineParameter) {
+      return ["write"];
+    }
+  }
+  const next = after.replace(/^[!\s]+/, "");
+  const assignment = ASSIGNMENT.exec(next);
+  if (assignment) {
+    return assignment[0] === "=" ? ["write"] : ["read", "write"];
+  }
+  if (/^(\+\+|--)/.test(next) || /(\+\+|--)\s*$/.test(before)) {
+    return ["read", "write"];
+  }
+  const previous = before.replace(THIS_PREFIX, "").replace(/\s+$/, "");
+  const following = after.replace(/^\s+/, "");
+  const isNamedArgument = /[A-Za-z_$][\w$]*\s*:$/.test(previous) && !/\?[^:]*:$/.test(previous);
+  const startsArgument = /[(,]$/.test(previous) || isNamedArgument;
+  if (startsArgument && /^[,)]/.test(following) && enclosingGroup(line, start).callee !== null) {
+    return ["pass"];
+  }
+  return ["read"];
+}
+
+// src/filesystem/path_utils.ts
+var import_path2 = __toESM(require("path"));
+function canonical(p) {
+  const resolved = import_path2.default.resolve(p);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+function isSamePath(a, b) {
+  return canonical(a) === canonical(b);
+}
+function isPathInside(child, parent) {
+  const c = canonical(child);
+  const p = canonical(parent);
+  return c === p || c.startsWith(p.endsWith(import_path2.default.sep) ? p : p + import_path2.default.sep);
+}
+
 // src/lsp/reference_analysis.ts
 var vscode11 = __toESM(require("vscode"));
 var nodesByFileCache = null;
@@ -1022,24 +1148,36 @@ function getNodesByFile(nodes) {
 function clearNodesByFileCache() {
   nodesByFileCache = null;
   referencesCache.clear();
+  emptyAnswerStreak = 0;
   log.debug(`[RefAnalysis] nodesByFile + references cache cleared.`);
 }
 var referencesCache = /* @__PURE__ */ new Map();
+var EMPTY_ANSWER_RETRY_DELAYS_MS = [250, 750, 1500];
+var MAX_EMPTY_STREAK = 8;
+var emptyAnswerStreak = 0;
 async function getReferencesForSymbol(symbol) {
   const { line, character } = symbol.selectionRange.start;
   const cacheKey = `${symbol.fileUri}:${line}:${character}`;
   if (referencesCache.has(cacheKey)) {
     const cached = referencesCache.get(cacheKey);
-    log.debug(`[RefCache HIT] '${symbol.name}' \u2192 ${cached?.length ?? 0} refs`);
+    log.debug(`[RefCache HIT] '${symbol.name}' -> ${cached?.length ?? 0} refs`);
     return cached;
   }
   try {
-    const references = await vscode11.commands.executeCommand(
+    const ask = async () => await vscode11.commands.executeCommand(
       "vscode.executeReferenceProvider",
       vscode11.Uri.parse(symbol.fileUri),
       symbol.selectionRange.start
     );
-    const result = references && references.length > 0 ? references : null;
+    const hasReferences = (r) => !!r && r.length > 0;
+    const delays = emptyAnswerStreak >= MAX_EMPTY_STREAK ? [] : EMPTY_ANSWER_RETRY_DELAYS_MS;
+    const outcome = await retryUntil(ask, hasReferences, delays);
+    emptyAnswerStreak = outcome.exhausted ? emptyAnswerStreak + 1 : 0;
+    if (outcome.attempts > 1) {
+      log.debug(`[LSP] '${symbol.name}' needed ${outcome.attempts} attempts${outcome.exhausted ? " and still returned nothing" : ""}`);
+    }
+    const references = outcome.result;
+    const result = hasReferences(references) ? references : null;
     referencesCache.set(cacheKey, result);
     log.debug(`[LSP] \u2705 Found ${result?.length ?? 0} references for '${symbol.name}' [cached]`);
     return result;
@@ -1070,12 +1208,111 @@ async function tryAddReadsFromEdge(projectGraph, sourceNode, targetNode, targetS
       log.debug(`[LSP] Reference found within function: ${container.label}`);
     }
     if (container && container.id === sourceNode.id) {
-      log.debug(`[LSP] \u{1F3AF} READS_FROM: '${sourceNode.label}' \u2192 '${targetNode.label}'`);
+      log.debug(`[LSP] \u{1F3AF} READS_FROM: '${sourceNode.label}' -> '${targetNode.label}'`);
       createEdge(sourceNode.id, targetNode.id, "READS_FROM");
       return;
     }
   }
   log.debug(`[LSP] \u{1F9ED} No reference found within container '${sourceNode.label}'`);
+}
+var FIELD_KINDS = /* @__PURE__ */ new Set(["field", "property", "variable", "constant"]);
+var ACCESS_LABEL = {
+  read: "READS_FROM",
+  write: "WRITES_TO",
+  pass: "PASSES_AS_ARGUMENT"
+};
+var REFERENCE_CONCURRENCY = 6;
+async function addFieldAccessEdges(projectGraph, symbolMapById, usedIdentifiers, projectRoot, createEdge) {
+  const nodesById = new Map(projectGraph.nodes.map((n) => [n.id, n]));
+  const nodesByFile = getNodesByFile(projectGraph.nodes);
+  const candidates = projectGraph.nodes.filter((n) => {
+    const symbol = symbolMapById.get(n.id);
+    if (!FIELD_KINDS.has(n.kind) || !symbol || !symbol.selectionRange || !symbol.fileUri) {
+      return false;
+    }
+    if (!usedIdentifiers.has(symbol.name)) {
+      return false;
+    }
+    return !projectRoot || isPathInside(vscode11.Uri.parse(n.data.fileUri).fsPath, projectRoot);
+  });
+  log.debug(`[FieldAccess] ${candidates.length} fields to check of ${projectGraph.nodes.filter((n) => FIELD_KINDS.has(n.kind)).length}`);
+  const found = await mapLimited(candidates, REFERENCE_CONCURRENCY, async (field) => {
+    const symbol = symbolMapById.get(field.id);
+    const references = await getReferencesForSymbol(symbol);
+    const kindsByContainer = /* @__PURE__ */ new Map();
+    for (const ref of references ?? []) {
+      if (ref.range.start.line !== ref.range.end.line) {
+        continue;
+      }
+      const container = findEnclosingCodeNode(nodesByFile, ref.uri.toString(), ref.range.start.line);
+      if (!container || container.id === field.id) {
+        continue;
+      }
+      const lines = getFileLines(ref.uri.toString());
+      const text = lines?.[ref.range.start.line];
+      if (text === void 0) {
+        continue;
+      }
+      const owner = container.parent ? nodesById.get(container.parent) : void 0;
+      const constructorNames = container.kind === "constructor" ? [container.label, owner?.label].filter((n) => !!n) : void 0;
+      const kinds = classifyAccess(text, ref.range.start.character, ref.range.end.character, { constructorNames });
+      const set = kindsByContainer.get(container.id) ?? /* @__PURE__ */ new Set();
+      kinds.forEach((k) => set.add(k));
+      kindsByContainer.set(container.id, set);
+    }
+    return kindsByContainer;
+  });
+  let created = 0;
+  candidates.forEach((field, i) => {
+    found[i].forEach((kinds, containerId) => {
+      ["read", "write", "pass"].forEach((kind) => {
+        if (kinds.has(kind)) {
+          createEdge(containerId, field.id, ACCESS_LABEL[kind]);
+          created++;
+        }
+      });
+    });
+  });
+  log.debug(`[FieldAccess] ${created} field access edges created`);
+}
+async function addAmbiguousCallEdges(projectGraph, symbolMapById, candidates, createEdge) {
+  const idBySymbol = /* @__PURE__ */ new Map();
+  symbolMapById.forEach((symbol, id) => idBySymbol.set(symbol, id));
+  const nodesByFile = getNodesByFile(projectGraph.nodes);
+  const list = Array.from(candidates).filter((s) => s.selectionRange && s.fileUri && idBySymbol.has(s));
+  log.debug(`[CallResolution] ${list.length} methods share their name with another one; asking the language server`);
+  const callers = await mapLimited(list, REFERENCE_CONCURRENCY, async (symbol) => {
+    const targetId = idBySymbol.get(symbol);
+    const found = /* @__PURE__ */ new Set();
+    for (const ref of await getReferencesForSymbol(symbol) ?? []) {
+      if (ref.range.start.line !== ref.range.end.line) {
+        continue;
+      }
+      const container = findEnclosingCodeNode(nodesByFile, ref.uri.toString(), ref.range.start.line);
+      if (!container || container.id === targetId) {
+        continue;
+      }
+      const text = getFileLines(ref.uri.toString())?.[ref.range.start.line];
+      if (text !== void 0 && /^\s*(?:<[^()]*>)?\s*\(/.test(text.slice(ref.range.end.character))) {
+        found.add(container.id);
+      }
+    }
+    return found;
+  });
+  let created = 0;
+  list.forEach((symbol, i) => {
+    callers[i].forEach((callerId) => {
+      createEdge(callerId, idBySymbol.get(symbol), "CALLS");
+      created++;
+    });
+  });
+  log.debug(`[CallResolution] ${created} call edges created from ${list.length} ambiguous methods`);
+}
+function findEnclosingCodeNode(nodesByFile, uri, line) {
+  return (nodesByFile.get(uri) ?? []).find((n) => {
+    const range = n.data.range;
+    return (n.kind === "method" || n.kind === "function" || n.kind === "constructor") && range !== void 0 && range.start.line <= line && range.end.line >= line;
+  });
 }
 function findEnclosingFunctionOrMethodNode(nodesByFile, ref) {
   const nodesInFile = nodesByFile.get(ref.uri) ?? [];
@@ -1084,6 +1321,28 @@ function findEnclosingFunctionOrMethodNode(nodesByFile, ref) {
     const range = n.data.range;
     return (n.kind === "method" || n.kind === "function") && range !== void 0 && range.start.line <= pos.line && range.end.line >= pos.line;
   });
+}
+
+// src/analysis/signature.ts
+function methodBody(source) {
+  let depth = 0;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "(") {
+      depth++;
+    } else if (ch === ")") {
+      depth--;
+      if (depth === 0) {
+        const rest = source.slice(i + 1);
+        return /^\s*;/.test(rest) ? "" : rest;
+      }
+    } else if (depth === 0 && (ch === "{" || ch === "=" && source[i + 1] === ">")) {
+      return source.slice(i);
+    } else if (depth === 0 && ch === ";") {
+      return "";
+    }
+  }
+  return "";
 }
 
 // src/graph/edge_creator.ts
@@ -1115,6 +1374,8 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
     symbolPatterns.set(name, new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`));
   }
   log.debug(`[EdgeCreator] Pre-compiled ${symbolPatterns.size} RegExp patterns.`);
+  const usedIdentifiers = /* @__PURE__ */ new Set();
+  const ambiguousCallTargets = /* @__PURE__ */ new Set();
   for (const sourceNode of projectGraph.nodes) {
     const sourceSymbol = symbolMapById.get(sourceNode.id);
     if (!sourceSymbol) {
@@ -1144,21 +1405,33 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
         continue;
       }
       const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+      for (const word of cleanedSource.matchAll(/[A-Za-z_$][\w$]*/g)) {
+        usedIdentifiers.add(word[0]);
+      }
+      const body = methodBody(cleanedSource);
       const mentionedNames = [];
       for (const [name, pattern] of symbolPatterns) {
-        if (pattern.test(cleanedSource)) {
+        if (pattern.test(body)) {
           mentionedNames.push(name);
         }
       }
       for (const targetName of mentionedNames) {
         const targetSymbols = symbolNameIndex.get(targetName);
+        const callableTargets = targetSymbols.filter((s) => {
+          const n = nodeBySymbol.get(s);
+          return n && (n.kind === "method" || n.kind === "function");
+        });
         for (const targetSymbol of targetSymbols) {
           const targetNode = nodeBySymbol.get(targetSymbol);
           if (!targetNode || sourceNode.id === targetNode.id) {
             continue;
           }
           if (targetNode.kind === "method" || targetNode.kind === "function") {
-            createEdge(sourceNode.id, targetNode.id, "CALLS");
+            if (callableTargets.length === 1) {
+              createEdge(sourceNode.id, targetNode.id, "CALLS");
+            } else {
+              ambiguousCallTargets.add(targetSymbol);
+            }
           } else {
             await tryAddReadsFromEdge(
               projectGraph,
@@ -1173,6 +1446,8 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
       }
     }
   }
+  await addAmbiguousCallEdges(projectGraph, symbolMapById, ambiguousCallTargets, createEdge);
+  await addFieldAccessEdges(projectGraph, symbolMapById, usedIdentifiers, projectRoot, createEdge);
 }
 
 // src/packages/package_discovery.ts
@@ -1183,20 +1458,6 @@ var fs8 = __toESM(require("fs"));
 // src/packages/package_analyzer.ts
 var fs7 = __toESM(require("fs"));
 var import_path3 = __toESM(require("path"));
-
-// src/filesystem/path_utils.ts
-var import_path2 = __toESM(require("path"));
-function canonical(p) {
-  const resolved = import_path2.default.resolve(p);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-}
-function isPathInside(child, parent) {
-  const c = canonical(child);
-  const p = canonical(parent);
-  return c === p || c.startsWith(p.endsWith(import_path2.default.sep) ? p : p + import_path2.default.sep);
-}
-
-// src/packages/package_analyzer.ts
 function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPath) {
   log.debug(` -> Analyzing details of package '${packageName}'...`);
   if (!fs7.existsSync(packagePath)) {
@@ -1351,6 +1612,12 @@ function findAllPackages(searchStartPath) {
 
 // src/packages/graph_integration/container_nodes.ts
 var vscode13 = __toESM(require("vscode"));
+function packagesNeedingContainers(packages, projectRootPath) {
+  if (!projectRootPath) {
+    return packages;
+  }
+  return packages.filter((pkg) => !isSamePath(pkg.path, projectRootPath));
+}
 function createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds) {
   log.debug(`[PackageContainers] Creating container nodes for${externalPackages.length} paquetes...`);
   for (const pkg of externalPackages) {
@@ -1419,7 +1686,7 @@ function createInterPackageDependencyEdges(projectGraph, externalPackages, creat
       if (sourceContainerId && targetContainerId) {
         createEdge(sourceContainerId, targetContainerId, "USES_AS_TYPE");
         interPackageEdges++;
-        log.debug(`   Dependency: ${sourcePackage} \u2192 ${targetPackage}`);
+        log.debug(`   Dependency: ${sourcePackage} -> ${targetPackage}`);
       }
     }
     if (!sourcePackage && targetPackage) {
@@ -1482,7 +1749,7 @@ function assignNodesToPackageContainers(projectGraph, externalPackages) {
       node.parent = containerNodeId;
       assignedCount++;
       node.label = `\u{1F517} ${node.label}`;
-      log.debug(`    \u{1F4E6} ${node.label} \u2192 ${fileSource.packageName}`);
+      log.debug(`    \u{1F4E6} ${node.label} -> ${fileSource.packageName}`);
     } else if (fileSource.type === "sdk") {
       node.label = `\u2699\uFE0F ${node.label}`;
     } else if (fileSource.type === "project") {
@@ -1502,7 +1769,11 @@ async function integrateExternalPackages(projectGraph, projectRoot, generatedNod
     log.debug(`[ExternalPackages] No relevant external packages found`);
     return;
   }
-  createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds);
+  createPackageContainerNodes(
+    packagesNeedingContainers(externalPackages, findProjectRootWithPubspec(projectRoot)),
+    projectGraph,
+    generatedNodeIds
+  );
   assignNodesToPackageContainers(projectGraph, externalPackages);
   createInterPackageDependencyEdges(projectGraph, externalPackages, createEdge);
   log.debug(`[ExternalPackages] \u2705 External package integration completed`);
@@ -2003,7 +2274,7 @@ function clearHoverCache() {
 async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
   const needsTypeInfo = (enrichedSym.kind === vscode19.SymbolKind.Field || enrichedSym.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType || (enrichedSym.kind === vscode19.SymbolKind.Method || enrichedSym.kind === vscode19.SymbolKind.Function) && !enrichedSym.returnType || enrichedSym.kind === vscode19.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0);
   if (!enrichedSym.fileUri || !enrichedSym.selectionRange || !needsTypeInfo) {
-    log.debug(`${logPrefix}  \u26A0\uFE0F Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) \u2192 needsTypeInfo: ${needsTypeInfo}`);
+    log.debug(`${logPrefix}  \u26A0\uFE0F Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) -> needsTypeInfo: ${needsTypeInfo}`);
     return;
   }
   if (enrichedSym.hoverChecked) {
@@ -2255,6 +2526,7 @@ function findClassFieldSymbol(classSymbol, fieldName) {
   );
 }
 async function createWebview(context, data) {
+  const startedAt = Date.now();
   function getLanguage() {
     const config = vscode22.workspace.getConfiguration("satori");
     return config.get("language", "en");
@@ -2301,11 +2573,13 @@ async function createWebview(context, data) {
     return { ...f_item, fileUri: fileUriString, symbols: processedSymbols };
   });
   data.files = await Promise.all(processedFilesPromises);
+  const enrichedAt = Date.now();
   log.debug("\u2705 Deep enrichment of all files completed.");
   clearTypeIndex();
   log.debug("\u2705 Type index cleared.");
   log.debug("Phase 2: Building project graph model...");
   const projectGraph = await buildGraphModel(data.files, data.projectRoot);
+  const graphBuiltAt = Date.now();
   log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
   log.debug("Calculating coupling degrees (in/out degree) of nodes...");
   calculateNodeDegrees(projectGraph);
@@ -2431,7 +2705,12 @@ async function createWebview(context, data) {
   );
   html = html.replace(/__CSP__/, () => csp).replace(/__MEDIA__/g, () => mediaUri).replace(/__NONCE__/g, () => nonce).replace(/__AST_JSON_PLACEHOLDER__/g, () => astJson).replace(/__TRANSLATIONS__/g, () => JSON.stringify(translations).replace(/</g, "\\u003c"));
   panel.webview.html = html;
-  return { panel, graph: projectGraph };
+  const finishedAt = Date.now();
+  return {
+    panel,
+    graph: projectGraph,
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt }
+  };
 }
 function getNonce() {
   let text = "";
@@ -2546,7 +2825,7 @@ function buildSnippet(graph, request) {
         break;
       }
     }
-    title = `${stripDecor(primary.label)} \u2192 ${name}`;
+    title = `${stripDecor(primary.label)} -> ${name}`;
   }
   if (!target && range.end.line === range.start.line) {
     highlightLine = range.start.line;
@@ -2583,6 +2862,7 @@ var ExtensionState = class {
   mainGraphPanel;
   projectGraph;
   stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
+  timings;
   /**
    * Sets the webview panel and project graph in the global state.
    *
@@ -2684,17 +2964,22 @@ async function discoverDartFiles(rootUri, isProjectRoot, progress) {
   return uniqueUris;
 }
 async function extractFileSymbols(uris, progress) {
-  const filesData = [];
   let analyzedCount = 0;
   let errorCount = 0;
   let emptyCount = 0;
-  for (const u of uris) {
+  let emptyStreak = 0;
+  const hasSymbols = (r) => Array.isArray(r) && r.length > 0;
+  const filesData = await mapLimited(uris, SYMBOL_REQUEST_CONCURRENCY, async (u) => {
     let syms = [];
     try {
-      const raw = await vscode25.commands.executeCommand(
+      const ask = async () => await vscode25.commands.executeCommand(
         "vscode.executeDocumentSymbolProvider",
         u
       );
+      const delays = emptyStreak >= MAX_EMPTY_FILES_IN_A_ROW ? [] : EMPTY_SYMBOLS_RETRY_DELAYS_MS;
+      const outcome = await retryUntil(ask, hasSymbols, delays);
+      emptyStreak = outcome.exhausted ? emptyStreak + 1 : 0;
+      const raw = outcome.result;
       if (!Array.isArray(raw)) {
         log.debug(`[DIAGNOSTIC] No symbol array for ${import_path8.default.basename(u.fsPath)}: ${raw === null ? "null" : typeof raw}`);
         if (raw === null) {
@@ -2712,12 +2997,15 @@ async function extractFileSymbols(uris, progress) {
       log.error(`\u26A0\uFE0F Error getting symbols for ${import_path8.default.basename(u.fsPath)}: ${e.message}`);
       errorCount++;
     }
-    filesData.push({ file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms });
     progress.report({ increment: 40 / uris.length, message: t("progress.analyzingFile") });
-  }
+    return { file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms };
+  });
   log.debug(`\u{1F4CA} Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
   return filesData;
 }
+var SYMBOL_REQUEST_CONCURRENCY = 8;
+var EMPTY_SYMBOLS_RETRY_DELAYS_MS = [250, 750];
+var MAX_EMPTY_FILES_IN_A_ROW = 6;
 async function analyzeProject(rootUri, context, progress) {
   const root = rootUri.fsPath;
   log.debug(`\u{1F50D} Analyzing project at: ${root}`);
@@ -2725,8 +3013,10 @@ async function analyzeProject(rootUri, context, progress) {
   log.debug(`\u{1F4CA} Root URI - toString: ${rootUri.toString()}`);
   const isProjectRoot = fs12.existsSync(import_path8.default.join(root, "pubspec.yaml"));
   log.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${isProjectRoot}`);
+  const analysisStart = Date.now();
   progress.report({ increment: 10, message: t("progress.searchingFiles") });
   const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot, progress);
+  const discoveredAt = Date.now();
   if (uniqueUris.length === 0) {
     log.info("\u274C No Dart files found in the project.");
     vscode25.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
@@ -2738,6 +3028,7 @@ async function analyzeProject(rootUri, context, progress) {
   });
   progress.report({ increment: 30, message: t("progress.analyzingFiles", uniqueUris.length.toString()) });
   const filesDataArray = await extractFileSymbols(uniqueUris, progress);
+  const symbolsAt = Date.now();
   if (filesDataArray.every((f) => f.symbols.length === 0) && filesDataArray.length > 0) {
     log.info("\u26A0\uFE0F No classes/symbols found in any project Dart files.");
     vscode25.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
@@ -2753,6 +3044,14 @@ async function analyzeProject(rootUri, context, progress) {
       files: filesDataArray
     });
     const { panel, graph } = result;
+    const timings = {
+      files: filesDataArray.length,
+      discoverMs: discoveredAt - analysisStart,
+      symbolsMs: symbolsAt - discoveredAt,
+      ...result.timings,
+      totalMs: Date.now() - analysisStart
+    };
+    log.info(`\u23F1 Analysis of ${timings.files} files took ${(timings.totalMs / 1e3).toFixed(1)}s (find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
     log.debug(`\u2705 Webview created successfully!`);
     log.debug(`\u{1F4CA} Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
     if (!graph.nodes || graph.nodes.length === 0) {
@@ -2760,7 +3059,7 @@ async function analyzeProject(rootUri, context, progress) {
       vscode25.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
     }
     progress.report({ increment: 95, message: t("progress.configuringInterface") });
-    return { panel, graph };
+    return { panel, graph, timings };
   } catch (error) {
     log.error(`\u274C CRITICAL ERROR creating webview:`);
     log.error(`   Message: ${error.message}`);
@@ -2927,6 +3226,7 @@ async function activate(context) {
       return;
     }
     state.setGraph(result.panel, result.graph);
+    state.timings = result.timings;
     setupWebviewMessageHandlers(state, detailsProvider, context);
     progress.report({ increment: 100, message: t("progress.completed") });
     log.debug("Analysis completed successfully");
@@ -3023,7 +3323,7 @@ async function activate(context) {
   };
   return {
     getGraph: () => state.getGraph(),
-    getStats: () => ({ ...state.stats }),
+    getStats: () => ({ ...state.stats, timings: state.timings }),
     focusNode: (nodeId) => state.getPanel()?.webview.postMessage({ command: "setFocusInGraph", nodeId })
   };
 }

@@ -11,6 +11,29 @@ const fileContentCache = new Map<string, string>();
  */
 export function clearFileContentCache(): void {
     fileContentCache.clear();
+    fileLinesCache.clear();
+}
+
+const fileLinesCache = new Map<string, string[] | null>();
+
+/** Lines of a file (cached for the current analysis), or null when it cannot be read. */
+export function getFileLines(fileUri: string): string[] | null {
+    if (fileLinesCache.has(fileUri)) {
+        return fileLinesCache.get(fileUri)!;
+    }
+    let lines: string[] | null = null;
+    try {
+        let content = fileContentCache.get(fileUri);
+        if (content === undefined) {
+            content = fs.readFileSync(vscode.Uri.parse(fileUri).fsPath, 'utf8');
+            fileContentCache.set(fileUri, content);
+        }
+        lines = content.split(/\r?\n/);
+    } catch {
+        lines = null;
+    }
+    fileLinesCache.set(fileUri, lines);
+    return lines;
 }
 
 /**

@@ -17,4 +17,8 @@ class UserController {
     final user = current ?? await repository.findById('missing');
     return user?.isAdult ?? false;
   }
+
+  String describe() => format(current);
 }
+
+String format(User? user) => user?.name ?? 'nobody';

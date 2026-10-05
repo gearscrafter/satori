@@ -9,7 +9,7 @@ import { resolvedTypesCache } from '../utils/caches';
 import { log } from '../utils/logger';
 import { processSymbolRecursiveLSP } from '../analysis/symbol_processor';
 import { buildClassRelationsFromSymbols } from '../analysis/class_relations';
-import { Localization, t } from '../utils/localization';
+import { Localization } from '../utils/localization';
 import { buildTypeIndex, clearTypeIndex } from '../analysis/enrichment/type-resolver';
 import { clearHoverCache } from '../lsp/hover_enrichment';
 
@@ -52,7 +52,8 @@ export function findClassFieldSymbol(classSymbol: EnrichedSymbol, fieldName: str
 export async function createWebview(
   context: vscode.ExtensionContext,
   data: { projectRoot: string; files: Array<{ file: string; fileUri: string; symbols: any[] }> },
-): Promise<{ panel: vscode.WebviewPanel; graph: ProjectGraphModel }> {
+): Promise<{ panel: vscode.WebviewPanel; graph: ProjectGraphModel; timings: { enrichMs: number; graphMs: number; finishMs: number } }> {
+  const startedAt = Date.now();
 
   function getLanguage(): string {
     const config = vscode.workspace.getConfiguration('satori');
@@ -116,6 +117,7 @@ export async function createWebview(
   });
 
   data.files = await Promise.all(processedFilesPromises);
+  const enrichedAt = Date.now();
   log.debug('✅ Deep enrichment of all files completed.');
 
   clearTypeIndex();
@@ -123,6 +125,7 @@ export async function createWebview(
 
   log.debug('Phase 2: Building project graph model...');
   const projectGraph = await buildGraphModel(data.files, data.projectRoot);
+  const graphBuiltAt = Date.now();
   log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
 
   log.debug('Calculating coupling degrees (in/out degree) of nodes...');
@@ -274,7 +277,12 @@ export async function createWebview(
   panel.webview.html = html;
 
 
-  return { panel, graph: projectGraph };
+  const finishedAt = Date.now();
+  return {
+    panel,
+    graph: projectGraph,
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt }
+  };
 }
 
 /**

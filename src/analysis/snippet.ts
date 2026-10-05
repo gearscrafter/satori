@@ -94,7 +94,7 @@ export function buildSnippet(graph: ProjectGraphModel, request: SnippetRequest):
                 break;
             }
         }
-        title = `${stripDecor(primary.label)} → ${name}`;
+        title = `${stripDecor(primary.label)} -> ${name}`;
     }
 
     if (!target && range.end.line === range.start.line) {

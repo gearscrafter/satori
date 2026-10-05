@@ -21,12 +21,13 @@ async function main() {
         throw new Error('Could not install Dart-Code.dart-code into the test instance');
     }
 
+    // SATORI_E2E_PROJECT and SATORI_E2E_SUITE let a different project or check be tried with the same launcher.
     await runTests({
         vscodeExecutablePath,
         extensionDevelopmentPath: root,
-        extensionTestsPath: path.join(__dirname, 'suite.js'),
+        extensionTestsPath: process.env.SATORI_E2E_SUITE || path.join(__dirname, 'suite.js'),
         launchArgs: [
-            path.join(__dirname, 'dummy_app'),
+            process.env.SATORI_E2E_PROJECT || path.join(__dirname, 'dummy_app'),
             '--disable-workspace-trust',
             '--skip-welcome',
             '--skip-release-notes'

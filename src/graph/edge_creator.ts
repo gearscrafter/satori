@@ -1,7 +1,8 @@
 import { stripCommentsAndStrings, escapeRegExp } from "../core";
 import { ProjectGraphModel, EnrichedSymbol, ProjectGraphEdge, ProjectGraphNode, ExternalPackageInfo } from "../types/index";
 import { getSourceCodeForSymbol } from "../analysis/source_analyzer";
-import { tryAddReadsFromEdge } from "../lsp/reference_analysis";
+import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges } from "../lsp/reference_analysis";
+import { methodBody } from "../analysis/signature";
 import { log } from "../utils/logger";
 
 /**
@@ -52,6 +53,9 @@ export async function createGraphEdgesFromSymbols(
     }
     log.debug(`[EdgeCreator] Pre-compiled ${symbolPatterns.size} RegExp patterns.`);
  
+    const usedIdentifiers = new Set<string>();
+    const ambiguousCallTargets = new Set<EnrichedSymbol>();
+
     for (const sourceNode of projectGraph.nodes) {
         const sourceSymbol = symbolMapById.get(sourceNode.id);
         if (!sourceSymbol) {continue;}
@@ -81,23 +85,37 @@ export async function createGraphEdgesFromSymbols(
             if (!sourceCodeText) {continue;}
  
             const cleanedSource = stripCommentsAndStrings(sourceCodeText);
- 
+            for (const word of cleanedSource.matchAll(/[A-Za-z_$][\w$]*/g)) {
+                usedIdentifiers.add(word[0]);
+            }
+
+            // Only the body can call something: the method's own name in its signature is not a call.
+            const body = methodBody(cleanedSource);
             const mentionedNames: string[] = [];
             for (const [name, pattern] of symbolPatterns) {
-                if (pattern.test(cleanedSource)) {
+                if (pattern.test(body)) {
                     mentionedNames.push(name);
                 }
             }
- 
+
             for (const targetName of mentionedNames) {
                 const targetSymbols = symbolNameIndex.get(targetName)!;
- 
+                const callableTargets = targetSymbols.filter(s => {
+                    const n = nodeBySymbol.get(s);
+                    return n && (n.kind === 'method' || n.kind === 'function');
+                });
+
                 for (const targetSymbol of targetSymbols) {
                     const targetNode = nodeBySymbol.get(targetSymbol);
                     if (!targetNode || sourceNode.id === targetNode.id) {continue;}
- 
+
                     if (targetNode.kind === 'method' || targetNode.kind === 'function') {
-                        createEdge(sourceNode.id, targetNode.id, 'CALLS');
+                        if (callableTargets.length === 1) {
+                            createEdge(sourceNode.id, targetNode.id, 'CALLS');
+                        } else {
+                            // Several methods share this name; the language server tells which one is really called.
+                            ambiguousCallTargets.add(targetSymbol);
+                        }
                     } else {
                         await tryAddReadsFromEdge(
                             projectGraph,
@@ -112,4 +130,7 @@ export async function createGraphEdgesFromSymbols(
             }
         }
     }
+
+    await addAmbiguousCallEdges(projectGraph, symbolMapById, ambiguousCallTargets, createEdge);
+    await addFieldAccessEdges(projectGraph, symbolMapById, usedIdentifiers, projectRoot, createEdge);
 }

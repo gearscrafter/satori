@@ -12,8 +12,9 @@
     const LAYER_RANK = { view: 0, state: 1, service: 2, model: 3 };
     const LABEL_PRIORITY = ['EXTENDS', 'IMPLEMENTS', 'CALLS', 'WRITES_TO', 'READS_FROM', 'PASSES_AS_ARGUMENT', 'INSTANCE_OF', 'USES_AS_TYPE'];
     const INHERITANCE = new Set(['EXTENDS', 'IMPLEMENTS']);
-    // Which end of an edge provides the data: "target" means the data lives in the edge target (reader/caller is the source).
-    const FLOW_PROVIDER = { CALLS: 'target', READS_FROM: 'target', WRITES_TO: 'source', PASSES_AS_ARGUMENT: 'source' };
+    // Which end of an edge provides the data. All edges are drawn from the method to the symbol it touches:
+    // a read, a call or an argument handed on takes the value from the target; a write puts a value into it.
+    const FLOW_PROVIDER = { CALLS: 'target', READS_FROM: 'target', WRITES_TO: 'source', PASSES_AS_ARGUMENT: 'target' };
 
     function stripDecor(label) {
         return String(label || '').replace(/^(?:\u{1F517}|⚙️?)\s*/u, '');
@@ -38,8 +39,24 @@
         return best;
     }
 
+    /** Path of a file URI relative to the project: the part after "/lib/" when there is one, else after the root. */
+    function relativeFolder(fileUri, projectRoot) {
+        if (!fileUri) { return ''; }
+        let p;
+        try { p = decodeURIComponent(String(fileUri)); } catch (e) { p = String(fileUri); }
+        p = p.replace(/^file:\/\/\/?/, '').replace(/\\/g, '/');
+        const dir = p.slice(0, Math.max(0, p.lastIndexOf('/')));
+        const lib = dir.search(/(^|\/)lib(\/|$)/);
+        if (lib >= 0) { return dir.slice(dir.indexOf('lib', lib) + 3).replace(/^\//, ''); }
+        if (projectRoot) {
+            const root = String(projectRoot).replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
+            if (root && dir.toLowerCase().indexOf(root) === 0) { return dir.slice(root.length).replace(/^\//, ''); }
+        }
+        return dir.split('/').slice(-2).join('/');
+    }
+
     function createModel(graph, options) {
-        const opts = Object.assign({ showSdk: false, showPackages: true, edgeLabels: null }, options || {});
+        const opts = Object.assign({ showSdk: false, showPackages: true, edgeLabels: null, projectRoot: '' }, options || {});
         const nodes = new Map();
         for (const n of (graph && graph.nodes) || []) {
             if (n.kind !== 'package_container') { nodes.set(n.id, n); }
@@ -167,10 +184,33 @@
             return Array.from(flow.values()).sort((a, b) => b.count - a.count);
         }
 
-        function overview() {
+        /** First folder level of a class below lib/ (empty string for classes directly in lib/). */
+        function folderOf(id) {
+            const n = nodes.get(ownerOf(id));
+            const folder = relativeFolder(n && n.data && n.data.fileUri, opts.projectRoot);
+            return folder.split('/')[0] || '';
+        }
+
+        /** Folders that contain visible classes, biggest first, for the overview filter. */
+        function folders() {
+            const counts = new Map();
+            for (const n of owners) {
+                const f = folderOf(n.id);
+                counts.set(f, (counts.get(f) || 0) + 1);
+            }
+            return Array.from(counts.entries())
+                .map(function (e) { return { name: e[0], count: e[1] }; })
+                .sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+        }
+
+        function overview(filter) {
             const byLayer = {};
             for (const l of LAYERS) { byLayer[l] = []; }
-            for (const n of owners) { byLayer[layerOf(n.id)].push(ownerSummary(n)); }
+            const folder = filter && typeof filter.folder === 'string' ? filter.folder : null;
+            for (const n of owners) {
+                if (folder !== null && folderOf(n.id) !== folder) { continue; }
+                byLayer[layerOf(n.id)].push(ownerSummary(n));
+            }
             for (const l of LAYERS) {
                 byLayer[l].sort((a, b) => (b.inDeg + b.outDeg) - (a.inDeg + a.outDeg) || a.label.localeCompare(b.label));
             }
@@ -353,7 +393,7 @@
         return {
             nodes, edges, internalCount,
             ownerOf, layerOf, nameOf, sourceTypeOf,
-            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow,
+            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders,
             nodeRange: id => normalizeRange(nodes.get(id) && nodes.get(id).data && (nodes.get(id).data.range || nodes.get(id).data.selectionRange))
         };
     }
@@ -381,5 +421,30 @@
         };
     }
 
-    return { LAYERS, LAYER_RANK, createModel, createTrail, stripDecor, normalizeRange, dominantLabel };
+    /**
+     * Keeps the `limit` most connected boxes of a focus side (ties broken by name) and regroups them by layer.
+     * Returns the visible groups plus how many boxes were left out.
+     */
+    function limitCards(groups, limit) {
+        const all = [];
+        groups.forEach(function (g) { g.cards.forEach(function (c) { all.push(c); }); });
+        if (all.length <= limit) { return { groups: groups, hidden: 0, total: all.length }; }
+        const keep = new Set(all.slice().sort(function (a, b) { return b.edgeCount - a.edgeCount || a.label.localeCompare(b.label); })
+            .slice(0, limit).map(function (c) { return c.id; }));
+        const shown = groups.map(function (g) {
+            return { layer: g.layer, cards: g.cards.filter(function (c) { return keep.has(c.id); }) };
+        }).filter(function (g) { return g.cards.length > 0; });
+        return { groups: shown, hidden: all.length - limit, total: all.length };
+    }
+
+    /** Which members of a class to list when it has many: the connected ones and the active one, then the first others. */
+    function visibleMembers(members, activeId, limit) {
+        if (members.length <= limit) { return members; }
+        const keep = new Set();
+        members.forEach(function (m) { if (m.id === activeId || (m.inCount || 0) + (m.outCount || 0) > 0) { keep.add(m.id); } });
+        for (let i = 0; i < members.length && keep.size < limit; i++) { keep.add(members[i].id); }
+        return members.filter(function (m) { return keep.has(m.id); });
+    }
+
+    return { LAYERS, LAYER_RANK, createModel, createTrail, stripDecor, normalizeRange, dominantLabel, limitCards, visibleMembers, relativeFolder };
 });

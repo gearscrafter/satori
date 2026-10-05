@@ -29,7 +29,7 @@ export function createGraphNodesFromSymbols(
 
       if (parentClass) {
         log.debug(`[DEBUG-PARENT] ${s.name} has parent${parentClass.name}`);
-        log.debug(`[DEBUG-PARENT-ID] ${s.name} → parentId: ${parentId}`);
+        log.debug(`[DEBUG-PARENT-ID] ${s.name} -> parentId: ${parentId}`);
       } else {
         log.debug(`[DEBUG-PARENT] ${s.name} has no parent (is top-level)`);
       }

@@ -90,6 +90,18 @@ suite('Trail Model Test Suite', () => {
         assert.strictEqual(e2.source, 'V.build', 'raw edge direction is preserved for code lookup');
     });
 
+    test('traceFlow treats a field passed as an argument as data leaving the field', () => {
+        const g = {
+            nodes: [node('C', 'C', 'class', 'state'), node('C.field', 'items', 'field', 'member', 'C'), node('C.show', 'show', 'method', 'member', 'C')],
+            edges: [edge('p', 'C.show', 'C.field', 'PASSES_AS_ARGUMENT')]
+        };
+        const flow = TrailModel.createModel(g).traceFlow('C.field');
+        const passed = flow.edges.find((e: any) => e.id === 'p');
+        assert.strictEqual(passed.provider, 'C.field');
+        assert.strictEqual(passed.consumer, 'C.show');
+        assert.strictEqual(flow.nodes.find((n: any) => n.id === 'C.show').depth, 1);
+    });
+
     test('traceFlow from a class starts from all of its members', () => {
         const flow = TrailModel.createModel(graph).traceFlow('S');
         assert.deepStrictEqual(flow.seeds.sort(), ['S', 'S.items', 'S.load'].sort());
@@ -190,6 +202,57 @@ suite('Trail Model Test Suite', () => {
         const f = m.focus(user.id);
         const labels = [...f.left, ...f.right].flatMap((g: any) => g.cards.map((c: any) => c.label));
         assert.ok(labels.includes('Entity'), 'User should relate to Entity');
+    });
+});
+
+suite('Trail Scale Helpers Test Suite', () => {
+    const inFolder = (id: string, label: string, folder: string, layer = 'view') => ({
+        id, label, kind: 'class', data: { fileUri: `file:///c%3A/proj/lib/${folder}/${id}.dart`, layer, source: { type: 'project' } }
+    });
+
+    test('relativeFolder reads the path below lib/, below the root, or falls back to the last folders', () => {
+        assert.strictEqual(TrailModel.relativeFolder('file:///c%3A/proj/lib/auth/ui/login.dart', ''), 'auth/ui');
+        assert.strictEqual(TrailModel.relativeFolder('file:///c%3A/proj/lib/main.dart', ''), '');
+        assert.strictEqual(TrailModel.relativeFolder('file:///c%3A/Proj/src/a/b.dart', 'c:/proj'), 'src/a');
+        assert.strictEqual(TrailModel.relativeFolder('file:///home/me/x/deep/er/f.dart', ''), 'deep/er');
+        assert.strictEqual(TrailModel.relativeFolder('', ''), '');
+    });
+
+    test('folders lists the first folder level with counts and the overview can be filtered by it', () => {
+        const g = {
+            nodes: [inFolder('a', 'A', 'auth/ui'), inFolder('b', 'B', 'auth/data', 'service'), inFolder('c', 'C', 'cart'), inFolder('d', 'D', '', 'model')],
+            edges: []
+        };
+        const m = TrailModel.createModel(g, { projectRoot: 'c:/proj' });
+        assert.deepStrictEqual(m.folders(), [{ name: 'auth', count: 2 }, { name: '', count: 1 }, { name: 'cart', count: 1 }]);
+        const labels = (o: any) => o.layers.flatMap((l: any) => l.classes.map((c: any) => c.label)).sort();
+        assert.deepStrictEqual(labels(m.overview()), ['A', 'B', 'C', 'D']);
+        assert.deepStrictEqual(labels(m.overview({ folder: 'auth' })), ['A', 'B']);
+        assert.deepStrictEqual(labels(m.overview({ folder: '' })), ['D']);
+        assert.deepStrictEqual(labels(m.overview({ folder: 'nope' })), []);
+    });
+
+    test('limitCards keeps the most connected boxes, regrouped by layer, and counts what is hidden', () => {
+        const card = (id: string, layer: string, edgeCount: number) => ({ id, label: id, layer, edgeCount });
+        const groups = [
+            { layer: 'view', cards: [card('v1', 'view', 1), card('v2', 'view', 9)] },
+            { layer: 'model', cards: [card('m1', 'model', 5), card('m2', 'model', 5), card('m3', 'model', 2)] }
+        ];
+        const r = TrailModel.limitCards(groups, 3);
+        assert.deepStrictEqual(r.groups.map((g: any) => g.cards.map((c: any) => c.id)), [['v2'], ['m1', 'm2']]);
+        assert.deepStrictEqual([r.hidden, r.total], [2, 5]);
+        assert.strictEqual(TrailModel.limitCards(groups, 10).hidden, 0);
+        assert.strictEqual(TrailModel.limitCards(groups, 10).groups, groups);
+    });
+
+    test('visibleMembers keeps connected and active members and fills up in source order', () => {
+        const members = Array.from({ length: 30 }, (_, i) => ({ id: 'm' + i, label: 'm' + i, inCount: i === 25 ? 2 : 0, outCount: 0 }));
+        const shown = TrailModel.visibleMembers(members, 'm28', 10).map((m: any) => m.id);
+        assert.strictEqual(shown.length, 10);
+        assert.ok(shown.includes('m25') && shown.includes('m28'));
+        assert.deepStrictEqual(shown.slice(0, 3), ['m0', 'm1', 'm2']);
+        assert.deepStrictEqual(shown, [...shown].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))), 'source order is kept');
+        assert.strictEqual(TrailModel.visibleMembers(members.slice(0, 5), null, 10).length, 5);
     });
 });
 

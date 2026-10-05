@@ -12,6 +12,7 @@ import { registerDebugCommands } from './command_registry';
 import { transformLspSymbols } from '../analysis/symbol_transformer';
 import { t, Localization } from '../utils/localization';
 import { buildSnippet } from '../analysis/snippet';
+import { mapLimited, retryUntil } from '../core';
 
 /**
  * Manages the global state of the Satori extension.
@@ -23,6 +24,7 @@ class ExtensionState {
     mainGraphPanel: vscode.WebviewPanel | undefined;
     projectGraph: ProjectGraphModel | undefined;
     stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
+    timings: Record<string, number> | undefined;
 
     /**
      * Sets the webview panel and project graph in the global state.
@@ -162,23 +164,33 @@ async function discoverDartFiles(
 /**
  * Requests document symbols from the Dart language server for each file and
  * transforms them into the extension's symbol model.
+ *
+ * Files are read a few at a time, and an empty answer is asked again after a short wait: while the
+ * server is still starting it answers "nothing" for files that do declare classes, which would
+ * silently drop them from the diagram.
  */
 async function extractFileSymbols(
     uris: vscode.Uri[],
     progress: vscode.Progress<{ increment: number; message: string }>
 ): Promise<FileData[]> {
-    const filesData: FileData[] = [];
     let analyzedCount = 0;
     let errorCount = 0;
     let emptyCount = 0;
+    let emptyStreak = 0;
+    const hasSymbols = (r: vscode.DocumentSymbol[] | null | undefined) => Array.isArray(r) && r.length > 0;
 
-    for (const u of uris) {
+    const filesData = await mapLimited(uris, SYMBOL_REQUEST_CONCURRENCY, async (u): Promise<FileData> => {
         let syms: any[] = [];
         try {
-            const raw = await vscode.commands.executeCommand(
+            const ask = async () => await vscode.commands.executeCommand(
                 'vscode.executeDocumentSymbolProvider',
                 u
             ) as vscode.DocumentSymbol[] | null | undefined;
+            // A file with no declarations is legitimate, so give up retrying once several in a row stay empty.
+            const delays = emptyStreak >= MAX_EMPTY_FILES_IN_A_ROW ? [] : EMPTY_SYMBOLS_RETRY_DELAYS_MS;
+            const outcome = await retryUntil(ask, hasSymbols, delays);
+            emptyStreak = outcome.exhausted ? emptyStreak + 1 : 0;
+            const raw = outcome.result;
 
             if (!Array.isArray(raw)) {
                 log.debug(`[DIAGNOSTIC] No symbol array for ${path.basename(u.fsPath)}: ${raw === null ? 'null' : typeof raw}`);
@@ -195,13 +207,17 @@ async function extractFileSymbols(
             errorCount++;
         }
 
-        filesData.push({ file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms });
         progress.report({ increment: 40 / uris.length, message: t('progress.analyzingFile') });
-    }
+        return { file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms };
+    });
 
     log.debug(`📊 Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
     return filesData;
 }
+
+const SYMBOL_REQUEST_CONCURRENCY = 8;
+const EMPTY_SYMBOLS_RETRY_DELAYS_MS = [250, 750];
+const MAX_EMPTY_FILES_IN_A_ROW = 6;
 
 /**
  * Analyzes a Flutter/Dart project and generates the architecture graph.
@@ -232,8 +248,10 @@ async function analyzeProject(
     const isProjectRoot = fs.existsSync(path.join(root, 'pubspec.yaml'));
     log.debug(`📊 Is project root (has pubspec.yaml): ${isProjectRoot}`);
 
+    const analysisStart = Date.now();
     progress.report({ increment: 10, message: t('progress.searchingFiles') });
     const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot, progress);
+    const discoveredAt = Date.now();
 
     if (uniqueUris.length === 0) {
         log.info('❌ No Dart files found in the project.');
@@ -249,6 +267,7 @@ async function analyzeProject(
     progress.report({ increment: 30, message: t('progress.analyzingFiles', uniqueUris.length.toString()) });
 
     const filesDataArray = await extractFileSymbols(uniqueUris, progress);
+    const symbolsAt = Date.now();
 
     if (filesDataArray.every(f => f.symbols.length === 0) && filesDataArray.length > 0) {
         log.info('⚠️ No classes/symbols found in any project Dart files.');
@@ -270,6 +289,16 @@ async function analyzeProject(
         });
 
         const { panel, graph } = result;
+        const timings = {
+            files: filesDataArray.length,
+            discoverMs: discoveredAt - analysisStart,
+            symbolsMs: symbolsAt - discoveredAt,
+            ...result.timings,
+            totalMs: Date.now() - analysisStart
+        };
+        log.info(`⏱ Analysis of ${timings.files} files took ${(timings.totalMs / 1000).toFixed(1)}s ` +
+            `(find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, ` +
+            `graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
 
         log.debug(`✅ Webview created successfully!`);
         log.debug(`📊 Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
@@ -281,8 +310,8 @@ async function analyzeProject(
 
         progress.report({ increment: 95, message: t('progress.configuringInterface') });
         
-        return { panel, graph };
-        
+        return { panel, graph, timings };
+
     } catch (error: any) {
         log.error(`❌ CRITICAL ERROR creating webview:`);
         log.error(`   Message: ${error.message}`);
@@ -541,6 +570,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
 
             state.setGraph(result.panel, result.graph);
+            state.timings = result.timings;
             setupWebviewMessageHandlers(state, detailsProvider, context);
 
             progress.report({ increment: 100, message: t('progress.completed') });
@@ -646,7 +676,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     return {
         getGraph: () => state.getGraph(),
-        getStats: () => ({ ...state.stats }),
+        getStats: () => ({ ...state.stats, timings: state.timings }),
         focusNode: (nodeId: string) => state.getPanel()?.webview.postMessage({ command: 'setFocusInGraph', nodeId })
     };
 }

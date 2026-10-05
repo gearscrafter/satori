@@ -50,8 +50,16 @@
     const WIDTHS = [2, 4, 7];
     const REDUCED_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const DRAG_THRESHOLD = 4;
+    const MAX_CARDS_PER_SIDE = 12;
+    const MAX_MEMBERS_SHOWN = 16;
+    const MAX_OVERVIEW_PER_LAYER = 30;
 
     const state = {
+        expand: { left: false, right: false },
+        expandMembers: false,
+        overviewOpen: new Set(),
+        folder: null,
+        focusFull: null,
         filters: { showSdk: false, showPackages: true, groups: { calls: true, inherit: true, data: true, types: true } },
         layerEmphasis: null,
         sel: null,
@@ -85,7 +93,7 @@
             labels = new Set();
             Object.keys(groups).forEach(function (k) { if (groups[k]) { EDGE_GROUPS[k].forEach(function (l) { labels.add(l); }); } });
         }
-        return M.createModel(graph, { showSdk: state.filters.showSdk, showPackages: state.filters.showPackages, edgeLabels: labels });
+        return M.createModel(graph, { showSdk: state.filters.showSdk, showPackages: state.filters.showPackages, edgeLabels: labels, projectRoot: projectRoot });
     }
 
     /* ---------- DOM helpers ---------- */
@@ -146,8 +154,13 @@
         trail.push(id);
         afterNavigation();
     }
+    function resetCollapse() {
+        state.expand = { left: false, right: false };
+        state.expandMembers = false;
+    }
     function afterNavigation() {
         resetSelection();
+        resetCollapse();
         state.offsets = new Map();
         render();
         postRelationships();
@@ -233,6 +246,7 @@
         state.sel = null;
         state.flowSel = null;
         state.offsets = new Map();
+        resetCollapse();
         state.code = { mode: 'trace', refs: [], active: 0, snippet: null, loading: false, empty: false };
         renderTopbar();
         renderStage({ animate: true });
@@ -243,6 +257,7 @@
         if (!state.trace) { return; }
         state.trace = null;
         state.offsets = new Map();
+        resetCollapse();
         resetSelection();
         renderTopbar();
         renderStage({ animate: true });
@@ -426,7 +441,7 @@
             strip.appendChild(pill(layer));
             if (i < FLOW_ORDER.length - 1) {
                 const f = get(layer, FLOW_ORDER[i + 1]);
-                strip.appendChild(el('span', { class: 'flow-arrow' }, '→', f ? flowChip(f) : null));
+                strip.appendChild(el('span', { class: 'flow-arrow' }, '->', f ? flowChip(f) : null));
                 if (f) { shown.add(f.from + '>' + f.to); }
             }
         });
@@ -435,7 +450,7 @@
         flows.filter(function (f) { return !shown.has(f.from + '>' + f.to); })
             .sort(function (a, b) { return (b.violation - a.violation) || (b.count - a.count); })
             .forEach(function (f) {
-                const arrow = f.from === f.to ? '↻' : '→';
+                const arrow = f.from === f.to ? '↻' : '->';
                 const label = f.from === f.to
                     ? layerLabel(f.from) + ' ' + arrow + ' '
                     : layerLabel(f.from) + ' ' + arrow + ' ' + layerLabel(f.to) + ' ';
@@ -458,7 +473,8 @@
         $('edges').replaceChildren();
         const current = trail.current();
         state.depFocus = current ? model.focus(current) : null;
-        state.focus = state.depFocus && state.trace ? traceFocus(state.depFocus) : state.depFocus;
+        state.focusFull = state.depFocus && state.trace ? traceFocus(state.depFocus) : state.depFocus;
+        state.focus = state.focusFull ? limitFocus(state.focusFull) : null;
         if (state.focus) { renderFocus(state.focus, columns); } else { renderOverview(columns); }
         renderPaint();
 
@@ -475,6 +491,16 @@
         } else {
             requestAnimationFrame(finish);
         }
+    }
+
+    /** A hub can have hundreds of neighbours: only the most connected ones are drawn until the user asks for the rest. */
+    function limitFocus(f) {
+        const left = M.limitCards(f.left, state.expand.left ? Infinity : MAX_CARDS_PER_SIDE);
+        const right = M.limitCards(f.right, state.expand.right ? Infinity : MAX_CARDS_PER_SIDE);
+        return Object.assign({}, f, {
+            left: left.groups, right: right.groups,
+            hidden: { left: left.hidden, right: right.hidden }, total: { left: left.total, right: right.total }
+        });
     }
 
     /** Boxes that already existed glide to their new place; new ones emerge from the centre box, like nested nodes unfolding. */
@@ -516,30 +542,71 @@
         return Promise.all(animations.map(function (a) { return a.finished.catch(function () { return null; }); }));
     }
 
+    /** "↘ in  ↗ out" counters, each in its own colour and with a tooltip that spells the numbers out. */
+    function ioBadge(inCount, outCount, className) {
+        return el('span', { class: className || 'io', title: t('trail.tip.inoutRow', String(inCount), String(outCount)) },
+            el('span', { class: 'io-in', text: '↘' + inCount }), ' ', el('span', { class: 'io-out', text: '↗' + outCount }));
+    }
+
     function countBadge(text, tip, extraClass) {
         return el('span', { class: 'badge ' + (extraClass || ''), title: tip, text: text });
     }
 
+    function folderSelect() {
+        const folders = model.folders();
+        if (folders.length < 2) { return null; }
+        const select = el('select', { id: 'folder-filter', title: t('trail.tip.folder'), 'aria-label': t('trail.folder.label') });
+        select.appendChild(el('option', { value: '__all__', text: t('trail.folder.all') + ' (' + folders.reduce(function (n, f) { return n + f.count; }, 0) + ')' }));
+        folders.forEach(function (f) {
+            select.appendChild(el('option', { value: f.name === '' ? '__root__' : f.name, text: (f.name || t('trail.folder.root')) + ' (' + f.count + ')' }));
+        });
+        select.value = state.folder === null ? '__all__' : (state.folder === '' ? '__root__' : state.folder);
+        if (select.value === '' || select.selectedIndex < 0) { select.value = '__all__'; state.folder = null; }
+        select.addEventListener('change', function () {
+            state.folder = select.value === '__all__' ? null : select.value === '__root__' ? '' : select.value;
+            state.overviewOpen = new Set();
+            renderStage({ animate: true });
+        });
+        return el('label', { class: 'folder-filter', title: t('trail.tip.folder') }, ico('class', 13), t('trail.folder.label'), select);
+    }
+
     function renderOverview(columns) {
-        const o = model.overview();
+        const o = model.overview(state.folder === null ? undefined : { folder: state.folder });
         const total = o.layers.reduce(function (n, l) { return n + l.classes.length; }, 0);
         columns.style.display = 'block';
-        if (total === 0) { columns.appendChild(el('p', { class: 'overview-hint', text: t('trail.empty') })); return; }
-        columns.appendChild(el('p', { class: 'overview-hint' }, ico('pointer', 14), t('trail.overviewHint')));
+        const picker = folderSelect();
+        if (total === 0) {
+            columns.appendChild(el('p', { class: 'overview-hint', text: t('trail.empty') }));
+            if (picker) { columns.appendChild(picker); }
+            return;
+        }
+        columns.appendChild(el('div', { class: 'overview-head' },
+            el('p', { class: 'overview-hint' }, ico('pointer', 14), t('trail.overviewHint')), picker));
         const grid = el('div', { id: 'overview' });
         o.layers.forEach(function (l) {
             const col = el('div', { class: 'overview-col layer-' + l.layer + (state.layerEmphasis && state.layerEmphasis !== l.layer ? ' dim' : ''), title: t('hud.layer.' + l.layer) });
             col.appendChild(el('h3', null, ico('layer-' + l.layer, 15), layerLabel(l.layer), el('span', { class: 'n', text: String(l.classes.length) })));
-            l.classes.forEach(function (c) {
+            const open = state.overviewOpen.has(l.layer);
+            (open ? l.classes : l.classes.slice(0, MAX_OVERVIEW_PER_LAYER)).forEach(function (c) {
                 const badge = sourceBadge(c.source);
                 const item = el('button', { class: 'overview-item layer-' + c.layer + (c.inDeg + c.outDeg === 0 ? ' idle' : ''), 'data-id': c.id, title: c.label + ' — ' + t('trail.tip.member') },
                     kindIcon(c.kind, 14),
                     el('span', { class: 'name', text: c.label }),
                     badge ? countBadge(badge, t('hud.boxes.source'), 'source') : null,
-                    countBadge('↘' + c.inDeg + ' ↗' + c.outDeg, t('trail.tip.inout')));
+                    ioBadge(c.inDeg, c.outDeg, 'badge io'));
                 item.addEventListener('click', function () { navigate(c.id); });
                 col.appendChild(item);
             });
+            if (l.classes.length > MAX_OVERVIEW_PER_LAYER) {
+                const hiddenCount = l.classes.length - MAX_OVERVIEW_PER_LAYER;
+                const toggle = el('button', { class: 'more-toggle', title: t('trail.tip.showMore') },
+                    ico(open ? 'arrow-up' : 'arrow-down', 12), open ? t('trail.less') : t('trail.more.side', String(hiddenCount)));
+                toggle.addEventListener('click', function () {
+                    if (open) { state.overviewOpen.delete(l.layer); } else { state.overviewOpen.add(l.layer); }
+                    renderStage({ animate: false });
+                });
+                col.appendChild(toggle);
+            }
             grid.appendChild(col);
         });
         columns.appendChild(grid);
@@ -555,7 +622,7 @@
         },
             el('span', { class: 'mk' }, kindIcon(m.kind, 12)),
             el('span', { class: 'label', text: m.label }),
-            extra && extra.io ? el('span', { class: 'io', title: t('trail.tip.inout'), text: extra.io }) : null);
+            extra && extra.io ? ioBadge(extra.io.inCount, extra.io.outCount) : null);
         return clickable(row, function () { navigate(m.id); });
     }
 
@@ -594,9 +661,10 @@
         return node;
     }
 
-    function sideColumn(groups, side, title, emptyText) {
+    function sideColumn(groups, side, title, emptyText, f) {
         const col = el('div', { class: 'column side-' + side });
-        col.appendChild(el('div', { class: 'column-title', text: title }));
+        const total = f.total[side];
+        col.appendChild(el('div', { class: 'column-title', text: title + (total > 0 ? ' · ' + total : '') }));
         if (!groups.length) { col.appendChild(el('div', { class: 'empty-side', text: emptyText })); }
         groups.forEach(function (g) {
             const key = 'group:' + side + ':' + g.layer;
@@ -608,6 +676,14 @@
             applyOffset(group, key);
             col.appendChild(group);
         });
+        const hidden = f.hidden[side];
+        if (hidden > 0 || (state.expand[side] && total > MAX_CARDS_PER_SIDE)) {
+            const expanded = state.expand[side];
+            const toggle = el('button', { class: 'more-toggle', title: t('trail.tip.showMore') },
+                ico(expanded ? 'arrow-up' : 'arrow-down', 12), expanded ? t('trail.less') : t('trail.more.side', String(hidden)));
+            toggle.addEventListener('click', function () { state.expand[side] = !expanded; renderStage({ animate: true }); });
+            col.appendChild(toggle);
+        }
         return col;
     }
 
@@ -635,11 +711,23 @@
         clickable(head, function () { navigate(c.id); });
         makeDraggable(head, card, key);
         card.appendChild(head);
+        if (c.members.some(function (m) { return m.inCount || m.outCount; })) {
+            card.appendChild(el('div', { class: 'io-legend', title: t('trail.tip.inout') },
+                el('span', { class: 'io-in', text: '↘ ' + t('trail.legend.in') }), ' · ', el('span', { class: 'io-out', text: '↗ ' + t('trail.legend.out') })));
+        }
         if (c.members.length) {
             const list = el('div', { class: 'members' });
-            c.members.forEach(function (m) {
-                list.appendChild(memberRow(m, { active: m.id === f.activeMemberId, io: (m.inCount || m.outCount) ? '↘' + m.inCount + ' ↗' + m.outCount : '' }));
+            const shown = state.expandMembers ? c.members : M.visibleMembers(c.members, f.activeMemberId, MAX_MEMBERS_SHOWN);
+            shown.forEach(function (m) {
+                list.appendChild(memberRow(m, { active: m.id === f.activeMemberId, io: (m.inCount || m.outCount) ? { inCount: m.inCount, outCount: m.outCount } : null }));
             });
+            if (c.members.length > MAX_MEMBERS_SHOWN) {
+                const toggle = el('button', { class: 'more-toggle', title: t('trail.tip.showMore') },
+                    ico(state.expandMembers ? 'arrow-up' : 'arrow-down', 12),
+                    state.expandMembers ? t('trail.less') : t('trail.more.side', String(c.members.length - shown.length)));
+                toggle.addEventListener('click', function () { state.expandMembers = !state.expandMembers; renderStage({ animate: false }); });
+                list.appendChild(toggle);
+            }
             card.appendChild(list);
         }
         if (c.internalCount) { card.appendChild(el('div', { class: 'card-foot', text: t('trail.internal', String(c.internalCount)) })); }
@@ -653,9 +741,9 @@
         const rightTitle = f.traceMode ? t('trail.trace.rightTitle') : t('trail.uses');
         const leftEmpty = f.traceMode ? t('trail.trace.empty') : t('trail.noneUsedBy');
         const rightEmpty = f.traceMode ? t('trail.trace.empty') : t('trail.noneUses');
-        columns.appendChild(sideColumn(f.left, 'left', leftTitle, leftEmpty));
+        columns.appendChild(sideColumn(f.left, 'left', leftTitle, leftEmpty, f));
         columns.appendChild(center);
-        columns.appendChild(sideColumn(f.right, 'right', rightTitle, rightEmpty));
+        columns.appendChild(sideColumn(f.right, 'right', rightTitle, rightEmpty, f));
     }
 
     /* ---------- dragging boxes ---------- */
@@ -708,39 +796,40 @@
         return n;
     }
 
+    /**
+     * Draws one arrow per neighbour box. All geometry is read first and the SVG is written once afterwards:
+     * mixing reads and writes forces a layout per arrow and made dragging crawl with hundreds of boxes.
+     */
     function drawEdges(animate) {
         const svg = $('edges');
-        svg.replaceChildren();
         const f = state.focus;
-        if (!f) { return; }
         const centerCard = document.querySelector('.card.center');
-        if (!centerCard) { return; }
+        if (!f || !centerCard) { svg.replaceChildren(); return; }
+
+        // ---- pass 1: read the layout ----
         const canvasRect = canvasOrigin();
-        svg.setAttribute('height', String($('canvas').scrollHeight));
-
-        const defs = svgEl('defs');
-        const marker = svgEl('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto', markerUnits: 'userSpaceOnUse' });
-        marker.appendChild(svgEl('path', { d: 'M0,0 L10,5 L0,10 z' }));
-        defs.appendChild(marker);
-        svg.appendChild(defs);
-
         const cr = centerCard.getBoundingClientRect();
+        const centerHead = centerCard.querySelector('.card-head').getBoundingClientRect();
+        const centerMembers = new Map();
+        centerCard.querySelectorAll('.member[data-id]').forEach(function (m) { centerMembers.set(m.dataset.id, m.getBoundingClientRect()); });
+        const cardEls = new Map();
+        document.querySelectorAll('.card[data-side]').forEach(function (n) { cardEls.set(n.dataset.side + ':' + n.dataset.id, n); });
+
         const all = [];
         f.left.forEach(function (g) { g.cards.forEach(function (c) { all.push({ card: c, side: 'left' }); }); });
         f.right.forEach(function (g) { g.cards.forEach(function (c) { all.push({ card: c, side: 'right' }); }); });
 
+        const shapes = [];
         all.forEach(function (item) {
             const card = item.card;
             const side = item.side;
-            const cardEl = document.querySelector('.card[data-id="' + cssEscape(card.id) + '"][data-side="' + side + '"]');
+            const cardEl = cardEls.get(side + ':' + card.id);
             if (!cardEl) { return; }
             const headRect = cardEl.querySelector('.card-head').getBoundingClientRect();
             const cardRect = cardEl.getBoundingClientRect();
             let anchor = null;
-            for (let i = 0; i < card.centerMemberIds.length && !anchor; i++) {
-                anchor = centerCard.querySelector('.member[data-id="' + cssEscape(card.centerMemberIds[i]) + '"]');
-            }
-            const ar = (anchor || centerCard.querySelector('.card-head')).getBoundingClientRect();
+            for (let i = 0; i < card.centerMemberIds.length && !anchor; i++) { anchor = centerMembers.get(card.centerMemberIds[i]) || null; }
+            const ar = anchor || centerHead;
             const cy = ar.top + ar.height / 2 - canvasRect.top;
             const ny = headRect.top + headRect.height / 2 - canvasRect.top;
             // Connect through the side that faces the other box, so dragging a box across the centre still reads well.
@@ -750,8 +839,23 @@
             let x1, y1, x2, y2;
             if (side === 'left') { x1 = cardEdgeX; y1 = ny; x2 = centerEdgeX; y2 = cy; }
             else { x1 = centerEdgeX; y1 = cy; x2 = cardEdgeX; y2 = ny; }
-            const dx = (x2 - x1) / 2;
-            const d = 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2;
+            shapes.push({ card: card, side: side, x1: x1, y1: y1, x2: x2, y2: y2 });
+        });
+        const height = $('canvas').scrollHeight;
+
+        // ---- pass 2: write the SVG in one go ----
+        const frag = document.createDocumentFragment();
+        const defs = svgEl('defs');
+        const marker = svgEl('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto', markerUnits: 'userSpaceOnUse' });
+        marker.appendChild(svgEl('path', { d: 'M0,0 L10,5 L0,10 z' }));
+        defs.appendChild(marker);
+        frag.appendChild(defs);
+
+        shapes.forEach(function (s) {
+            const card = s.card;
+            const side = s.side;
+            const dx = (s.x2 - s.x1) / 2;
+            const d = 'M' + s.x1 + ',' + s.y1 + ' C' + (s.x1 + dx) + ',' + s.y1 + ' ' + (s.x2 - dx) + ',' + s.y2 + ' ' + s.x2 + ',' + s.y2;
             const width = 1.5 + Math.min(card.edgeCount, 8) * 0.55;
             const dim = state.layerEmphasis && state.layerEmphasis !== card.layer;
             const group = svgEl('g', {
@@ -764,8 +868,8 @@
             // Chips sit close to the neighbour box (not at the midpoint) so edges to a busy hub do not stack their counters.
             const bt = side === 'left' ? 0.22 : 0.78;
             const u = 1 - bt;
-            const mx = u * u * u * x1 + 3 * u * u * bt * (x1 + dx) + 3 * u * bt * bt * (x2 - dx) + bt * bt * bt * x2;
-            const my = u * u * u * y1 + 3 * u * u * bt * y1 + 3 * u * bt * bt * y2 + bt * bt * bt * y2;
+            const mx = u * u * u * s.x1 + 3 * u * u * bt * (s.x1 + dx) + 3 * u * bt * bt * (s.x2 - dx) + bt * bt * bt * s.x2;
+            const my = u * u * u * s.y1 + 3 * u * u * bt * s.y1 + 3 * u * bt * bt * s.y2 + bt * bt * bt * s.y2;
             const text = String(card.edgeCount);
             const w = 12 + text.length * 7;
             const chip = svgEl('g', { class: 'edge-chip' });
@@ -780,9 +884,12 @@
             const select = function () { selectCard(card, side); };
             hit.addEventListener('click', select);
             chip.addEventListener('click', select);
-            svg.appendChild(group);
+            frag.appendChild(group);
             if (animate) { group.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, easing: 'ease-out', fill: 'backwards' }); }
         });
+
+        svg.setAttribute('height', String(height));
+        svg.replaceChildren(frag);
         applySelectionStyles();
     }
 
@@ -790,7 +897,7 @@
     function renderRefs() {
         const box = $('refs');
         box.replaceChildren();
-        const f = state.focus;
+        const f = state.focusFull || state.focus;
         const code = state.code;
 
         if (state.trace && code.mode === 'trace') { renderTraceRefs(box); return; }
@@ -807,7 +914,7 @@
             cards.forEach(function (item) {
                 const row = el('div', { class: 'ref-row e-' + item.c.dominantLabel },
                     el('div', { class: 'ref-line' },
-                        el('span', { class: 'verb', text: item.side === 'left' ? '→ ' + (VERBS[item.c.dominantLabel] || '') : (VERBS[item.c.dominantLabel] || '') + ' →' }),
+                        el('span', { class: 'verb', text: item.side === 'left' ? '-> ' + (VERBS[item.c.dominantLabel] || '') : (VERBS[item.c.dominantLabel] || '') + ' ->' }),
                         kindIcon(item.c.kind, 12),
                         el('span', { class: 'ref-name', text: item.c.label }),
                         el('span', { class: 'badge count', title: t('trail.tip.count'), text: String(item.c.edgeCount) })));
@@ -984,7 +1091,7 @@
         boxes.appendChild(hudRow(el('span', { class: 'member kind-method hud-pill' }, el('span', { class: 'mk' }, ico('method', 12)), 'method'), t('hud.boxes.method')));
         boxes.appendChild(hudRow(el('span', { class: 'member kind-field hud-pill' }, el('span', { class: 'mk' }, ico('field', 12)), 'field'), t('hud.boxes.field')));
         boxes.appendChild(hudRow(el('span', { class: 'badge count', text: '3' }), t('hud.boxes.count')));
-        boxes.appendChild(hudRow(el('span', { class: 'badge', text: '↘1 ↗2' }), t('hud.boxes.inout')));
+        boxes.appendChild(hudRow(ioBadge(1, 2, 'badge io'), t('hud.boxes.inout')));
         boxes.appendChild(hudRow(el('span', { class: 'badge source', text: 'SDK' }), t('hud.boxes.source')));
         panel.appendChild(boxes);
 
@@ -1328,12 +1435,16 @@
                     if (!owner) { break; }
                     navigate(owner);
                     const target = model.ownerOf(m.targetId);
-                    const f = state.focus;
+                    const f = state.focusFull;
                     if (!f || !target) { break; }
                     let found = null;
                     f.left.forEach(function (g) { g.cards.forEach(function (c) { if (c.id === target && !found) { found = { c: c, side: 'left' }; } }); });
                     f.right.forEach(function (g) { g.cards.forEach(function (c) { if (c.id === target && !found) { found = { c: c, side: 'right' }; } }); });
-                    if (found) { selectCard(found.c, found.side); }
+                    if (found) {
+                        const visible = state.focus[found.side].some(function (g) { return g.cards.some(function (c) { return c.id === target; }); });
+                        if (!visible) { state.expand[found.side] = true; renderStage({ animate: false }); }
+                        selectCard(found.c, found.side);
+                    }
                     break;
                 }
                 case 'snippet':

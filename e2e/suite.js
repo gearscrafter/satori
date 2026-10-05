@@ -92,6 +92,39 @@ exports.run = async function run() {
             assert.strictEqual(layerOf('UserRepository'), 'service');
             assert.strictEqual(layerOf('User'), 'model');
         });
+        const edgeIds = (label) => graph.edges.filter(e => e.label === label).map(e => nameOf(e.source) + ' -> ' + nameOf(e.target));
+        function nameOf(id) { const n = byId.get(id); const p = n && n.parent ? byId.get(n.parent) : null; return (p ? p.label + '.' : '') + (n ? n.label : id); }
+        console.log('WRITES_TO: ' + edgeIds('WRITES_TO').join(', '));
+        console.log('READS_FROM: ' + edgeIds('READS_FROM').join(', '));
+        console.log('PASSES_AS_ARGUMENT: ' + edgeIds('PASSES_AS_ARGUMENT').join(', '));
+        await check('a method that assigns a field gets a WRITES_TO edge', async () => {
+            assert.ok(edgeIds('WRITES_TO').includes('UserController.register -> UserController.current'));
+        });
+        await check('the constructor writes the field its this.parameter names', async () => {
+            assert.ok(edgeIds('WRITES_TO').includes('UserController.UserController -> UserController.repository'));
+        });
+        await check('methods that read fields get READS_FROM edges', async () => {
+            assert.ok(edgeIds('READS_FROM').includes('UserController.isCurrentAdult -> UserController.current'));
+            assert.ok(edgeIds('READS_FROM').includes('UserController.isCurrentAdult -> UserController.repository'));
+        });
+        await check('a field handed to a function gets a PASSES_AS_ARGUMENT edge', async () => {
+            assert.ok(edgeIds('PASSES_AS_ARGUMENT').includes('UserController.describe -> UserController.current'));
+        });
+        await check('the project itself is not listed as an external package container', async () => {
+            const containers = graph.nodes.filter(n => n.kind === 'package_container').map(n => n.label);
+            assert.ok(!containers.includes('dummy_app'), 'containers: ' + containers.join(', '));
+        });
+        await check('a method is never reported as calling a same-named method just because of its own signature', async () => {
+            const bogus = graph.edges.filter(e => e.label === 'CALLS' && byId.get(e.source).label === byId.get(e.target).label && e.source !== e.target);
+            assert.deepStrictEqual(bogus.map(e => nameOf(e.source) + ' -> ' + nameOf(e.target)), []);
+        });
+        await check('a call is linked to the method it really reaches, not to every method with that name', async () => {
+            const saves = edgeIds('CALLS').filter(e => e.startsWith('UserController.register ->') && e.endsWith('.save'));
+            // The server reports the overriding family (interface + implementation); an unrelated save() must not appear.
+            assert.ok(saves.includes('UserController.register -> UserRepository.save'), saves.join(', '));
+            assert.ok(!saves.some(e => e.includes('AuditLog')), 'AuditLog.save was linked: ' + saves.join(', '));
+            assert.strictEqual(edgeIds('CALLS').filter(e => e.endsWith('AuditLog.save')).length, 0);
+        });
         await check('User EXTENDS Entity', async () => {
             assert.ok(edges.includes('User -EXTENDS-> Entity'));
         });

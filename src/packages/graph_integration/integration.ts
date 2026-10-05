@@ -1,6 +1,7 @@
 import { ProjectGraphModel, ProjectGraphEdge, ExternalPackageInfo } from "../../types/index";
 import { findAllPackages } from "../package_discovery";
-import { createPackageContainerNodes } from "./container_nodes";
+import { createPackageContainerNodes, packagesNeedingContainers } from "./container_nodes";
+import { findProjectRootWithPubspec } from "../../filesystem/pattern_matcher";
 import { createInterPackageDependencyEdges } from "./dependency_edges";
 import { assignNodesToPackageContainers } from "./node_assignment";
 import { log } from "../../utils/logger";
@@ -32,7 +33,11 @@ export async function integrateExternalPackages(
       return;
   }
 
-  createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds);
+  createPackageContainerNodes(
+    packagesNeedingContainers(externalPackages, findProjectRootWithPubspec(projectRoot)),
+    projectGraph,
+    generatedNodeIds
+  );
   assignNodesToPackageContainers(projectGraph, externalPackages);
   createInterPackageDependencyEdges(projectGraph, externalPackages, createEdge);
 

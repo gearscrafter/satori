@@ -44,7 +44,7 @@ export function createInterPackageDependencyEdges(
       if (sourceContainerId && targetContainerId) {
         createEdge(sourceContainerId, targetContainerId, 'USES_AS_TYPE');
         interPackageEdges++;
-        log.debug(`   Dependency: ${sourcePackage} → ${targetPackage}`);
+        log.debug(`   Dependency: ${sourcePackage} -> ${targetPackage}`);
       }
     }
  

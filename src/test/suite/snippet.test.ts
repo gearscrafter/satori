@@ -62,7 +62,7 @@ suite('Snippet Test Suite', () => {
         assert.strictEqual(s.jump.start.character, '    await repo.'.length);
         assert.strictEqual(s.jump.end.character - s.jump.start.character, 'save'.length);
         assert.strictEqual(s.lines[s.highlightLine! - s.startLine], '    await repo.save(user);');
-        assert.strictEqual(s.title, 'register → save');
+        assert.strictEqual(s.title, 'register -> save');
     });
 
     test('ignores matches inside line comments', () => {

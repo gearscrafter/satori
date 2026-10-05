@@ -370,6 +370,21 @@ button { display: inline-flex; align-items: center; gap: 5px; }
 .flow-glyph .ico { color: var(--accent); }
 #flowpath .ico { color: var(--accent); }
 
+/* ---------- in / out counters ---------- */
+.io-in { color: #c2410c; font-weight: 600; }
+.io-out { color: var(--accent); font-weight: 600; }
+.member .io { opacity: 1; font-size: 11px; display: inline-flex; gap: 2px; }
+.io-legend { padding: 3px 12px 4px; font-size: 11px; color: var(--color-muted); border-top: 1px solid var(--color-border-soft); }
+
+/* ---------- keeping large diagrams readable ---------- */
+.more-toggle { width: 100%; justify-content: center; margin: 2px 0 8px; border-style: dashed; color: var(--color-muted); font-size: 12px; }
+.members .more-toggle { margin: 2px 0 0; }
+.overview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.overview-head .overview-hint { margin: 0; flex: 1 1 320px; }
+.folder-filter { display: inline-flex; align-items: center; gap: 6px; color: var(--color-muted); font-size: 12px; }
+.folder-filter .ico { color: var(--accent); }
+.folder-filter select { font: inherit; padding: 3px 8px; border: 1px solid var(--color-border-soft); border-radius: 6px; background: #ffffff; color: var(--color-text); max-width: 240px; }
+
 /* ---------- context menu with descriptions ---------- */
 #ctxmenu .menu-title { display: flex; align-items: center; gap: 6px; }
 #ctxmenu button { align-items: flex-start; }

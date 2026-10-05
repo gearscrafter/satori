@@ -39,7 +39,7 @@ export async function enrichWithHoverTypes(
     );
  
     if (!enrichedSym.fileUri || !enrichedSym.selectionRange || !needsTypeInfo) {
-        log.debug(`${logPrefix}  ⚠️ Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) → needsTypeInfo: ${needsTypeInfo}`);
+        log.debug(`${logPrefix}  ⚠️ Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) -> needsTypeInfo: ${needsTypeInfo}`);
         return;
     }
  

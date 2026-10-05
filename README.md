@@ -17,7 +17,7 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 1. **Install prerequisites**: Ensure Dart-Code extension is installed and active
 2. **Open a Flutter/Dart project** in VS Code
 3. **Wait for Dart analysis** to complete (status bar shows "Analysis complete")
-4. **Press `Ctrl+Shift+P`** → "Satori: Analyze Current Project"
+4. **Press `Ctrl+Shift+P`** -> "Satori: Analyze Current Project"
 5. **Wait for analysis** to complete and view your diagram
 
 <img src="./assets/extension1.png" width="600" alt="Focus View">
@@ -31,9 +31,9 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 
 - **Overview**: every class grouped in nested layer containers, busiest first
 - **Focus view**: the selected class in the centre, with its members as pills; callers on the left, callees on the right
-- **Nested boxes**: layer container → class box → member pills
+- **Nested boxes**: layer container -> class box -> member pills
 - **Aggregated arrows**: one arrow per pair of classes with a counter; click it to read the exact code behind it
-- **Layer flow bar**: how many references go from View → State → Service → Model, with architecture violations flagged in red
+- **Layer flow bar**: how many references go from View -> State -> Service -> Model, with architecture violations flagged in red
 - **Trail history**: back / forward buttons and breadcrumbs through the elements you visited
 - **Smooth transitions**: boxes glide to their new place and new ones unfold from the centre
 - **Move anything**: drag a box, or a whole layer, and the arrows follow
@@ -41,8 +41,8 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 ### 🔗 **Relationship Analysis**
 
 - **Inheritance**: `extends`, `implements`, `with`
-- **Calls**: Methods and functions (local project only)
-- **Reads**: Which methods read which fields and classes
+- **Calls**: Methods and functions (local project only). Methods that share a name with others (`build`, `load`, `save`…) are resolved with the Dart language server, so a call is linked to the method it really reaches
+- **Field access**: which methods **read**, **write** (`=`, `+=`, `++`, `this.field` constructor parameters) or **pass as an argument** each field and property
 - **Dependencies**: Types and instantiation (limited to VS Code's built-in symbol analysis)
 
 > **Note**: Current analysis focuses on structural relationships. Semantic analysis of internal responsibilities and decisions is in development.
@@ -53,8 +53,8 @@ Right-click any class or member -> **Trace data flow** (or use the button under 
 
 - The diagram is re-arranged so data always reads **from left to right**: boxes that **provide** data on the left, boxes that **consume** it on the right
 - Arrows animate along the direction of the data; only the boxes involved stay visible
-- The panel at the bottom lists the full chain (providers → start → consumers); click a step to read the code that links it
-- Built from the relations Satori detects today: `CALLS` and `READS_FROM` (plus `WRITES_TO` / `PASSES_AS_ARGUMENT` when available)
+- The panel at the bottom lists the full chain (providers -> start -> consumers); click a step to read the code that links it
+- Built from the relations Satori detects: calls between methods, and how methods **read**, **write** and **hand on as an argument** the fields and properties of your classes
 
 ### ✏️ **Edit Mode**
 
@@ -125,7 +125,7 @@ Press `?` (or the help button) for a legend that explains the layer colours and 
 ### 1. **Overview - Architectural Exploration**
 ```
 Command: "Satori: Analyze Current Project"
-Shortcut: Ctrl+Shift+P → Search "Analyze Current Project"
+Shortcut: Ctrl+Shift+P -> Search "Analyze Current Project"
 ```
 
 - Classes appear inside one container per architectural layer (View, State, Service, Model, Utility)
@@ -159,7 +159,7 @@ Drag the header of a box to place it where you want; drag the title of a layer c
 | Key | Action |
 |-----|--------|
 | `/` | Search a class or member |
-| `Alt+←` / `Alt+→` | Back / forward in the trail |
+| `Alt+←` / `Alt+->` | Back / forward in the trail |
 | `E` | Toggle edit mode |
 | `?` | Toggle the legend |
 | `Esc` | Close the legend, clear the trace or the selection |
@@ -186,7 +186,7 @@ Each layer has its own colour and icon:
 - 🟠 **Model** (database icon): data models such as DTOs and entities
 - ⚪ **Utility** (wrench icon): helpers and anything not classified
 
-The expected direction is **View → State → Service → Model**. References that go the other way are drawn in red and counted in the layer flow bar.
+The expected direction is **View -> State -> Service -> Model**. References that go the other way are drawn in red and counted in the layer flow bar.
 
 ### Boxes and symbols
 
@@ -226,7 +226,11 @@ The expected direction is **View → State → Service → Model**. References t
 - **External packages**: Analysis limited to main public symbols
 - **Dart extension dependency**: Requires the official Dart extension to be installed and active
 - **Symbol analysis**: Depends on the Dart extension's language server for symbol information
-- **Data flow trace**: it follows the relations that are detected today (calls and reads). Writes and arguments passed between functions are not detected yet, so a trace can be shorter than the real flow
+- **Data flow trace**: it follows calls and field accesses. Values that travel through local variables, return values or callbacks are not followed, so a trace can be shorter than the real flow
+- **Overridden methods**: for a call through an interface the language server reports the whole override family, so the caller is linked to the interface method and to its implementations
+- **Calls to unique names**: a method whose name is unique in the project is matched by name. If the code actually calls an SDK member with the same name (for example your own `add()` and `list.add(x)`), the edge can be a false positive
+- **Analysis time**: it grows with the number of symbols, because every field and every shared-name method is looked up in the Dart language server. Around 150 files take about 10 s; the "satori" output channel prints a timing summary (find files, symbols, enrichment, graph, page) after each analysis
+- **Large diagrams**: a focused class draws its 12 most connected neighbours per side (a button shows the rest), its members are capped at 16, and the overview folds layers beyond 30 classes and can be filtered by folder
 - **Drawings**: annotations are anchored to a position of the view where you made them. If you move boxes afterwards, the drawings stay where they were; use the eraser or clear the view to redo them
 - **Interface theme**: the diagram uses a fixed light palette regardless of the VS Code theme
 
@@ -250,7 +254,7 @@ npm run build              # production build
 npm run watch
 
 # Run in development mode
-F5 (from VS Code) → "Satori: run on dummy_app"
+F5 (from VS Code) -> "Satori: run on dummy_app"
 ```
 
 `e2e/dummy_app` is a small Dart project used to try the extension; the F5 configuration opens it directly.

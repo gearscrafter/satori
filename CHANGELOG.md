@@ -6,16 +6,16 @@
 
 - **Trail view**: the diagram is rebuilt around one focused element. Everything that uses it
   sits on the left, everything it uses on the right, and arrows always read left to right.
-- **Nested boxes**: layer container → class box → member pills, with a smooth transition when
+- **Nested boxes**: layer container -> class box -> member pills, with a smooth transition when
   navigating (existing boxes glide, new ones unfold from the centre box).
 - **Aggregated arrows**: one arrow per pair of classes with a reference counter. Clicking it
   lists every reference and shows the code with the exact line highlighted; the editor opens on
   that line without taking focus from the diagram.
-- **Layer flow bar**: references between View → State → Service → Model, with architecture
+- **Layer flow bar**: references between View -> State -> Service -> Model, with architecture
   violations (references going against the flow) drawn in red.
-- **Navigation history**: back / forward buttons, breadcrumbs, `Alt+←` / `Alt+→`, and a search
+- **Navigation history**: back / forward buttons, breadcrumbs, `Alt+←` / `Alt+->`, and a search
   box (`/`) for any class or member.
-- **Data flow trace**: right-click any class or member → *Trace data flow*. Providers are
+- **Data flow trace**: right-click any class or member -> *Trace data flow*. Providers are
   placed on the left and consumers on the right with animated arrows; a list in the bottom panel
   shows the whole chain and the code that links each step.
 - **Context menu** on classes, members and overview items: trace data flow, focus here, open in
@@ -34,6 +34,16 @@
 - **End-to-end test** (`npm run test:e2e`) that starts VS Code with the Dart extension, opens
   the new `e2e/dummy_app` project, runs the analysis and checks the graph and the webview.
 
+- **Field access analysis**: methods now get `READS_FROM`, `WRITES_TO` and `PASSES_AS_ARGUMENT` edges to
+  the fields and properties they touch. Each reference found by the Dart language server is classified
+  from its surrounding text (assignment, compound assignment, increment, bare argument, `this.field`
+  constructor parameters in one-line and multi-line headers). Before, no edge touched a field at all.
+- **Large diagrams**: a focused class draws its most connected neighbours (12 per side) with a
+  "show N more" button and the real total in the column title; members are capped at 16; the overview
+  folds layers beyond 30 classes and has a **folder filter**.
+- **Analysis timing**: a summary line (find files, symbols, enrichment, graph, page) is written to the
+  "satori" output channel after each analysis.
+
 ### Changed
 
 - The webview was rewritten. It no longer depends on D3 or on scripts downloaded from a CDN,
@@ -51,6 +61,16 @@
 
 ### Fixed
 
+- **Calls were matched by name only.** Every `load()` was linked to every `load()` in the project (a
+  150-class test project produced 179,400 `CALLS` edges instead of the 750 real ones), and a method was
+  reported as calling itself because its own name appears in its signature. Signatures are now ignored
+  and methods that share a name are resolved with the language server's references.
+- **The language server's empty answers were cached as "no references".** While it is still analysing,
+  it can answer an empty list even for a symbol's own declaration, so the graph changed from run to run.
+  Empty answers are now asked again after a short wait, and the same applies to the symbols of a file,
+  which could otherwise drop its classes from the diagram. Gives up after several in a row so a server
+  that cannot answer does not slow the analysis.
+- The project's own package no longer shows up as an empty "external package" container.
 - **Inheritance was never detected** with current Dart-Code versions, which report an empty
   `detail` for classes. `extends`, `implements` and `with` are now read from the class
   declaration, and each clause is parsed separately (generics included).
@@ -68,6 +88,8 @@
 
 ### Internal
 
+- Symbols of each file are requested 8 at a time instead of one by one (about half the time spent there).
+- `e2e/run.js` accepts `SATORI_E2E_PROJECT` and `SATORI_E2E_SUITE` to try another project or check.
 - `analyzeProject` is split into file discovery and symbol extraction; the two analysis commands
   share one implementation.
 - Messages between the webview and the extension are typed.

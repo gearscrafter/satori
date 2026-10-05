@@ -5,6 +5,11 @@ function canonical(p: string): string {
     return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
+/** True when both paths point to the same location, ignoring separator style and, on Windows, case. */
+export function isSamePath(a: string, b: string): boolean {
+    return canonical(a) === canonical(b);
+}
+
 /**
  * True when `child` is `parent` or lives inside it, ignoring separator style
  * and, on Windows, drive-letter/case differences.

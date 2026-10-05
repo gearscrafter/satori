@@ -31,7 +31,7 @@ export function assignNodesToPackageContainers(
       
       node.label = `🔗 ${node.label}`;
       
-      log.debug(`    📦 ${node.label} → ${fileSource.packageName}`);
+      log.debug(`    📦 ${node.label} -> ${fileSource.packageName}`);
       
     } else if (fileSource.type === 'sdk') {
       node.label = `⚙️ ${node.label}`;
