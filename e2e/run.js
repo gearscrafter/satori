@@ -24,7 +24,7 @@ async function main() {
     // SATORI_E2E_PROJECT and SATORI_E2E_SUITE let a different project or check be tried with the same launcher.
     await runTests({
         vscodeExecutablePath,
-        extensionDevelopmentPath: root,
+        extensionDevelopmentPath: process.env.SATORI_E2E_EXTENSION || root,
         extensionTestsPath: process.env.SATORI_E2E_SUITE || path.join(__dirname, 'suite.js'),
         launchArgs: [
             process.env.SATORI_E2E_PROJECT || path.join(__dirname, 'dummy_app'),

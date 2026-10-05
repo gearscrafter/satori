@@ -1,8 +1,10 @@
 .vscode/**
 .vscode-test/**
 .git/**
+.github/**
 out/**
 src/**
+e2e/**
 node_modules/**
 esbuild.js
 webpack.config.js
@@ -19,13 +21,10 @@ vsc-extension-quickstart.md
 .dart_tool/**
 analysis_options.yaml
 example/**
+*.vsix
 
-!dist/extension.js
-!dist/**
-!package.json
-!README.md
-!CHANGELOG.md
-!LICENSE
-!assets/**
-
-e2e/**
+# README screenshots are loaded from the repository, not from the package
+assets/extension.gif
+assets/extension1.png
+.claude/**
+.vscode-test.mjs

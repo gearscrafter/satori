@@ -23,3 +23,5 @@ build/
 .flutter-plugins    
 .env               
 .idea/ 
+
+*.vsix

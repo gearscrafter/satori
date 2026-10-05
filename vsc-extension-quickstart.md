@@ -79,7 +79,6 @@ The webview sends `getSnippet` (code for a reference), `openClass` (open a file 
 - `satori.analyzeProject` - Automatically analyze the current project
 - `extension.showProjectDiagram` - Pick a folder and visualize it
 - `satori.toggleDebugLogs` - Enable/disable debug logging
-- `ast-diag.testLsp` - Test LSP call hierarchy (development only)
 
 ## Explore the API
 
@@ -116,6 +115,27 @@ The extension works best with:
 - Flutter projects with clear architectural patterns
 - Projects using BLoC, Provider, or similar state management
 - Projects with multiple packages and dependencies
+
+## Publish to the Visual Studio Marketplace
+
+### One time
+
+1. Make sure the publisher `gearscrafter` exists at <https://marketplace.visualstudio.com/manage>.
+2. In Azure DevOps (<https://dev.azure.com>) create a **Personal Access Token** with *Organization: All accessible organizations* and the scope **Marketplace → Manage**.
+3. Log in once: `npx vsce login gearscrafter` and paste the token. Keep the token private; never commit it.
+4. The README images (`assets/extension.gif`, `assets/extension1.png`) are loaded from the public GitHub repository, so push them before publishing. They are left out of the package on purpose (`.vscodeignore`).
+
+### Every release
+
+1. Bump `version` in `package.json` (it must be higher than the published one) and put the date on the top section of `CHANGELOG.md`.
+2. Run the checks: `npm test` and `npm run test:e2e`.
+3. Build the package: `npm run vsce:package`. This runs the production build first (`vscode:prepublish`), so `dist/extension.js` is rewritten; commit it if you keep `dist/` in git.
+4. Check what goes into the package with `npx vsce ls --no-dependencies`. It should list only `package.json`, `README.md`, `CHANGELOG.md`, `LICENSE`, `dist/`, `localization/`, `media/` and `assets/icon.png`.
+5. Try the `.vsix` locally: *Extensions: Install from VSIX...* (or `code --install-extension satori-<version>.vsix`) in a window where the Dart extension is installed.
+6. Publish: `npm run vsce:publish`, or `npx vsce publish minor` to bump and publish in one go. You can also upload the `.vsix` by hand from the management page.
+7. Tag it: `git tag v<version> && git push --tags`.
+
+Useful variants: `npx vsce publish --pre-release` for a pre-release channel, and `npx ovsx publish satori-<version>.vsix -p <token>` to also publish to Open VSX.
 
 ## Go further
 

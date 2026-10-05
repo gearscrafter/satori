@@ -213,7 +213,6 @@ The expected direction is **View -> State -> Service -> Model**. References that
 | `satori.analyzeProject` | Automatically analyze the current project |
 | `extension.showProjectDiagram` | Pick a folder manually and open its diagram |
 | `satori.toggleDebugLogs` | Enable/disable debug logs |
-| `ast-diag.testLsp` | Test the LSP call hierarchy (development only) |
 
 ## ⚠️ Known Limitations
 
