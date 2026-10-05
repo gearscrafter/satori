@@ -43,7 +43,7 @@ export async function enrichWithHoverTypes(
         return;
     }
  
-    if (enrichedSym.hoverChecked) return;
+    if (enrichedSym.hoverChecked) {return;}
     enrichedSym.hoverChecked = true;
  
     const { line, character } = enrichedSym.selectionRange.start;
@@ -82,7 +82,7 @@ export async function enrichWithHoverTypes(
         }
     }
  
-    if (!contentString) return;
+    if (!contentString) {return;}
  
     const escapedSymName = escapeRegExp(enrichedSym.name);
  

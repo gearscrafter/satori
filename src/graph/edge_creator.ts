@@ -28,7 +28,7 @@ export async function createGraphEdgesFromSymbols(
  
     const classNodeIndex = new Map<string, ProjectGraphNode>();
     for (const node of projectGraph.nodes) {
-        if (node.kind === 'class') {
+        if (node.kind === 'class' && !classNodeIndex.has(node.label)) {
             classNodeIndex.set(node.label, node);
         }
     }
@@ -36,14 +36,14 @@ export async function createGraphEdgesFromSymbols(
     const symbolNameIndex = new Map<string, EnrichedSymbol[]>();
     for (const enriched of symbolMapById.values()) {
         const name = enriched.name;
-        if (!symbolNameIndex.has(name)) symbolNameIndex.set(name, []);
+        if (!symbolNameIndex.has(name)) {symbolNameIndex.set(name, []);}
         symbolNameIndex.get(name)!.push(enriched);
     }
  
     const nodeBySymbol = new Map<EnrichedSymbol, ProjectGraphNode>();
     for (const node of projectGraph.nodes) {
         const sym = symbolMapById.get(node.id);
-        if (sym) nodeBySymbol.set(sym, node);
+        if (sym) {nodeBySymbol.set(sym, node);}
     }
  
     const symbolPatterns = new Map<string, RegExp>();
@@ -54,21 +54,21 @@ export async function createGraphEdgesFromSymbols(
  
     for (const sourceNode of projectGraph.nodes) {
         const sourceSymbol = symbolMapById.get(sourceNode.id);
-        if (!sourceSymbol) continue;
+        if (!sourceSymbol) {continue;}
  
         if (sourceSymbol.relations) {
             sourceSymbol.relations.extends?.forEach(ext => {
                 const parentName = typeof ext === 'string' ? ext : ext.name;
                 const baseName = parentName.split('<')[0].trim();
                 const targetNode = classNodeIndex.get(baseName);
-                if (targetNode) createEdge(sourceNode.id, targetNode.id, 'EXTENDS');
+                if (targetNode) {createEdge(sourceNode.id, targetNode.id, 'EXTENDS');}
             });
  
             sourceSymbol.relations.implements?.forEach(impl => {
                 const interfaceName = typeof impl === 'string' ? impl : impl.name;
                 const baseName = interfaceName.split('<')[0].trim();
                 const targetNode = classNodeIndex.get(baseName);
-                if (targetNode) createEdge(sourceNode.id, targetNode.id, 'IMPLEMENTS');
+                if (targetNode) {createEdge(sourceNode.id, targetNode.id, 'IMPLEMENTS');}
             });
         }
  
@@ -78,7 +78,7 @@ export async function createGraphEdgesFromSymbols(
             sourceNode.kind === 'constructor'
         ) {
             const sourceCodeText = getSourceCodeForSymbol(sourceSymbol);
-            if (!sourceCodeText) continue;
+            if (!sourceCodeText) {continue;}
  
             const cleanedSource = stripCommentsAndStrings(sourceCodeText);
  
@@ -94,7 +94,7 @@ export async function createGraphEdgesFromSymbols(
  
                 for (const targetSymbol of targetSymbols) {
                     const targetNode = nodeBySymbol.get(targetSymbol);
-                    if (!targetNode || sourceNode.id === targetNode.id) continue;
+                    if (!targetNode || sourceNode.id === targetNode.id) {continue;}
  
                     if (targetNode.kind === 'method' || targetNode.kind === 'function') {
                         createEdge(sourceNode.id, targetNode.id, 'CALLS');

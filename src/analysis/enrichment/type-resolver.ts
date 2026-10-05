@@ -55,7 +55,7 @@ export async function resolveTypeByName(
   dependencies: EnrichmentDependencies
 ): Promise<TypeReference | undefined> {
    const baseTypeName = parseBaseTypeName(typeName);
-  if (!baseTypeName) return undefined;
+  if (!baseTypeName) {return undefined;}
  
   if (resolvedTypesCache.has(typeName)) {
     log.debug(` [Cache HIT] ${typeName}`);
@@ -81,7 +81,7 @@ export async function resolveTypeByName(
           break;
         }
       }
-      if (foundSymbol) break;
+      if (foundSymbol) {break;}
     }
   }
  

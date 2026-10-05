@@ -19,7 +19,7 @@ export function createGraphNodesFromSymbols(
   enrichedFiles: Array<{ fileUri: string; symbols: EnrichedSymbol[]; }>, projectGraph: ProjectGraphModel, symbolMapById: Map<string, EnrichedSymbol>, generateGlobalSymbolId: (symbol: EnrichedSymbol, parentName?: string) => string, generatedNodeIds: Set<string>): void {
 
   function recursive(symbols: EnrichedSymbol[], parentClass?: EnrichedSymbol, fileUri?: string) {
-    if (!symbols) return;
+    if (!symbols) {return;}
     for (const s of symbols) {
       s.fileUri = s.fileUri || fileUri;
       const nodeId = generateGlobalSymbolId(s, parentClass?.name);

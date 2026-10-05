@@ -23,7 +23,7 @@ export async function findCustomDartDirectories(rootUri: vscode.Uri,): Promise<v
     const allEntries = fs.readdirSync(projectRoot, { withFileTypes: true });
     
     for (const entry of allEntries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory()) {continue;}
       
       const dirName = entry.name;
       

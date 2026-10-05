@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createWebview } from '../../ui/webview_creator';
+import { createWebview, findClassFieldSymbol, loadAnnotations, saveAnnotations, annotationsKey } from '../../ui/webview_creator';
+import { EnrichedSymbol } from '../../types/index';
 import { DetailsViewProvider } from '../../ui/providers/details_provider';
 
 
@@ -224,6 +225,56 @@ suite('Webview Test Suite', () => {
                 throw error;
             }
         }
+    });
+
+    suite('edit mode annotations', () => {
+        const fakeMemento = (): vscode.Memento => {
+            const store = new Map<string, unknown>();
+            return {
+                keys: () => Array.from(store.keys()),
+                get: <T>(key: string, fallback?: T) => (store.has(key) ? store.get(key) as T : fallback),
+                update: (key: string, value: unknown) => { store.set(key, value); return Promise.resolve(); }
+            } as vscode.Memento;
+        };
+
+        test('saved drawings are read back with the same project key', async () => {
+            const memento = fakeMemento();
+            const drawings = { 'file:///a.dart#A': [{ id: 's1', type: 'rect', x1: 1, y1: 2, x2: 3, y2: 4 }] };
+            await saveAnnotations(memento, 'c:/proj', drawings);
+            assert.deepStrictEqual(loadAnnotations(memento, 'c:/proj'), drawings);
+        });
+
+        test('each project keeps its own drawings', async () => {
+            const memento = fakeMemento();
+            await saveAnnotations(memento, 'c:/one', { a: [] });
+            assert.deepStrictEqual(loadAnnotations(memento, 'c:/two'), {});
+            assert.strictEqual(annotationsKey('c:/one'), 'satori.annotations:c:/one');
+        });
+    });
+
+    suite('findClassFieldSymbol', () => {
+        const makeClass = (children: Partial<EnrichedSymbol>[]): EnrichedSymbol =>
+            ({ name: 'Foo', kind: vscode.SymbolKind.Class, children } as EnrichedSymbol);
+
+        test('finds a Field by name', () => {
+            const cls = makeClass([{ name: 'bar', kind: vscode.SymbolKind.Field }]);
+            assert.strictEqual(findClassFieldSymbol(cls, 'bar')?.name, 'bar');
+        });
+
+        test('finds a Property by name', () => {
+            const cls = makeClass([{ name: 'bar', kind: vscode.SymbolKind.Property }]);
+            assert.strictEqual(findClassFieldSymbol(cls, 'bar')?.kind, vscode.SymbolKind.Property);
+        });
+
+        test('does not match a constructor with the same name', () => {
+            const cls = makeClass([{ name: 'bar', kind: vscode.SymbolKind.Constructor }]);
+            assert.strictEqual(findClassFieldSymbol(cls, 'bar'), undefined);
+        });
+
+        test('returns undefined when the class has no matching member', () => {
+            assert.strictEqual(findClassFieldSymbol(makeClass([]), 'bar'), undefined);
+            assert.strictEqual(findClassFieldSymbol({ name: 'Foo', kind: 4 } as EnrichedSymbol, 'bar'), undefined);
+        });
     });
 
     teardown(() => {

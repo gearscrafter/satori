@@ -20,7 +20,7 @@ export function clearFileContentCache(): void {
  */
 export function getSourceCodeForSymbol(symbol: EnrichedSymbol): string {
   const rangeToUse = symbol.range || symbol.selectionRange;
-  if (!rangeToUse || !symbol.fileUri) return '';
+  if (!rangeToUse || !symbol.fileUri) {return '';}
 
   try {
       const filePath = vscode.Uri.parse(symbol.fileUri).fsPath;
@@ -38,7 +38,7 @@ export function getSourceCodeForSymbol(symbol: EnrichedSymbol): string {
       const start = rangeToUse.start;
       const end   = rangeToUse.end;
 
-      if (start.line >= lines.length || end.line >= lines.length) return '';
+      if (start.line >= lines.length || end.line >= lines.length) {return '';}
 
       if (start.line === end.line) {
           return lines[start.line].substring(start.character, end.character);

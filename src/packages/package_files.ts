@@ -16,12 +16,12 @@ export function findDartFilesInPackage(libPath: string, maxFiles: number = 20): 
   
   try {
     function searchRecursive(currentPath: string, depth: number = 0) {
-      if (depth > 3 || dartFiles.length >= maxFiles) return;
+      if (depth > 3 || dartFiles.length >= maxFiles) {return;}
       
       const entries = fs.readdirSync(currentPath, { withFileTypes: true });
       
       for (const entry of entries) {
-        if (dartFiles.length >= maxFiles) break;
+        if (dartFiles.length >= maxFiles) {break;}
         
         if (entry.isFile() && entry.name.endsWith('.dart')) {
           dartFiles.push(path.join(currentPath, entry.name));

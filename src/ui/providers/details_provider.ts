@@ -47,7 +47,7 @@ export class DetailsViewProvider implements vscode.WebviewViewProvider {
     }
 
     private analyzeNodeSemantics(node: any): any {
-        if (!node || !node.data?.fileUri) return null;
+        if (!node || !node.data?.fileUri) {return null;}
         
         try {
             const sourceCode = this.getSourceCodeForNode(node);

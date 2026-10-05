@@ -21,7 +21,7 @@ async function withConcurrencyLimit<T>(
     let index = 0;
 
     async function runNext(): Promise<void> {
-        if (index >= tasks.length) return;
+        if (index >= tasks.length) {return;}
         const current = index++;
         results[current] = await tasks[current]();
         await runNext();

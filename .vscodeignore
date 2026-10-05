@@ -27,3 +27,5 @@ example/**
 !CHANGELOG.md
 !LICENSE
 !assets/**
+
+e2e/**

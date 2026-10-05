@@ -56,7 +56,7 @@ export function validateEnrichedData(
         log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
       }
 
-      if (sym.children) recurse(sym.children);
+      if (sym.children) {recurse(sym.children);}
     }
   }
 

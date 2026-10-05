@@ -16,7 +16,7 @@ export function transformLspSymbols(
     parentId?: string,
     fileUri?: string
 ): EnrichedSymbol[] {
-    if (!lspSymbols || lspSymbols.length === 0) return [];
+    if (!lspSymbols || lspSymbols.length === 0) {return [];}
 
     return lspSymbols.map((s: vscode.DocumentSymbol) => {
     const uniqueId = `${fileUri}#${s.name}#${s.kind}`;

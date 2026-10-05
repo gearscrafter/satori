@@ -18,7 +18,7 @@ export function assignNodesToPackageContainers(
   let projectNodesCount = 0;
 
   for (const node of projectGraph.nodes) {
-    if (node.kind === 'package_container') continue;
+    if (node.kind === 'package_container') {continue;}
 
     const fileSource = determineFileSource(node.data.fileUri, externalPackages);
     

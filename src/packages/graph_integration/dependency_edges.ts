@@ -32,7 +32,7 @@ export function createInterPackageDependencyEdges(
     const sourceNode = nodeMap.get(edge.source);
     const targetNode = nodeMap.get(edge.target);
  
-    if (!sourceNode || !targetNode) continue;
+    if (!sourceNode || !targetNode) {continue;}
  
     const sourcePackage = sourceNode.data.source?.packageName;
     const targetPackage = targetNode.data.source?.packageName;

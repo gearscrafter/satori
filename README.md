@@ -29,19 +29,45 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 
 ### 🌐 **Interactive Visualization**
 
-- **Overview View**: Navigation through architectural layers
-- **Focus View**: Detailed exploration of classes and their members
-- **List View**: Search and filtering by components
-- **Folder navigation**: Hierarchical project exploration
+- **Overview**: every class grouped in nested layer containers, busiest first
+- **Focus view**: the selected class in the centre, with its members as pills; callers on the left, callees on the right
+- **Nested boxes**: layer container → class box → member pills
+- **Aggregated arrows**: one arrow per pair of classes with a counter; click it to read the exact code behind it
+- **Layer flow bar**: how many references go from View → State → Service → Model, with architecture violations flagged in red
+- **Trail history**: back / forward buttons and breadcrumbs through the elements you visited
+- **Smooth transitions**: boxes glide to their new place and new ones unfold from the centre
+- **Move anything**: drag a box, or a whole layer, and the arrows follow
 
 ### 🔗 **Relationship Analysis**
 
 - **Inheritance**: `extends`, `implements`, `with`
 - **Calls**: Methods and functions (local project only)
+- **Reads**: Which methods read which fields and classes
 - **Dependencies**: Types and instantiation (limited to VS Code's built-in symbol analysis)
-- **Data flow**: Basic detection using the Dart extension's capabilities
 
 > **Note**: Current analysis focuses on structural relationships. Semantic analysis of internal responsibilities and decisions is in development.
+
+### 🔀 **Data Flow Trace**
+
+Right-click any class or member -> **Trace data flow** (or use the button under the focused class).
+
+- The diagram is re-arranged so data always reads **from left to right**: boxes that **provide** data on the left, boxes that **consume** it on the right
+- Arrows animate along the direction of the data; only the boxes involved stay visible
+- The panel at the bottom lists the full chain (providers → start → consumers); click a step to read the code that links it
+- Built from the relations Satori detects today: `CALLS` and `READS_FROM` (plus `WRITES_TO` / `PASSES_AS_ARGUMENT` when available)
+
+### ✏️ **Edit Mode**
+
+Press the pencil button or `E` to lay a transparent sheet over the diagram and annotate it.
+
+- Tools: pen, line, arrow, rectangle, ellipse and eraser
+- Six colours, three thicknesses and optional fill for shapes
+- Undo / redo, clear the view, show or hide the drawings
+- Drawings are saved **per view** and per project, and are restored the next time you open it
+
+### 🧭 **Built-in Legend**
+
+Press `?` (or the help button) for a legend that explains the layer colours and icons, the box anatomy, every arrow style and the available interactions.
 
 ### 📦 **Package Management**
 - **External dependency analysis**: pub.dev, custom packages
@@ -49,9 +75,11 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 - **Automatic classification**: SDK, official, third-party, local
 
 ### 🛠️ **Advanced Features**
-- **Smart navigation**: Click-to-code from diagram
+- **Synced code**: click an arrow or a reference and the code appears below with the exact line highlighted; the editor opens on that line without taking focus from the diagram
+- **Context menu**: trace data flow, focus here, open in editor
+- **Search**: `/` finds any class or member; filters for SDK, packages and relation types
 - **Details panel**: Contextual information and collaborations
-- **Navigation slider**: Exploration by abstraction levels
+- **English and Spanish**: set `satori.language`
 
 ## 📋 Use Cases
 
@@ -74,49 +102,71 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 ### Prerequisites
 
 - **Dart extension**: Official Dart-Code extension must be installed and active
-- **VS Code**: 1.74.0 or higher
+- **VS Code**: 1.98.0 or higher
 
 ### Initial Setup
 
 ```json
 {
-  "Satori.enableDebugLogs": false,
-  "Satori.language": "en"
+  "satori.enableDebugLogs": false,
+  "satori.language": "en",
+  "satori.dartSdkPath": ""
 }
 ```
 
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `satori.language` | `en` | Interface language (`en` or `es`) |
+| `satori.enableDebugLogs` | `false` | Detailed logs in the "satori" output channel (may slow down processing) |
+| `satori.dartSdkPath` | `""` | Path to the Dart SDK, if it cannot be found automatically |
+
 ## 📖 Usage
 
-### 1. **Overview View - Architectural Exploration**
+### 1. **Overview - Architectural Exploration**
 ```
 Command: "Satori: Analyze Current Project"
 Shortcut: Ctrl+Shift+P → Search "Analyze Current Project"
 ```
 
-- Navigate through architectural layers (View, State, Service, Model)
-- Each layer shows the number of components
-- Click to see detailed list of each layer
+- Classes appear inside one container per architectural layer (View, State, Service, Model, Utility)
+- Each class shows how many elements use it (↘) and how many it uses (↗)
+- The **layer flow bar** summarises the references between layers; click a number to read those references one by one
+- Click a layer pill to highlight that layer
 
 ### 2. **Focus View - Detailed Analysis**
-- **From Overview**: Click on any component
-- **From List**: Click on specific element
-- **Direct navigation**: Click on relationships in details panel
+- **From the overview**: click any class
+- **From search**: press `/` and type a class or member name
+- **From the arrows**: click a box or a member inside a neighbouring box
+- **From the details panel**: click a relationship
 
-**Focus View Features:**
-- 🎯 **Central node**: The analyzed component with all its members
-- ⬅️ **Predecessors**: Components that depend on the focus
-- ➡️ **Successors**: Components that the focus depends on
-- ⬆️ **External imports**: Dependencies on consumed packages
-- ⬇️ **Developed imports**: Project's own modules
+**Focus view layout:**
+- 🎯 **Centre**: the focused class with all its members (methods, fields, properties, constructors) and their in/out counters
+- ⬅️ **Left, "Used by"**: classes that depend on the focus, grouped by layer
+- ➡️ **Right, "Uses"**: classes the focus depends on, grouped by layer
+- ➗ **Scope chip**: when you pick a single member, only the connections of that member are shown
+- Arrows always go **from left to right**: the box on the left uses the box on the right
 
-### 3. **Folder Navigation**
+### 3. **Reading the code behind a connection**
 
-```
-Navigation slider: Exploration by abstraction levels
-💡 Specific → 🌱 Folder → 🏞️ Feature → 🌍 Project
-```
+Click the number on an arrow (or a layer-flow number) and the bottom pane lists every reference it groups. Pick one to see the code with the exact line highlighted and the editor opens on that line beside the diagram. **Open in editor** repeats it at any time.
 
-### 4. **Details Panel**
+### 4. **Moving boxes**
+
+Drag the header of a box to place it where you want; drag the title of a layer container to move the whole layer. Arrows follow while you drag. The ↺ button restores the original positions, and positions reset when you navigate to another element.
+
+### 5. **Keyboard shortcuts**
+
+| Key | Action |
+|-----|--------|
+| `/` | Search a class or member |
+| `Alt+←` / `Alt+→` | Back / forward in the trail |
+| `E` | Toggle edit mode |
+| `?` | Toggle the legend |
+| `Esc` | Close the legend, clear the trace or the selection |
+| `P` `L` `A` `R` `O` `X` | In edit mode: pen, line, arrow, rectangle, ellipse, eraser |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | In edit mode: undo / redo |
+
+### 6. **Details Panel**
 
 - **Smart collaborations**: Natural language descriptions
 - **Node clicks**: Quick navigation between components
@@ -124,29 +174,46 @@ Navigation slider: Exploration by abstraction levels
 
 ## 🎨 Visual Interface
 
+The interface keeps a fixed light palette, independent of the VS Code theme. Every symbol is explained in the built-in legend (`?`).
+
 ### Color Scheme by Layers
 
-- 🔵 **View**: UI Components (Widgets, Screens)
-- 🟡 **State**: State management (BLoC, Provider, Controller)
-- 🟢 **Service**: Services and repositories (API, Database)
-- 🟠 **Model**: Data models (DTOs, Entities)
-- ⚪ **Utility**: Helpers and utilities
+Each layer has its own colour and icon:
+
+- 🔵 **View** (monitor icon): UI components such as widgets, screens and pages
+- 🟡 **State** (pulse icon): state management such as BLoC, Provider and controllers
+- 🟢 **Service** (cloud icon): services and repositories such as APIs and data sources
+- 🟠 **Model** (database icon): data models such as DTOs and entities
+- ⚪ **Utility** (wrench icon): helpers and anything not classified
+
+The expected direction is **View → State → Service → Model**. References that go the other way are drawn in red and counted in the layer flow bar.
+
+### Boxes and symbols
+
+- **Dashed container**: a layer; its classes live inside it
+- **Class box**: its members are listed inside as pills; 🟨 yellow for methods, functions and constructors, 🟦 blue for fields and properties
+- **Number badge**: connections with the focused element; **↘ / ↗**: elements that use it / elements it uses
+- **SDK / pkg** badges: the class comes from the Dart SDK or from an external package
 
 ### Relationship Types
 
-- 🟢 **Extends**: Class inheritance
-- 🔵 **Implements**: Interface implementation
+- 🟢 **Extends** (dotted): Class inheritance
+- 🔵 **Implements** (dotted): Interface implementation
 - 🟣 **Calls**: Method calls
 - 🟠 **Reads From**: Data reading
 - 🔴 **Writes To**: Data writing
+- 🔷 **Instance of** / ⚫ **Uses as type**: Instantiation and type usage
+- 🟥 **Red, dashed**: goes against the layer flow
+- 🟪 **Animated purple**: data flow of a trace
 
 ## 🔧 Available Commands
 
 | Command | Description |
 |---------|-------------|
-| `satori.analyzeProject` | Automatically analyze current project |
-| `satori.showProjectDiagram` | Open project diagram |
+| `satori.analyzeProject` | Automatically analyze the current project |
+| `extension.showProjectDiagram` | Pick a folder manually and open its diagram |
 | `satori.toggleDebugLogs` | Enable/disable debug logs |
+| `ast-diag.testLsp` | Test the LSP call hierarchy (development only) |
 
 ## ⚠️ Known Limitations
 
@@ -159,6 +226,9 @@ Navigation slider: Exploration by abstraction levels
 - **External packages**: Analysis limited to main public symbols
 - **Dart extension dependency**: Requires the official Dart extension to be installed and active
 - **Symbol analysis**: Depends on the Dart extension's language server for symbol information
+- **Data flow trace**: it follows the relations that are detected today (calls and reads). Writes and arguments passed between functions are not detected yet, so a trace can be shorter than the real flow
+- **Drawings**: annotations are anchored to a position of the view where you made them. If you move boxes afterwards, the drawings stay where they were; use the eraser or clear the view to redo them
+- **Interface theme**: the diagram uses a fixed light palette regardless of the VS Code theme
 
 ## 🛠️ Development and Contribution
 
@@ -172,12 +242,18 @@ cd Satori
 # Install dependencies
 npm install
 
-# Compile TypeScript
-npm run compile
+# Build the extension bundle (and copy the translations)
+node esbuild.js            # development build
+npm run build              # production build
+
+# Rebuild on every change
+npm run watch
 
 # Run in development mode
-F5 (from VS Code)
+F5 (from VS Code) → "Satori: run on dummy_app"
 ```
+
+`e2e/dummy_app` is a small Dart project used to try the extension; the F5 configuration opens it directly.
 
 ### Project Structure
 
@@ -201,17 +277,35 @@ src/
 ├── lsp/                      # LSP integration
 ├── core/                     # Utilities and algorithms
 └── types/                    # Type definitions
+
+media/
+├── webviewContent.html       # Webview shell
+└── trail/                    # The diagram, free of build steps
+    ├── trail_model.js        # Pure graph model: layers, aggregation, focus, trace
+    ├── trail_view.js         # Rendering, interaction, legend and edit mode
+    ├── trail_paint.js        # Pure drawing logic (shapes, undo/redo, hit testing)
+    ├── trail_icons.js        # Icon set
+    └── trail.css             # Palette and styles
+
+e2e/
+├── dummy_app/                # Small Dart project to try the extension
+├── fixtures/                 # Graph captured from the dummy app, used by tests
+├── run.js                    # Launches VS Code with Dart-Code and runs suite.js
+└── suite.js                  # End-to-end checks
 ```
 
 ### Testing
 
 ```bash
-# Run tests
+# Unit tests (inside the VS Code extension host)
 npm test
 
-# Test with coverage
-npm run test:coverage
+# End to end: installs Dart-Code in a test instance, opens e2e/dummy_app,
+# runs "Analyze Current Project" and checks the graph and the webview
+npm run test:e2e
 ```
+
+The graph model, drawing logic and icon set are plain JavaScript without DOM access, so they are covered by regular unit tests.
 
 ## 🛟 Troubleshooting
 
@@ -261,7 +355,7 @@ Contributions are welcome! Please:
 
 - Dart/Flutter team for the excellent Language Server Protocol
 - VS Code community for development tools
-- D3.js for visualization capabilities
+- Sourcetrail, for the idea of exploring code as a trail of focused graphs
 - All contributors and beta users
 
 ---

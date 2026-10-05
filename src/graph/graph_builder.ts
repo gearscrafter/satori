@@ -38,15 +38,15 @@ export async function buildGraphModel(
      const edgeSet = new Set<string>();
  
     const createEdge = (sourceId: string, targetId: string, label: ProjectGraphEdge['label']) => {
-        if (!sourceId || !targetId || sourceId === targetId) return;
-        if (!generatedNodeIds.has(sourceId) || !generatedNodeIds.has(targetId)) return;
+        if (!sourceId || !targetId || sourceId === targetId) {return;}
+        if (!generatedNodeIds.has(sourceId) || !generatedNodeIds.has(targetId)) {return;}
  
         const edgeKey = `${sourceId}|${targetId}|${label}`;
-        if (edgeSet.has(edgeKey)) return;
+        if (edgeSet.has(edgeKey)) {return;}
  
         edgeSet.add(edgeKey);
         projectGraph.edges.push({ id: `e${edgeIdCounter++}`, source: sourceId, target: targetId, label });
-        if (label) edgeCounts[label] = (edgeCounts[label] || 0) + 1;
+        if (label) {edgeCounts[label] = (edgeCounts[label] || 0) + 1;}
     };
  
     log.debug(`[GraphBuilder] Creating nodes...`);
@@ -132,7 +132,7 @@ async function extractSymbolsFromExternalPackages(
     const relevantPackages = getRelevantExternalPackages(allPackages);
  
     for (const pkg of relevantPackages) {
-        if (!pkg.hasLibFolder || pkg.dartFiles.length === 0) continue;
+        if (!pkg.hasLibFolder || pkg.dartFiles.length === 0) {continue;}
  
         const mainFiles = pkg.dartFiles
             .filter(file => {

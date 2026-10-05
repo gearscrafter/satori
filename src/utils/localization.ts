@@ -31,6 +31,16 @@ export class Localization {
         }
     }
     
+    getByPrefix(...prefixes: string[]): Record<string, string> {
+        const result: Record<string, string> = {};
+        for (const [key, value] of Object.entries(this.translations)) {
+            if (prefixes.some(p => key.startsWith(p))) {
+                result[key] = value;
+            }
+        }
+        return result;
+    }
+
     t(key: string, ...args: string[]): string {
         let translation = this.translations[key] || key;
         

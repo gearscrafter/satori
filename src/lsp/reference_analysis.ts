@@ -11,11 +11,11 @@ let nodesByFileCache: Map<string, ProjectGraphNode[]> | null = null;
  * Avoids re-filtering the full node array on every reference lookup.
  */
 function getNodesByFile(nodes: ProjectGraphNode[]): Map<string, ProjectGraphNode[]> {
-    if (nodesByFileCache) return nodesByFileCache;
+    if (nodesByFileCache) {return nodesByFileCache;}
     nodesByFileCache = new Map<string, ProjectGraphNode[]>();
     for (const node of nodes) {
         const uri = node.data.fileUri;
-        if (!nodesByFileCache.has(uri)) nodesByFileCache.set(uri, []);
+        if (!nodesByFileCache.has(uri)) {nodesByFileCache.set(uri, []);}
         nodesByFileCache.get(uri)!.push(node);
     }
     log.debug(`[RefAnalysis] nodesByFile index built: ${nodesByFileCache.size} files`);

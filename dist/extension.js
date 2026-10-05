@@ -35,9 +35,9 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ui/extension_lifecycle.ts
-var vscode23 = __toESM(require("vscode"));
-var import_path7 = __toESM(require("path"));
-var fs10 = __toESM(require("fs"));
+var vscode25 = __toESM(require("vscode"));
+var import_path8 = __toESM(require("path"));
+var fs12 = __toESM(require("fs"));
 
 // src/ui/providers/details_provider.ts
 var vscode3 = __toESM(require("vscode"));
@@ -69,6 +69,15 @@ var Localization = class _Localization {
       const content = fs.readFileSync(fallbackPath, "utf8");
       this.translations = JSON.parse(content);
     }
+  }
+  getByPrefix(...prefixes) {
+    const result = {};
+    for (const [key, value] of Object.entries(this.translations)) {
+      if (prefixes.some((p) => key.startsWith(p))) {
+        result[key] = value;
+      }
+    }
+    return result;
   }
   t(key, ...args) {
     let translation = this.translations[key] || key;
@@ -175,7 +184,9 @@ var DetailsViewProvider = class {
     }
   }
   analyzeNodeSemantics(node) {
-    if (!node || !node.data?.fileUri) return null;
+    if (!node || !node.data?.fileUri) {
+      return null;
+    }
     try {
       const sourceCode = this.getSourceCodeForNode(node);
       return {
@@ -519,7 +530,9 @@ async function findCustomDartDirectories(rootUri) {
   try {
     const allEntries = fs4.readdirSync(projectRoot, { withFileTypes: true });
     for (const entry of allEntries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory()) {
+        continue;
+      }
       const dirName = entry.name;
       if (dirName.startsWith(".") || dirName.startsWith("_") || standardDirs.has(dirName) || dirName === "android" || dirName === "ios" || dirName === "web" || dirName === "windows" || dirName === "macos" || dirName === "linux") {
         continue;
@@ -560,16 +573,118 @@ async function containsDartFiles(dirPath, maxDepth = 3) {
   return false;
 }
 
-// src/core/constants.ts
+// src/packages/package_files.ts
+var fs5 = __toESM(require("fs"));
+var import_path = __toESM(require("path"));
 var vscode6 = __toESM(require("vscode"));
-var KIND_CLASS = vscode6.SymbolKind.Class;
-var KIND_ENUM = vscode6.SymbolKind.Enum;
-var KIND_METHOD = vscode6.SymbolKind.Method;
-var KIND_FUNCTION = vscode6.SymbolKind.Function;
-var KIND_CONSTRUCTOR = vscode6.SymbolKind.Constructor;
-var KIND_FIELD = vscode6.SymbolKind.Field;
-var KIND_PROPERTY = vscode6.SymbolKind.Property;
-var KIND_EXTENSION = vscode6.SymbolKind.Namespace;
+function findDartFilesInPackage(libPath, maxFiles = 20) {
+  const dartFiles = [];
+  try {
+    let searchRecursive2 = function(currentPath, depth = 0) {
+      if (depth > 3 || dartFiles.length >= maxFiles) {
+        return;
+      }
+      const entries = fs5.readdirSync(currentPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (dartFiles.length >= maxFiles) {
+          break;
+        }
+        if (entry.isFile() && entry.name.endsWith(".dart")) {
+          dartFiles.push(import_path.default.join(currentPath, entry.name));
+        } else if (entry.isDirectory() && !entry.name.startsWith(".")) {
+          searchRecursive2(import_path.default.join(currentPath, entry.name), depth + 1);
+        }
+      }
+    };
+    var searchRecursive = searchRecursive2;
+    searchRecursive2(libPath);
+  } catch (error) {
+  }
+  return dartFiles;
+}
+function extractPackageImportsFromFile(fileUri) {
+  try {
+    const filePath = vscode6.Uri.parse(fileUri).fsPath;
+    const fileContent = fs5.readFileSync(filePath, "utf8");
+    const importRegex = /import\s+['"]package:([\w]+)\//g;
+    const imports = /* @__PURE__ */ new Set();
+    let match;
+    while ((match = importRegex.exec(fileContent)) !== null) {
+      imports.add(match[1]);
+    }
+    return Array.from(imports);
+  } catch (e) {
+    return [];
+  }
+}
+
+// src/ui/webview_creator.ts
+var vscode22 = __toESM(require("vscode"));
+var fs10 = __toESM(require("fs"));
+var import_path7 = __toESM(require("path"));
+
+// src/analysis/validation.ts
+var vscode7 = __toESM(require("vscode"));
+function validateEnrichedData(enrichedFiles) {
+  const symbolMap = /* @__PURE__ */ new Map();
+  function recurse(symbols) {
+    for (const sym of symbols) {
+      if (sym.uniqueId) {
+        symbolMap.set(sym.uniqueId, sym);
+      }
+      if (sym.kind === vscode7.SymbolKind.Class) {
+        log.debug(`[VALIDATE] Class: ${sym.name}`);
+      }
+      if (sym.kind === vscode7.SymbolKind.Constructor) {
+        if (!sym.parameters && sym.detail) {
+          log.debug(`[WARN] Constructor '${sym.name}' has detail but no parameters were extracted.`);
+        }
+        if (sym.parentId) {
+          const parent = symbolMap.get(sym.parentId);
+          if (!parent) {
+            log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
+          } else {
+            if (parent.kind !== vscode7.SymbolKind.Class) {
+              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind: ${parent.kind}, expected: ${vscode7.SymbolKind.Class})`);
+            }
+            if (Array.isArray(sym.parameters) && Array.isArray(parent.children)) {
+              const parentFields = new Set(parent.children.map((c) => c.name));
+              for (const param of sym.parameters) {
+                if (param.name && !parentFields.has(param.name)) {
+                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' not found as property in '${parent.name}'`);
+                }
+              }
+            }
+          }
+        }
+      }
+      if (sym.parentId && !symbolMap.has(sym.parentId)) {
+        log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
+      }
+      if (sym.children) {
+        recurse(sym.children);
+      }
+    }
+  }
+  try {
+    for (const file of enrichedFiles) {
+      recurse(file.symbols);
+    }
+  } catch (err) {
+    log.error(`Error running validateEnrichedData: ${err}`);
+  }
+}
+
+// src/core/constants.ts
+var vscode8 = __toESM(require("vscode"));
+var KIND_CLASS = vscode8.SymbolKind.Class;
+var KIND_ENUM = vscode8.SymbolKind.Enum;
+var KIND_METHOD = vscode8.SymbolKind.Method;
+var KIND_FUNCTION = vscode8.SymbolKind.Function;
+var KIND_CONSTRUCTOR = vscode8.SymbolKind.Constructor;
+var KIND_FIELD = vscode8.SymbolKind.Field;
+var KIND_PROPERTY = vscode8.SymbolKind.Property;
+var KIND_EXTENSION = vscode8.SymbolKind.Namespace;
 var KIND_TYPEDEF = 22;
 
 // src/core/symbol_utils.ts
@@ -603,12 +718,16 @@ function SymbolKindToString(kind) {
 
 // src/core/text_utils.ts
 function parseBaseTypeName(typeString) {
-  if (!typeString) return void 0;
+  if (!typeString) {
+    return void 0;
+  }
   let currentType = typeString.trim().replace(/\?$/, "");
   const genericMatch = currentType.match(/^[\w\s]+\s*<(.+)>$/);
   if (genericMatch?.[1]) {
     const innerType = parseBaseTypeName(genericMatch[1]);
-    if (innerType) return innerType;
+    if (innerType) {
+      return innerType;
+    }
   }
   return currentType.split(".").pop()?.split(" ").pop() || currentType;
 }
@@ -673,129 +792,6 @@ function calculateNodeDegrees(graph) {
     if (targetNode) {
       targetNode.inDegree++;
     }
-  }
-}
-function calculateDataFlow(graph, startNodeId) {
-  const path12 = [startNodeId];
-  const visited = /* @__PURE__ */ new Set([startNodeId]);
-  let currentNodeId = startNodeId;
-  for (let i = 0; i < 10; i++) {
-    const writerEdge = graph.edges.find((e) => e.target === currentNodeId && e.label === "WRITES_TO" && !visited.has(e.source));
-    if (writerEdge) {
-      path12.unshift(writerEdge.source);
-      visited.add(writerEdge.source);
-      currentNodeId = writerEdge.source;
-    } else {
-      break;
-    }
-  }
-  currentNodeId = startNodeId;
-  for (let i = 0; i < 10; i++) {
-    const readerEdge = graph.edges.find((e) => e.source === currentNodeId && e.label === "READS_FROM" && !visited.has(e.target));
-    if (readerEdge) {
-      path12.push(readerEdge.target);
-      visited.add(readerEdge.target);
-      currentNodeId = readerEdge.target;
-    } else {
-      break;
-    }
-  }
-  return path12;
-}
-
-// src/packages/package_files.ts
-var fs5 = __toESM(require("fs"));
-var import_path = __toESM(require("path"));
-var vscode7 = __toESM(require("vscode"));
-function findDartFilesInPackage(libPath, maxFiles = 20) {
-  const dartFiles = [];
-  try {
-    let searchRecursive2 = function(currentPath, depth = 0) {
-      if (depth > 3 || dartFiles.length >= maxFiles) return;
-      const entries = fs5.readdirSync(currentPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (dartFiles.length >= maxFiles) break;
-        if (entry.isFile() && entry.name.endsWith(".dart")) {
-          dartFiles.push(import_path.default.join(currentPath, entry.name));
-        } else if (entry.isDirectory() && !entry.name.startsWith(".")) {
-          searchRecursive2(import_path.default.join(currentPath, entry.name), depth + 1);
-        }
-      }
-    };
-    var searchRecursive = searchRecursive2;
-    searchRecursive2(libPath);
-  } catch (error) {
-  }
-  return dartFiles;
-}
-function extractPackageImportsFromFile(fileUri) {
-  try {
-    const filePath = vscode7.Uri.parse(fileUri).fsPath;
-    const fileContent = fs5.readFileSync(filePath, "utf8");
-    const importRegex = /import\s+['"]package:([\w]+)\//g;
-    const imports = /* @__PURE__ */ new Set();
-    let match;
-    while ((match = importRegex.exec(fileContent)) !== null) {
-      imports.add(match[1]);
-    }
-    return Array.from(imports);
-  } catch (e) {
-    return [];
-  }
-}
-
-// src/ui/webview_creator.ts
-var vscode21 = __toESM(require("vscode"));
-var fs9 = __toESM(require("fs"));
-var import_path6 = __toESM(require("path"));
-
-// src/analysis/validation.ts
-var vscode8 = __toESM(require("vscode"));
-function validateEnrichedData(enrichedFiles) {
-  const symbolMap = /* @__PURE__ */ new Map();
-  function recurse(symbols) {
-    for (const sym of symbols) {
-      if (sym.uniqueId) {
-        symbolMap.set(sym.uniqueId, sym);
-      }
-      if (sym.kind === vscode8.SymbolKind.Class) {
-        log.debug(`[VALIDATE] Class: ${sym.name}`);
-      }
-      if (sym.kind === vscode8.SymbolKind.Constructor) {
-        if (!sym.parameters && sym.detail) {
-          log.debug(`[WARN] Constructor '${sym.name}' has detail but no parameters were extracted.`);
-        }
-        if (sym.parentId) {
-          const parent = symbolMap.get(sym.parentId);
-          if (!parent) {
-            log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
-          } else {
-            if (parent.kind !== vscode8.SymbolKind.Class) {
-              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind: ${parent.kind}, expected: ${vscode8.SymbolKind.Class})`);
-            }
-            if (Array.isArray(sym.parameters) && Array.isArray(parent.children)) {
-              const parentFields = new Set(parent.children.map((c) => c.name));
-              for (const param of sym.parameters) {
-                if (param.name && !parentFields.has(param.name)) {
-                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' not found as property in '${parent.name}'`);
-                }
-              }
-            }
-          }
-        }
-      }
-      if (sym.parentId && !symbolMap.has(sym.parentId)) {
-        log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
-      }
-      if (sym.children) recurse(sym.children);
-    }
-  }
-  try {
-    for (const file of enrichedFiles) {
-      recurse(file.symbols);
-    }
-  } catch (err) {
-    log.error(`Error running validateEnrichedData: ${err}`);
   }
 }
 
@@ -915,7 +911,9 @@ function getArchitecturalLayer(symbol, relations) {
 // src/graph/node_creator.ts
 function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById, generateGlobalSymbolId2, generatedNodeIds) {
   function recursive(symbols, parentClass, fileUri) {
-    if (!symbols) return;
+    if (!symbols) {
+      return;
+    }
     for (const s of symbols) {
       s.fileUri = s.fileUri || fileUri;
       const nodeId = generateGlobalSymbolId2(s, parentClass?.name);
@@ -970,7 +968,9 @@ function clearFileContentCache() {
 }
 function getSourceCodeForSymbol(symbol) {
   const rangeToUse = symbol.range || symbol.selectionRange;
-  if (!rangeToUse || !symbol.fileUri) return "";
+  if (!rangeToUse || !symbol.fileUri) {
+    return "";
+  }
   try {
     const filePath = vscode10.Uri.parse(symbol.fileUri).fsPath;
     let fileContent = fileContentCache.get(symbol.fileUri);
@@ -984,7 +984,9 @@ function getSourceCodeForSymbol(symbol) {
     const lines = fileContent.split(/\r?\n/);
     const start = rangeToUse.start;
     const end = rangeToUse.end;
-    if (start.line >= lines.length || end.line >= lines.length) return "";
+    if (start.line >= lines.length || end.line >= lines.length) {
+      return "";
+    }
     if (start.line === end.line) {
       return lines[start.line].substring(start.character, end.character);
     }
@@ -1003,11 +1005,15 @@ function getSourceCodeForSymbol(symbol) {
 var vscode11 = __toESM(require("vscode"));
 var nodesByFileCache = null;
 function getNodesByFile(nodes) {
-  if (nodesByFileCache) return nodesByFileCache;
+  if (nodesByFileCache) {
+    return nodesByFileCache;
+  }
   nodesByFileCache = /* @__PURE__ */ new Map();
   for (const node of nodes) {
     const uri = node.data.fileUri;
-    if (!nodesByFileCache.has(uri)) nodesByFileCache.set(uri, []);
+    if (!nodesByFileCache.has(uri)) {
+      nodesByFileCache.set(uri, []);
+    }
     nodesByFileCache.get(uri).push(node);
   }
   log.debug(`[RefAnalysis] nodesByFile index built: ${nodesByFileCache.size} files`);
@@ -1085,20 +1091,24 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
   log.debug(`[GraphBuilder] Creating edges...`);
   const classNodeIndex = /* @__PURE__ */ new Map();
   for (const node of projectGraph.nodes) {
-    if (node.kind === "class") {
+    if (node.kind === "class" && !classNodeIndex.has(node.label)) {
       classNodeIndex.set(node.label, node);
     }
   }
   const symbolNameIndex = /* @__PURE__ */ new Map();
   for (const enriched of symbolMapById.values()) {
     const name = enriched.name;
-    if (!symbolNameIndex.has(name)) symbolNameIndex.set(name, []);
+    if (!symbolNameIndex.has(name)) {
+      symbolNameIndex.set(name, []);
+    }
     symbolNameIndex.get(name).push(enriched);
   }
   const nodeBySymbol = /* @__PURE__ */ new Map();
   for (const node of projectGraph.nodes) {
     const sym = symbolMapById.get(node.id);
-    if (sym) nodeBySymbol.set(sym, node);
+    if (sym) {
+      nodeBySymbol.set(sym, node);
+    }
   }
   const symbolPatterns = /* @__PURE__ */ new Map();
   for (const name of symbolNameIndex.keys()) {
@@ -1107,24 +1117,32 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
   log.debug(`[EdgeCreator] Pre-compiled ${symbolPatterns.size} RegExp patterns.`);
   for (const sourceNode of projectGraph.nodes) {
     const sourceSymbol = symbolMapById.get(sourceNode.id);
-    if (!sourceSymbol) continue;
+    if (!sourceSymbol) {
+      continue;
+    }
     if (sourceSymbol.relations) {
       sourceSymbol.relations.extends?.forEach((ext) => {
         const parentName = typeof ext === "string" ? ext : ext.name;
         const baseName = parentName.split("<")[0].trim();
         const targetNode = classNodeIndex.get(baseName);
-        if (targetNode) createEdge(sourceNode.id, targetNode.id, "EXTENDS");
+        if (targetNode) {
+          createEdge(sourceNode.id, targetNode.id, "EXTENDS");
+        }
       });
       sourceSymbol.relations.implements?.forEach((impl) => {
         const interfaceName = typeof impl === "string" ? impl : impl.name;
         const baseName = interfaceName.split("<")[0].trim();
         const targetNode = classNodeIndex.get(baseName);
-        if (targetNode) createEdge(sourceNode.id, targetNode.id, "IMPLEMENTS");
+        if (targetNode) {
+          createEdge(sourceNode.id, targetNode.id, "IMPLEMENTS");
+        }
       });
     }
     if (sourceNode.kind === "method" || sourceNode.kind === "function" || sourceNode.kind === "constructor") {
       const sourceCodeText = getSourceCodeForSymbol(sourceSymbol);
-      if (!sourceCodeText) continue;
+      if (!sourceCodeText) {
+        continue;
+      }
       const cleanedSource = stripCommentsAndStrings(sourceCodeText);
       const mentionedNames = [];
       for (const [name, pattern] of symbolPatterns) {
@@ -1136,7 +1154,9 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
         const targetSymbols = symbolNameIndex.get(targetName);
         for (const targetSymbol of targetSymbols) {
           const targetNode = nodeBySymbol.get(targetSymbol);
-          if (!targetNode || sourceNode.id === targetNode.id) continue;
+          if (!targetNode || sourceNode.id === targetNode.id) {
+            continue;
+          }
           if (targetNode.kind === "method" || targetNode.kind === "function") {
             createEdge(sourceNode.id, targetNode.id, "CALLS");
           } else {
@@ -1156,13 +1176,27 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
 }
 
 // src/packages/package_discovery.ts
-var import_path3 = __toESM(require("path"));
+var import_path4 = __toESM(require("path"));
 var vscode12 = __toESM(require("vscode"));
 var fs8 = __toESM(require("fs"));
 
 // src/packages/package_analyzer.ts
 var fs7 = __toESM(require("fs"));
+var import_path3 = __toESM(require("path"));
+
+// src/filesystem/path_utils.ts
 var import_path2 = __toESM(require("path"));
+function canonical(p) {
+  const resolved = import_path2.default.resolve(p);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+function isPathInside(child, parent) {
+  const c = canonical(child);
+  const p = canonical(parent);
+  return c === p || c.startsWith(p.endsWith(import_path2.default.sep) ? p : p + import_path2.default.sep);
+}
+
+// src/packages/package_analyzer.ts
 function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPath) {
   log.debug(` -> Analyzing details of package '${packageName}'...`);
   if (!fs7.existsSync(packagePath)) {
@@ -1181,9 +1215,9 @@ function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPa
       description: ""
     };
     log.debug(`    -> Classified as: '${packageInfo.type}'`);
-    const libPath = import_path2.default.join(packagePath, "lib");
+    const libPath = import_path3.default.join(packagePath, "lib");
     packageInfo.hasLibFolder = fs7.existsSync(libPath);
-    const packagePubspecPath = import_path2.default.join(packagePath, "pubspec.yaml");
+    const packagePubspecPath = import_path3.default.join(packagePath, "pubspec.yaml");
     if (fs7.existsSync(packagePubspecPath)) {
       try {
         const pubspecContent = fs7.readFileSync(packagePubspecPath, "utf8");
@@ -1216,12 +1250,12 @@ function determinePackageType(packageName, packagePath, projectRootPath) {
   if (!actualProjectRoot) {
     actualProjectRoot = findProjectRootWithPubspec(packagePath) || findProjectRootWithPubspec(process.cwd());
   }
-  if (actualProjectRoot && packagePath.startsWith(actualProjectRoot)) {
+  if (actualProjectRoot && isPathInside(packagePath, actualProjectRoot)) {
     return "custom";
   }
   if (actualProjectRoot) {
     try {
-      const mainPubspecPath = import_path2.default.join(actualProjectRoot, "pubspec.yaml");
+      const mainPubspecPath = import_path3.default.join(actualProjectRoot, "pubspec.yaml");
       if (fs7.existsSync(mainPubspecPath)) {
         const pubspecContent = fs7.readFileSync(mainPubspecPath, "utf8");
         const pathDependencyRegex = new RegExp(`${packageName}:\\s*\\n\\s*path:\\s*`, "m");
@@ -1267,7 +1301,7 @@ function findAllPackages(searchStartPath) {
     return allPackages;
   }
   log.debug(`[Debug] Project root found at: ${projectRoot}`);
-  const packageConfigPath = import_path3.default.join(projectRoot, ".dart_tool", "package_config.json");
+  const packageConfigPath = import_path4.default.join(projectRoot, ".dart_tool", "package_config.json");
   if (!fs8.existsSync(packageConfigPath)) {
     log.debug(`\u26A0\uFE0F [Debug].dart_tool/package_config.json file not found. Cannot determine packages.`);
     return allPackages;
@@ -1289,8 +1323,8 @@ function findAllPackages(searchStartPath) {
         if (pkg.rootUri.startsWith("file://")) {
           packagePath = vscode12.Uri.parse(pkg.rootUri).fsPath;
         } else {
-          const dartToolDir = import_path3.default.dirname(packageConfigPath);
-          packagePath = import_path3.default.resolve(dartToolDir, pkg.rootUri);
+          const dartToolDir = import_path4.default.dirname(packageConfigPath);
+          packagePath = import_path4.default.resolve(dartToolDir, pkg.rootUri);
         }
         log.debug(` Resolved Path: ${packagePath}`);
         const packageInfo = analyzeExternalPackage(pkg.name, packagePath, pkg, projectRoot);
@@ -1374,7 +1408,9 @@ function createInterPackageDependencyEdges(projectGraph, externalPackages, creat
   for (const edge of projectGraph.edges) {
     const sourceNode = nodeMap.get(edge.source);
     const targetNode = nodeMap.get(edge.target);
-    if (!sourceNode || !targetNode) continue;
+    if (!sourceNode || !targetNode) {
+      continue;
+    }
     const sourcePackage = sourceNode.data.source?.packageName;
     const targetPackage = targetNode.data.source?.packageName;
     if (sourcePackage && targetPackage && sourcePackage !== targetPackage) {
@@ -1397,32 +1433,35 @@ function createInterPackageDependencyEdges(projectGraph, externalPackages, creat
 }
 
 // src/packages/source_detector.ts
-var import_path4 = __toESM(require("path"));
+var import_path5 = __toESM(require("path"));
 var vscode14 = __toESM(require("vscode"));
 function determineFileSource(fileUri, allPackages) {
   try {
-    if (!fileUri) return { type: "project" };
+    if (!fileUri) {
+      return { type: "project" };
+    }
     const filePath = vscode14.Uri.parse(fileUri).fsPath;
-    if (filePath.includes("dart-sdk/lib") || filePath.includes("flutter/bin/cache/dart-sdk")) {
+    const posixFilePath = filePath.replace(/\\/g, "/");
+    if (posixFilePath.includes("dart-sdk/lib") || posixFilePath.includes("flutter/bin/cache/dart-sdk")) {
       return { type: "sdk", packageType: "sdk" };
     }
-    const normalizedFilePath = import_path4.default.normalize(filePath);
     for (const pkg of allPackages) {
-      const normalizedPkgPath = import_path4.default.normalize(pkg.path);
-      if (normalizedFilePath.startsWith(normalizedPkgPath)) {
+      if (isPathInside(filePath, pkg.path)) {
         return {
           type: pkg.type === "custom" ? "project" : "external_package",
           packageName: pkg.name,
           packageVersion: pkg.version,
           packageType: pkg.type,
-          relativePath: import_path4.default.relative(pkg.path, filePath)
+          relativePath: import_path5.default.relative(pkg.path, filePath)
         };
       }
     }
     return { type: "project" };
   } catch (error) {
     log.error(`\u274C ERROR in determineFileSource when processing URI: "${fileUri}"`);
-    if (error instanceof Error) log.error(`   -> Message:${error.message}`);
+    if (error instanceof Error) {
+      log.error(`   -> Message:${error.message}`);
+    }
     return { type: "project" };
   }
 }
@@ -1433,7 +1472,9 @@ function assignNodesToPackageContainers(projectGraph, externalPackages) {
   let assignedCount = 0;
   let projectNodesCount = 0;
   for (const node of projectGraph.nodes) {
-    if (node.kind === "package_container") continue;
+    if (node.kind === "package_container") {
+      continue;
+    }
     const fileSource = determineFileSource(node.data.fileUri, externalPackages);
     node.data.source = fileSource;
     if (fileSource.type === "external_package" && fileSource.packageName) {
@@ -1468,7 +1509,7 @@ async function integrateExternalPackages(projectGraph, projectRoot, generatedNod
 }
 
 // src/graph/graph_builder.ts
-var import_path5 = __toESM(require("path"));
+var import_path6 = __toESM(require("path"));
 async function buildGraphModel(enrichedFiles, projectRoot) {
   clearFileContentCache();
   clearNodesByFileCache();
@@ -1479,13 +1520,21 @@ async function buildGraphModel(enrichedFiles, projectRoot) {
   const edgeCounts = {};
   const edgeSet = /* @__PURE__ */ new Set();
   const createEdge = (sourceId, targetId, label) => {
-    if (!sourceId || !targetId || sourceId === targetId) return;
-    if (!generatedNodeIds.has(sourceId) || !generatedNodeIds.has(targetId)) return;
+    if (!sourceId || !targetId || sourceId === targetId) {
+      return;
+    }
+    if (!generatedNodeIds.has(sourceId) || !generatedNodeIds.has(targetId)) {
+      return;
+    }
     const edgeKey = `${sourceId}|${targetId}|${label}`;
-    if (edgeSet.has(edgeKey)) return;
+    if (edgeSet.has(edgeKey)) {
+      return;
+    }
     edgeSet.add(edgeKey);
     projectGraph.edges.push({ id: `e${edgeIdCounter++}`, source: sourceId, target: targetId, label });
-    if (label) edgeCounts[label] = (edgeCounts[label] || 0) + 1;
+    if (label) {
+      edgeCounts[label] = (edgeCounts[label] || 0) + 1;
+    }
   };
   log.debug(`[GraphBuilder] Creating nodes...`);
   createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById, generateGlobalSymbolId, generatedNodeIds);
@@ -1547,9 +1596,11 @@ async function extractSymbolsFromExternalPackages(projectRoot, allPackages) {
   const externalSymbols = /* @__PURE__ */ new Map();
   const relevantPackages = getRelevantExternalPackages(allPackages);
   for (const pkg of relevantPackages) {
-    if (!pkg.hasLibFolder || pkg.dartFiles.length === 0) continue;
+    if (!pkg.hasLibFolder || pkg.dartFiles.length === 0) {
+      continue;
+    }
     const mainFiles = pkg.dartFiles.filter((file) => {
-      const fileName = import_path5.default.basename(file, ".dart");
+      const fileName = import_path6.default.basename(file, ".dart");
       return fileName === pkg.name || fileName === "main" || file.endsWith(`lib/${pkg.name}.dart`);
     }).slice(0, 1);
     for (const dartFile of mainFiles) {
@@ -1633,7 +1684,9 @@ function clearTypeIndex() {
 }
 async function resolveTypeByName(typeName, dependencies) {
   const baseTypeName = parseBaseTypeName(typeName);
-  if (!baseTypeName) return void 0;
+  if (!baseTypeName) {
+    return void 0;
+  }
   if (resolvedTypesCache.has(typeName)) {
     log.debug(` [Cache HIT] ${typeName}`);
     return resolvedTypesCache.get(typeName);
@@ -1651,7 +1704,9 @@ async function resolveTypeByName(typeName, dependencies) {
           break;
         }
       }
-      if (foundSymbol) break;
+      if (foundSymbol) {
+        break;
+      }
     }
   }
   if (foundSymbol) {
@@ -1677,7 +1732,9 @@ async function resolveTypeByName(typeName, dependencies) {
 // src/analysis/enrichment/detail_enrichment.ts
 async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
   const symbol = enrichedSym;
-  if (!symbol.detail || typeof symbol.detail !== "string") return;
+  if (!symbol.detail || typeof symbol.detail !== "string") {
+    return;
+  }
   log.debug(`[DEBUG-ENRICH-DETAIL] Enriching ${symbol.name}, detail: ${symbol.detail}`);
   log.debug(`${logPrefix}  [DEBUG] symbol.kind: ${symbol.kind}, symbol.detail: ${symbol.detail}`);
   log.debug(`${logPrefix}  [Type Detail] Analyzing detail: "${symbol.detail}"`);
@@ -1708,7 +1765,9 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
           let parseIndividualParamList2 = function(paramSubString, areNamed, areOptionalPositional) {
             let remaining = paramSubString.trim();
             const parsedParams = [];
-            if (remaining === "") return parsedParams;
+            if (remaining === "") {
+              return parsedParams;
+            }
             const singleParamRegex = /^\s*(?:(required|covariant)\s+)?((?:[\w$.<>?\[\]\s(),']+?|Function\s*\((?:[^)]*\))?\s*\??))\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/;
             const thisFieldWithOptionalRequiredRegex = /^\s*(required\s+)?this\.([\w$]+)\s*(?:=.*?)?(?:,|$)/;
             const functionTypeParamRegex = /^\s*(?:(required|covariant)\s+)?((?:[\w$<>?,.\s\[\]]+\s+)?Function\s*\((?:[^)]*?\))?\s*\??)\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/;
@@ -1947,7 +2006,9 @@ async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
     log.debug(`${logPrefix}  \u26A0\uFE0F Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) \u2192 needsTypeInfo: ${needsTypeInfo}`);
     return;
   }
-  if (enrichedSym.hoverChecked) return;
+  if (enrichedSym.hoverChecked) {
+    return;
+  }
   enrichedSym.hoverChecked = true;
   const { line, character } = enrichedSym.selectionRange.start;
   const positionKey = `${enrichedSym.fileUri}:${line}:${character}`;
@@ -1978,7 +2039,9 @@ async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
       return;
     }
   }
-  if (!contentString) return;
+  if (!contentString) {
+    return;
+  }
   const escapedSymName = escapeRegExp(enrichedSym.name);
   if ((enrichedSym.kind === vscode19.SymbolKind.Field || enrichedSym.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType) {
     const fieldRegex = new RegExp("```dart\\s*(?:[\\w\\s]+\\s)?(.+?)\\s+" + escapedSymName);
@@ -2019,7 +2082,9 @@ async function withConcurrencyLimit(tasks, limit) {
   const results = [];
   let index = 0;
   async function runNext() {
-    if (index >= tasks.length) return;
+    if (index >= tasks.length) {
+      return;
+    }
     const current = index++;
     results[current] = await tasks[current]();
     await runNext();
@@ -2075,20 +2140,133 @@ async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, depend
   return enrichedSym;
 }
 
+// src/analysis/class_relations.ts
+var vscode21 = __toESM(require("vscode"));
+var fs9 = __toESM(require("fs"));
+var CLAUSE_KEYWORDS = /* @__PURE__ */ new Set(["extends", "with", "implements"]);
+function parseInheritanceClauses(header) {
+  const result = { extends: [], with: [], implements: [] };
+  let depth = 0;
+  let current;
+  let buffer = "";
+  const flush = () => {
+    if (!current) {
+      buffer = "";
+      return;
+    }
+    let item = "";
+    let itemDepth = 0;
+    for (const ch of buffer) {
+      if (ch === "<") {
+        itemDepth++;
+      }
+      if (ch === ">") {
+        itemDepth--;
+      }
+      if (ch === "," && itemDepth === 0) {
+        if (item.trim()) {
+          result[current].push(item.trim().replace(/<\s+/g, "<"));
+        }
+        item = "";
+      } else {
+        item += ch;
+      }
+    }
+    if (item.trim()) {
+      result[current].push(item.trim().replace(/<\s+/g, "<"));
+    }
+    buffer = "";
+  };
+  for (const token of header.match(/[A-Za-z_$][\w$]*|[<>,]|[^\sA-Za-z_$<>,]+/g) ?? []) {
+    if (token === "<") {
+      depth++;
+    }
+    if (token === ">") {
+      depth--;
+    }
+    if (depth === 0 && CLAUSE_KEYWORDS.has(token)) {
+      flush();
+      current = token;
+      continue;
+    }
+    buffer += token === "," || token === "<" || token === ">" ? token : ` ${token}`;
+  }
+  flush();
+  return result;
+}
+function extractClassHeader(content, range) {
+  const lines = content.split(/\r?\n/);
+  let header = "";
+  for (let i = range.start.line; i < lines.length && i < range.start.line + 20; i++) {
+    const raw = i === range.start.line ? lines[i].substring(range.start.character) : lines[i];
+    const line = raw.replace(/\/\/.*$/, "");
+    const brace = line.indexOf("{");
+    if (brace >= 0) {
+      header += " " + line.substring(0, brace);
+      break;
+    }
+    header += " " + line;
+  }
+  return header.replace(/\s+/g, " ").trim();
+}
+function buildClassRelationsFromSymbols(filesData) {
+  const relations = /* @__PURE__ */ new Map();
+  for (const fileData of filesData) {
+    let content;
+    const readContent = () => {
+      if (content === void 0 && fileData.file) {
+        try {
+          content = fs9.readFileSync(fileData.file, "utf8");
+        } catch {
+          content = "";
+        }
+      }
+      return content ?? "";
+    };
+    const visit = (symbols) => {
+      for (const symbol of symbols ?? []) {
+        if (symbol.kind === vscode21.SymbolKind.Class) {
+          const header = symbol.detail || (symbol.range ? extractClassHeader(readContent(), symbol.range) : "");
+          if (header) {
+            relations.set(`${fileData.fileUri}#${symbol.name}`, parseInheritanceClauses(header));
+          }
+        }
+        visit(symbol.children);
+      }
+    };
+    visit(fileData.symbols);
+  }
+  return relations;
+}
+
 // src/ui/webview_creator.ts
+function annotationsKey(projectRoot) {
+  return `satori.annotations:${projectRoot}`;
+}
+function loadAnnotations(memento, projectRoot) {
+  return memento.get(annotationsKey(projectRoot), {});
+}
+function saveAnnotations(memento, projectRoot, data) {
+  return memento.update(annotationsKey(projectRoot), data);
+}
+function findClassFieldSymbol(classSymbol, fieldName) {
+  return classSymbol.children?.find(
+    (f) => f.name === fieldName && (f.kind === vscode22.SymbolKind.Field || f.kind === vscode22.SymbolKind.Property)
+  );
+}
 async function createWebview(context, data) {
   function getLanguage() {
-    const config = vscode21.workspace.getConfiguration("satori");
+    const config = vscode22.workspace.getConfiguration("satori");
     return config.get("language", "en");
   }
-  const panel = vscode21.window.createWebviewPanel(
+  const panel = vscode22.window.createWebviewPanel(
     "astDiagram",
     "AST Diagram",
-    vscode21.ViewColumn.Beside,
+    vscode22.ViewColumn.Beside,
     {
       enableScripts: true,
       localResourceRoots: [
-        vscode21.Uri.joinPath(context.extensionUri, "media")
+        vscode22.Uri.joinPath(context.extensionUri, "media")
       ]
     }
   );
@@ -2096,7 +2274,7 @@ async function createWebview(context, data) {
   const csp = [
     `default-src 'none'`,
     `style-src ${panel.webview.cspSource} 'unsafe-inline'`,
-    `script-src 'nonce-${nonce}' https://cdnjs.cloudflare.com https://unpkg.com ${panel.webview.cspSource}`,
+    `script-src 'nonce-${nonce}' ${panel.webview.cspSource}`,
     `img-src data: ${panel.webview.cspSource}`
   ].join("; ");
   log.debug("Starting data enrichment for webview..");
@@ -2107,14 +2285,14 @@ async function createWebview(context, data) {
   buildTypeIndex(data.files);
   log.debug("[TypeIndex] Type index built \u2014 starting enrichment.");
   const processedFilesPromises = data.files.map(async (f_item) => {
-    const fileContent = fs9.readFileSync(f_item.file, "utf8");
-    const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode21.Uri.file(f_item.file).toString();
+    const fileContent = fs10.readFileSync(f_item.file, "utf8");
+    const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode22.Uri.file(f_item.file).toString();
     const enrichmentDeps = {
       projectClassRelations,
       fileContent,
       allProjectFilesData: data.files.map((df) => ({
         ...df,
-        fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode21.Uri.file(df.file).toString()
+        fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode22.Uri.file(df.file).toString()
       }))
     };
     const processedSymbols = f_item.symbols ? await Promise.all(f_item.symbols.map(
@@ -2125,7 +2303,7 @@ async function createWebview(context, data) {
   data.files = await Promise.all(processedFilesPromises);
   log.debug("\u2705 Deep enrichment of all files completed.");
   clearTypeIndex();
-  log.debug("\u2705 Deep enrichment of all files completed.");
+  log.debug("\u2705 Type index cleared.");
   log.debug("Phase 2: Building project graph model...");
   const projectGraph = await buildGraphModel(data.files, data.projectRoot);
   log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
@@ -2136,25 +2314,33 @@ async function createWebview(context, data) {
   const existingUniqueIds = /* @__PURE__ */ new Set();
   data.files.forEach((fileData) => {
     function collectUniqueIds(symbols) {
-      if (!symbols) return;
+      if (!symbols) {
+        return;
+      }
       for (const s of symbols) {
-        if (s.uniqueId) existingUniqueIds.add(s.uniqueId);
-        if (s.children) collectUniqueIds(s.children);
+        if (s.uniqueId) {
+          existingUniqueIds.add(s.uniqueId);
+        }
+        if (s.children) {
+          collectUniqueIds(s.children);
+        }
       }
     }
     collectUniqueIds(fileData.symbols);
   });
   data.files.forEach((fileData) => {
     function findClassAndResolveThisFieldsRecursive(symbols) {
-      if (!symbols) return;
+      if (!symbols) {
+        return;
+      }
       for (const s of symbols) {
         log.debug(`[DEBUG-KIND-CHECK] Symbol: ${s.name}, kind: ${s.kind}, children: ${s.children?.length ?? 0}`);
-        if (s.kind === vscode21.SymbolKind.Class && s.children) {
+        if (s.kind === vscode22.SymbolKind.Class && s.children) {
           const classSymbol = s;
           log.debug(`[DEBUG-CLASS] Class detected: ${classSymbol.name}`);
           classSymbol.children?.forEach((member) => {
             log.debug(`[DEBUG-MEMBER] ${classSymbol.name}.${member.name || "(anon)"} - kind: ${member.kind}, params: ${member.parameters?.length ?? 0}`);
-            if (member.kind === vscode21.SymbolKind.Constructor) {
+            if (member.kind === vscode22.SymbolKind.Constructor) {
               log.debug(`[DEBUG-CONSTRUCTOR] Constructor found: ${member.name}`);
               if (!member.parameters || member.parameters.length === 0) {
                 if (member.detail?.includes("this.")) {
@@ -2172,9 +2358,7 @@ async function createWebview(context, data) {
                 member.parameters.forEach((param) => {
                   if (param.type?.startsWith("self_field:")) {
                     const fieldName = param.type.substring("self_field:".length);
-                    const fieldSymbol = classSymbol.children?.find(
-                      (f) => f.name === fieldName && (f.kind === vscode21.SymbolKind.Field || f.kind === vscode21.SymbolKind.Constructor)
-                    );
+                    const fieldSymbol = findClassFieldSymbol(classSymbol, fieldName);
                     if (fieldSymbol) {
                       if (fieldSymbol.resolvedType) {
                         log.debug(`    \u21B3 Param '${param.name || fieldName}' (this.${fieldName}): type updated from '${param.type}' to '${fieldSymbol.resolvedType}'. Linked def: ${!!fieldSymbol.resolvedTypeRef?.definition}`);
@@ -2207,12 +2391,16 @@ async function createWebview(context, data) {
   });
   log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId...`);
   function validateParentIds(symbols) {
-    if (!symbols) return;
+    if (!symbols) {
+      return;
+    }
     for (const sym of symbols) {
       if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
         log.debug(`\u274C Inconsistency detected: parentId '${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
       }
-      if (sym.children) validateParentIds(sym.children);
+      if (sym.children) {
+        validateParentIds(sym.children);
+      }
     }
   }
   data.files.forEach((fileData) => validateParentIds(fileData.symbols));
@@ -2224,7 +2412,8 @@ async function createWebview(context, data) {
   log.debug("[Sanitize] Starting string sanitization for JSON...");
   sanitizeObjectStrings(dataForWebview);
   log.debug("[Sanitize] String sanitization completed.");
-  const astJson = JSON.stringify(dataForWebview, (key, value) => {
+  const savedAnnotations = loadAnnotations(context.workspaceState, data.projectRoot);
+  const astJson = JSON.stringify({ ...dataForWebview, annotations: savedAnnotations }, (key, value) => {
     if (typeof value === "string") {
       return value.replace(/\\/g, "/");
     }
@@ -2234,112 +2423,14 @@ async function createWebview(context, data) {
   validateEnrichedData(data.files);
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
-  const translations = {
-    "loader.analyzing": t("loader.analyzing"),
-    "loader.processing": t("loader.processing"),
-    "loader.error": t("loader.error"),
-    "loader.waiting": t("loader.waiting"),
-    "loader.dataLoaded": t("loader.dataLoaded"),
-    "button.back": t("button.back"),
-    "layer.view": t("layer.view"),
-    "layer.state": t("layer.state"),
-    "layer.service": t("layer.service"),
-    "layer.model": t("layer.model"),
-    "layer.utility": t("layer.utility"),
-    "overview.views": t("overview.views"),
-    "overview.state": t("overview.state"),
-    "overview.service": t("overview.service"),
-    "overview.model": t("overview.model"),
-    "overview.utility": t("overview.utility"),
-    "overview.noLayers": t("overview.noLayers"),
-    "context.traceFlow": t("context.traceFlow"),
-    "search.placeholder": t("search.placeholder"),
-    "search.noResults": t("search.noResults"),
-    "folder.label": t("folder.label"),
-    "breadcrumb.folders": t("breadcrumb.folders"),
-    "legend.responsibilities": t("legend.responsibilities"),
-    "legend.attributes": t("legend.attributes"),
-    "legend.collaborators": t("legend.collaborators"),
-    "legend.groupedObjects": t("legend.groupedObjects"),
-    "legend.symbols": t("legend.symbols"),
-    "legend.relationships": t("legend.relationships"),
-    "packages.developed": t("packages.developed"),
-    "packages.consumed": t("packages.consumed"),
-    "edge.extends": t("edge.extends"),
-    "edge.implements": t("edge.implements"),
-    "edge.calls": t("edge.calls"),
-    "edge.readsFrom": t("edge.readsFrom"),
-    "edge.writesTo": t("edge.writesTo"),
-    "narrative.showsUser": t("narrative.showsUser"),
-    "narrative.readsFrom": t("narrative.readsFrom"),
-    "narrative.buildsAndShows": t("narrative.buildsAndShows"),
-    "narrative.instanceOf": t("narrative.instanceOf"),
-    "narrative.notifies": t("narrative.notifies"),
-    "narrative.delegates": t("narrative.delegates"),
-    "narrative.formats": t("narrative.formats"),
-    "narrative.managesState": t("narrative.managesState"),
-    "narrative.reactsTo": t("narrative.reactsTo"),
-    "narrative.implements": t("narrative.implements"),
-    "narrative.extends": t("narrative.extends"),
-    "overview.members": t("overview.members"),
-    "legend.inDegree": t("legend.inDegree"),
-    "legend.outDegree": t("legend.outDegree")
-  };
-  let html = fs9.readFileSync(
-    import_path6.default.join(context.extensionUri.fsPath, "media", "webviewContent.html"),
+  const translations = Localization.getInstance().getByPrefix("trail.", "hud.", "layer.");
+  const mediaUri = panel.webview.asWebviewUri(vscode22.Uri.joinPath(context.extensionUri, "media")).toString();
+  let html = fs10.readFileSync(
+    import_path7.default.join(context.extensionUri.fsPath, "media", "webviewContent.html"),
     "utf8"
   );
-  html = html.replace(/__CSP__/, csp).replace(/__NONCE__/g, nonce).replace(/__AST_JSON_PLACEHOLDER__/g, astJson).replace(/__TRANSLATIONS__/g, JSON.stringify(translations));
+  html = html.replace(/__CSP__/, () => csp).replace(/__MEDIA__/g, () => mediaUri).replace(/__NONCE__/g, () => nonce).replace(/__AST_JSON_PLACEHOLDER__/g, () => astJson).replace(/__TRANSLATIONS__/g, () => JSON.stringify(translations).replace(/</g, "\\u003c"));
   panel.webview.html = html;
-  panel.webview.onDidReceiveMessage(async (m) => {
-    if (m.command === "log") {
-      log.debug(m.args.join(" "));
-    } else if (m.command === "openClass") {
-      const uri = vscode21.Uri.parse(m.file);
-      const start = new vscode21.Position(m.start.line, m.start.character);
-      const end = new vscode21.Position(m.end.line, m.end.character);
-      const range = new vscode21.Range(start, end);
-      const existing = vscode21.window.visibleTextEditors.find(
-        (e) => e.document.uri.fsPath === m.file && e.viewColumn === vscode21.ViewColumn.Two
-      );
-      if (existing) {
-        existing.selection = new vscode21.Selection(start, end);
-        existing.revealRange(range, vscode21.TextEditorRevealType.InCenter);
-        return;
-      }
-      panel.reveal(panel.viewColumn, true);
-      const doc = await vscode21.workspace.openTextDocument(uri);
-      const editor = await vscode21.window.showTextDocument(doc, {
-        viewColumn: vscode21.ViewColumn.Two,
-        preview: true
-      });
-      editor.selection = new vscode21.Selection(start, end);
-      editor.revealRange(range, vscode21.TextEditorRevealType.InCenter);
-    } else if (m.command === "openFile") {
-      const filePath = m.filePath;
-      if (!filePath) return;
-      const alreadyOpenEditor = vscode21.window.visibleTextEditors.find(
-        (e) => e.document.uri.fsPath === filePath
-      );
-      if (alreadyOpenEditor) {
-        vscode21.window.showTextDocument(alreadyOpenEditor.document, {
-          viewColumn: alreadyOpenEditor.viewColumn,
-          preserveFocus: false
-        });
-        return;
-      }
-      const uri = vscode21.Uri.parse(filePath);
-      try {
-        const doc = await vscode21.workspace.openTextDocument(uri);
-        await vscode21.window.showTextDocument(doc, {
-          viewColumn: vscode21.ViewColumn.Two,
-          preview: true
-        });
-      } catch (error) {
-        log.error(`Error opening file: ${filePath}`);
-      }
-    }
-  });
   return { panel, graph: projectGraph };
 }
 function getNonce() {
@@ -2350,39 +2441,16 @@ function getNonce() {
   }
   return text;
 }
-function buildClassRelationsFromSymbols(filesData) {
-  const relations = /* @__PURE__ */ new Map();
-  const extendsRegex = /extends\s+([\w<, >]+)/;
-  const withRegex = /with\s+([\w<, >]+(?:\s*,\s*[\w<, >]+)*)/;
-  const implementsRegex = /implements\s+([\w<, >]+(?:\s*,\s*[\w<, >]+)*)/;
-  function findClassesRecursive(symbols, fileUri) {
-    for (const symbol of symbols) {
-      if (symbol.kind === vscode21.SymbolKind.Class && symbol.detail) {
-        const classRelations = { extends: [], with: [], implements: [] };
-        const extendsMatch = symbol.detail.match(extendsRegex);
-        if (extendsMatch) classRelations.extends.push(extendsMatch[1].trim());
-        const withMatch = symbol.detail.match(withRegex);
-        if (withMatch) classRelations.with.push(...withMatch[1].split(",").map((s) => s.trim()));
-        const implementsMatch = symbol.detail.match(implementsRegex);
-        if (implementsMatch) classRelations.implements.push(...implementsMatch[1].split(",").map((s) => s.trim()));
-        relations.set(`${fileUri}#${symbol.name}`, classRelations);
-      }
-      if (symbol.children) findClassesRecursive(symbol.children, fileUri);
-    }
-  }
-  for (const file of filesData) findClassesRecursive(file.symbols, file.fileUri);
-  return relations;
-}
 
 // src/ui/command_registry.ts
-var vscode22 = __toESM(require("vscode"));
+var vscode23 = __toESM(require("vscode"));
 function registerDebugCommands(context) {
-  const toggleDebugCommand = vscode22.commands.registerCommand(
+  const toggleDebugCommand = vscode23.commands.registerCommand(
     "satori.toggleDebugLogs",
     () => {
       const currentState = log.isDebug();
       log.setDebug(!currentState);
-      vscode22.window.showInformationMessage(
+      vscode23.window.showInformationMessage(
         `Debug logs ${!currentState ? "enabled" : "disabled"}`
       );
     }
@@ -2392,7 +2460,9 @@ function registerDebugCommands(context) {
 
 // src/analysis/symbol_transformer.ts
 function transformLspSymbols(lspSymbols, parentId, fileUri) {
-  if (!lspSymbols || lspSymbols.length === 0) return [];
+  if (!lspSymbols || lspSymbols.length === 0) {
+    return [];
+  }
   return lspSymbols.map((s) => {
     const uniqueId = `${fileUri}#${s.name}#${s.kind}`;
     const enriched = {
@@ -2411,19 +2481,118 @@ function transformLspSymbols(lspSymbols, parentId, fileUri) {
   });
 }
 
+// src/analysis/snippet.ts
+var fs11 = __toESM(require("fs"));
+var vscode24 = __toESM(require("vscode"));
+var MAX_LINES = 60;
+var CONTEXT = 3;
+function stripDecor(label) {
+  return label.replace(/^(?:\u{1F517}|⚙️?)\s*/u, "");
+}
+function rangeOf(node) {
+  const raw = node.data.range ?? node.data.selectionRange;
+  if (!raw) {
+    return null;
+  }
+  const start = Array.isArray(raw) ? raw[0] : raw.start;
+  const end = Array.isArray(raw) ? raw[1] : raw.end;
+  if (!start || !end) {
+    return null;
+  }
+  return { start: { line: start.line, character: start.character }, end: { line: end.line, character: end.character } };
+}
+function escapeRegExp2(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function buildSnippet(graph, request) {
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const primary = byId.get(request.sourceId ?? request.nodeId ?? "");
+  if (!primary || !primary.data.fileUri) {
+    return null;
+  }
+  const range = rangeOf(primary);
+  if (!range) {
+    return null;
+  }
+  let content;
+  try {
+    content = fs11.readFileSync(vscode24.Uri.parse(primary.data.fileUri).fsPath, "utf8");
+  } catch {
+    return null;
+  }
+  const fileLines = content.split(/\r?\n/);
+  if (range.start.line >= fileLines.length) {
+    return null;
+  }
+  let highlightLine = null;
+  let highlightColumn = range.start.character;
+  let matchLength = Math.max(1, range.end.line === range.start.line ? range.end.character - range.start.character : 1);
+  let title = stripDecor(primary.label);
+  const target = request.targetId ? byId.get(request.targetId) : void 0;
+  if (target) {
+    const name = stripDecor(target.label);
+    const pattern = new RegExp(`\\b${escapeRegExp2(name)}\\b`);
+    const lastLine = Math.min(range.end.line, fileLines.length - 1);
+    for (let i = range.start.line; i <= lastLine; i++) {
+      const text = fileLines[i];
+      if (text.trimStart().startsWith("//")) {
+        continue;
+      }
+      const match = pattern.exec(i === range.start.line ? text.substring(range.start.character) : text);
+      if (match) {
+        highlightLine = i;
+        highlightColumn = match.index + (i === range.start.line ? range.start.character : 0);
+        matchLength = name.length;
+        break;
+      }
+    }
+    title = `${stripDecor(primary.label)} \u2192 ${name}`;
+  }
+  if (!target && range.end.line === range.start.line) {
+    highlightLine = range.start.line;
+  }
+  const lastLineOfSymbol = Math.min(range.end.line, fileLines.length - 1);
+  let from = range.start.line;
+  let to = lastLineOfSymbol;
+  if (to - from < 1) {
+    from = Math.max(0, from - CONTEXT);
+    to = Math.min(fileLines.length - 1, to + CONTEXT + 1);
+  }
+  if (to - from + 1 > MAX_LINES) {
+    const anchor = highlightLine ?? range.start.line;
+    from = Math.max(range.start.line, anchor - Math.floor(MAX_LINES / 2));
+    to = Math.min(lastLineOfSymbol, from + MAX_LINES - 1);
+    from = Math.max(range.start.line, to - MAX_LINES + 1);
+  }
+  const jumpLine = highlightLine ?? range.start.line;
+  return {
+    file: primary.data.fileUri,
+    startLine: from,
+    lines: fileLines.slice(from, to + 1),
+    highlightLine,
+    jump: {
+      start: { line: jumpLine, character: highlightColumn },
+      end: { line: jumpLine, character: highlightColumn + matchLength }
+    },
+    title
+  };
+}
+
 // src/ui/extension_lifecycle.ts
 var ExtensionState = class {
   mainGraphPanel;
   projectGraph;
+  stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
   /**
    * Sets the webview panel and project graph in the global state.
-   * 
+   *
    * @param panel - Webview panel that displays the graph visualization
    * @param graph - Graph data model with the project's nodes and edges
    */
   setGraph(panel, graph) {
     this.mainGraphPanel = panel;
     this.projectGraph = graph;
+    this.stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
   }
   /**
    * Clears the global state, releasing references to the panel and graph.
@@ -2432,6 +2601,7 @@ var ExtensionState = class {
   clear() {
     this.mainGraphPanel = void 0;
     this.projectGraph = void 0;
+    this.stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
   }
   /**
    * Gets the active webview panel of the graph.
@@ -2451,14 +2621,14 @@ var ExtensionState = class {
   }
 };
 async function findFlutterProjectRoot() {
-  const workspaceFolders = vscode23.workspace.workspaceFolders;
+  const workspaceFolders = vscode25.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode23.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
+    vscode25.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
     return void 0;
   }
   for (const folder of workspaceFolders) {
-    const pubspecFiles = await vscode23.workspace.findFiles(
-      new vscode23.RelativePattern(folder, "pubspec.yaml"),
+    const pubspecFiles = await vscode25.workspace.findFiles(
+      new vscode25.RelativePattern(folder, "pubspec.yaml"),
       "**/.*",
       1
     );
@@ -2468,44 +2638,26 @@ async function findFlutterProjectRoot() {
       return folder.uri;
     }
   }
-  vscode23.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
+  vscode25.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
   return void 0;
 }
-async function analyzeProject(rootUri, context, progress) {
+async function discoverDartFiles(rootUri, isProjectRoot, progress) {
   const root = rootUri.fsPath;
-  log.debug(`\u{1F50D} Analyzing project at: ${root}`);
-  log.debug(`\u{1F4CA} Root URI - scheme: ${rootUri.scheme}, fsPath: ${rootUri.fsPath}`);
-  log.debug(`\u{1F4CA} Root URI - toString: ${rootUri.toString()}`);
-  const isProjectRoot = fs10.existsSync(import_path7.default.join(root, "pubspec.yaml"));
-  log.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${isProjectRoot}`);
-  progress.report({ increment: 10, message: t("progress.searchingFiles") });
-  log.debug("\u{1F4C2} Searching files in standard directories...");
-  const standardPatterns = isProjectRoot ? [
-    "lib/**/*.dart"
-  ] : [
-    "**/*.dart"
-  ];
-  log.debug(`\u{1F4CA} Using patterns: ${JSON.stringify(standardPatterns)}`);
-  let uris = [];
-  let totalFilesByPattern = {};
-  for (const pattern of standardPatterns) {
-    try {
-      const files = await vscode23.workspace.findFiles(
-        new vscode23.RelativePattern(rootUri, pattern),
-        "**/.dart_tool/**"
-      );
-      uris.push(...files);
-      totalFilesByPattern[pattern] = files.length;
-      log.debug(`  \u2022 Pattern '${pattern}': ${files.length} files`);
-    } catch (error) {
-      log.error(`  \u274C Error searching pattern '${pattern}': ${error.message}`);
-      totalFilesByPattern[pattern] = 0;
-    }
+  const uris = [];
+  const pattern = isProjectRoot ? "lib/**/*.dart" : "**/*.dart";
+  try {
+    const files = await vscode25.workspace.findFiles(
+      new vscode25.RelativePattern(rootUri, pattern),
+      "**/.dart_tool/**"
+    );
+    uris.push(...files);
+    log.debug(`  \u2022 Pattern '${pattern}': ${files.length} files`);
+  } catch (error) {
+    log.error(`  \u274C Error searching pattern '${pattern}': ${error.message}`);
   }
-  log.debug(`\u{1F4CA} Files found by pattern: ${JSON.stringify(totalFilesByPattern, null, 2)}`);
   progress.report({ increment: 20, message: t("progress.searchingCustomDirs") });
-  let customDirectories = [];
   if (isProjectRoot) {
+    let customDirectories = [];
     try {
       customDirectories = await findCustomDartDirectories(rootUri);
       log.debug(`\u{1F50D} Found ${customDirectories.length} custom directories`);
@@ -2514,13 +2666,12 @@ async function analyzeProject(rootUri, context, progress) {
     }
     for (const customDir of customDirectories) {
       try {
-        const customFiles = await vscode23.workspace.findFiles(
-          new vscode23.RelativePattern(customDir, "**/*.dart"),
+        const customFiles = await vscode25.workspace.findFiles(
+          new vscode25.RelativePattern(customDir, "**/*.dart"),
           "**/.*"
         );
         uris.push(...customFiles);
-        const relativePath = import_path7.default.relative(root, customDir.fsPath);
-        log.debug(` \u2022 Custom directory  '${relativePath}': ${customFiles.length} files`);
+        log.debug(` \u2022 Custom directory '${import_path8.default.relative(root, customDir.fsPath)}': ${customFiles.length} files`);
       } catch (error) {
         log.error(`  \u274C Error in custom directory ${customDir.fsPath}: ${error.message}`);
       }
@@ -2528,11 +2679,57 @@ async function analyzeProject(rootUri, context, progress) {
   } else {
     log.debug(`\u{1F4CA} Skipping custom directory search (not in project root)`);
   }
-  const uniqueUris = Array.from(new Set(uris.map((u) => u.toString()))).map((uriString) => vscode23.Uri.parse(uriString));
+  const uniqueUris = Array.from(new Set(uris.map((u) => u.toString()))).map((s) => vscode25.Uri.parse(s));
   log.debug(`\u{1F4C4} Total unique files found: ${uniqueUris.length}`);
+  return uniqueUris;
+}
+async function extractFileSymbols(uris, progress) {
+  const filesData = [];
+  let analyzedCount = 0;
+  let errorCount = 0;
+  let emptyCount = 0;
+  for (const u of uris) {
+    let syms = [];
+    try {
+      const raw = await vscode25.commands.executeCommand(
+        "vscode.executeDocumentSymbolProvider",
+        u
+      );
+      if (!Array.isArray(raw)) {
+        log.debug(`[DIAGNOSTIC] No symbol array for ${import_path8.default.basename(u.fsPath)}: ${raw === null ? "null" : typeof raw}`);
+        if (raw === null) {
+          emptyCount++;
+        } else {
+          errorCount++;
+        }
+      } else if (raw.length === 0) {
+        emptyCount++;
+      } else {
+        analyzedCount++;
+      }
+      syms = transformLspSymbols(Array.isArray(raw) ? raw : [], void 0, u.toString());
+    } catch (e) {
+      log.error(`\u26A0\uFE0F Error getting symbols for ${import_path8.default.basename(u.fsPath)}: ${e.message}`);
+      errorCount++;
+    }
+    filesData.push({ file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms });
+    progress.report({ increment: 40 / uris.length, message: t("progress.analyzingFile") });
+  }
+  log.debug(`\u{1F4CA} Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
+  return filesData;
+}
+async function analyzeProject(rootUri, context, progress) {
+  const root = rootUri.fsPath;
+  log.debug(`\u{1F50D} Analyzing project at: ${root}`);
+  log.debug(`\u{1F4CA} Root URI - scheme: ${rootUri.scheme}, fsPath: ${rootUri.fsPath}`);
+  log.debug(`\u{1F4CA} Root URI - toString: ${rootUri.toString()}`);
+  const isProjectRoot = fs12.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  log.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${isProjectRoot}`);
+  progress.report({ increment: 10, message: t("progress.searchingFiles") });
+  const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot, progress);
   if (uniqueUris.length === 0) {
     log.info("\u274C No Dart files found in the project.");
-    vscode23.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
+    vscode25.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
     return null;
   }
   log.debug(`\u{1F4C4} Sample of found files (first 5):`);
@@ -2540,52 +2737,10 @@ async function analyzeProject(rootUri, context, progress) {
     log.debug(`  ${idx + 1}. ${uri.fsPath}`);
   });
   progress.report({ increment: 30, message: t("progress.analyzingFiles", uniqueUris.length.toString()) });
-  const filesDataArray = [];
-  let analyzedCount = 0;
-  let errorCount = 0;
-  let emptyCount = 0;
-  for (const u of uniqueUris) {
-    let syms = [];
-    try {
-      const raw = await vscode23.commands.executeCommand(
-        "vscode.executeDocumentSymbolProvider",
-        u
-      );
-      if (raw === null) {
-        log.debug(`[DIAGNOSTIC] Received NULL for ${import_path7.default.basename(u.fsPath)}`);
-        emptyCount++;
-      } else if (raw === void 0) {
-        log.debug(`[DIAGNOSTIC] Received UNDEFINED for ${import_path7.default.basename(u.fsPath)}`);
-        errorCount++;
-      } else if (!Array.isArray(raw)) {
-        log.debug(`[DIAGNOSTIC] Received non-array type for ${import_path7.default.basename(u.fsPath)}: ${typeof raw}`);
-        errorCount++;
-      } else if (raw.length === 0) {
-        emptyCount++;
-      } else {
-        analyzedCount++;
-      }
-      const rawSymbols = Array.isArray(raw) ? raw : [];
-      syms = transformLspSymbols(rawSymbols, void 0, u.toString());
-    } catch (e) {
-      log.error(`\u26A0\uFE0F Error getting symbols for ${import_path7.default.basename(u.fsPath)}: ${e.message}`);
-      errorCount++;
-    }
-    filesDataArray.push({ file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms });
-    const progressIncrement = 40 / uniqueUris.length;
-    progress.report({
-      increment: progressIncrement,
-      message: t("progress.analyzingFile")
-    });
-  }
-  log.debug(`\u{1F4CA} Analysis Summary:`);
-  log.debug(`   \u2705 Successfully analyzed: ${analyzedCount} files`);
-  log.debug(`   \u{1F4ED} Empty results: ${emptyCount} files`);
-  log.debug(`   \u274C Errors: ${errorCount} files`);
-  log.debug(`   \u{1F4E6} Total files processed: ${filesDataArray.length}`);
+  const filesDataArray = await extractFileSymbols(uniqueUris, progress);
   if (filesDataArray.every((f) => f.symbols.length === 0) && filesDataArray.length > 0) {
     log.info("\u26A0\uFE0F No classes/symbols found in any project Dart files.");
-    vscode23.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
+    vscode25.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
   }
   progress.report({ increment: 80, message: t("progress.buildingGraph") });
   log.debug(`\u{1F4E6} Preparing to create webview...`);
@@ -2602,7 +2757,7 @@ async function analyzeProject(rootUri, context, progress) {
     log.debug(`\u{1F4CA} Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
     if (!graph.nodes || graph.nodes.length === 0) {
       log.error(`\u26A0\uFE0F WARNING: Graph has no nodes!`);
-      vscode23.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
+      vscode25.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
     }
     progress.report({ increment: 95, message: t("progress.configuringInterface") });
     return { panel, graph };
@@ -2610,8 +2765,34 @@ async function analyzeProject(rootUri, context, progress) {
     log.error(`\u274C CRITICAL ERROR creating webview:`);
     log.error(`   Message: ${error.message}`);
     log.error(`   Stack: ${error.stack}`);
-    vscode23.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
+    vscode25.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
     return null;
+  }
+}
+async function revealInEditor(file, start, end, preserveFocus = false) {
+  try {
+    const uri = vscode25.Uri.parse(file);
+    const startPos = new vscode25.Position(start.line, start.character);
+    const endPos = new vscode25.Position(end.line, end.character);
+    const range = new vscode25.Range(startPos, endPos);
+    const existingEditor = vscode25.window.visibleTextEditors.find(
+      (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode25.ViewColumn.Two
+    );
+    if (existingEditor) {
+      existingEditor.selection = new vscode25.Selection(startPos, endPos);
+      existingEditor.revealRange(range, vscode25.TextEditorRevealType.InCenter);
+      return;
+    }
+    const doc = await vscode25.workspace.openTextDocument(uri);
+    const editor = await vscode25.window.showTextDocument(doc, {
+      viewColumn: vscode25.ViewColumn.Two,
+      preview: true,
+      preserveFocus,
+      selection: range
+    });
+    editor.revealRange(range, vscode25.TextEditorRevealType.InCenter);
+  } catch (e) {
+    log.error(`Could not open or read file: ${file} (${e instanceof Error ? e.message : String(e)})`);
   }
 }
 function setupWebviewMessageHandlers(state, detailsProvider, context) {
@@ -2636,46 +2817,47 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
             log.info(`Received openClass request without required file data.`);
             return;
           }
-          try {
-            const uri = vscode23.Uri.parse(message.file);
-            const start = new vscode23.Position(message.start.line, message.start.character);
-            const end = new vscode23.Position(message.end.line, message.end.character);
-            const range = new vscode23.Range(start, end);
-            const existingEditor = vscode23.window.visibleTextEditors.find(
-              (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode23.ViewColumn.Two
-            );
-            if (existingEditor) {
-              existingEditor.selection = new vscode23.Selection(start, end);
-              existingEditor.revealRange(range, vscode23.TextEditorRevealType.InCenter);
-            } else {
-              const doc = await vscode23.workspace.openTextDocument(uri);
-              const editor = await vscode23.window.showTextDocument(doc, {
-                viewColumn: vscode23.ViewColumn.Two,
-                preview: true,
-                selection: range
-              });
-              editor.revealRange(range, vscode23.TextEditorRevealType.InCenter);
-            }
-          } catch (e) {
-            console.error(e);
-            log.error(`Could not open or read file: ${message.file}`);
+          await revealInEditor(message.file, message.start, message.end);
+          return;
+        case "ready":
+          state.stats.webviewReady = true;
+          return;
+        case "saveAnnotations":
+          if (typeof message.projectRoot === "string" && message.data && typeof message.data === "object") {
+            await saveAnnotations(context.workspaceState, message.projectRoot, message.data);
+            state.stats.annotationSaves++;
           }
           return;
+        case "getSnippet": {
+          if (!currentGraph || !currentPanel) {
+            return;
+          }
+          const snippet = buildSnippet(currentGraph, message);
+          state.stats.snippetsServed++;
+          currentPanel.webview.postMessage({ command: "snippet", requestId: message.requestId, snippet });
+          if (snippet && message.reveal) {
+            await revealInEditor(snippet.file, snippet.jump.start, snippet.jump.end, true);
+          }
+          return;
+        }
         case "showRelationships":
-          if (message.data && currentGraph) {
-            const focusedNode = currentGraph.nodes.find(
-              (node) => node.label === message.data.focusedNodeLabel || node.id === message.data.focusedNodeId
-            );
-            detailsProvider.updateDetails({
-              ...message.data,
-              focusedNode
-            });
-          } else {
-            detailsProvider.updateDetails(message.data);
+          {
+            state.stats.relationshipUpdates++;
+            const data = message.data;
+            if (data && currentGraph) {
+              const focusedNode = currentGraph.nodes.find(
+                (node) => node.label === data.focusedNodeLabel || node.id === data.focusedNodeId
+              );
+              detailsProvider.updateDetails({ ...data, focusedNode });
+            } else {
+              detailsProvider.updateDetails(data);
+            }
           }
           return;
         case "getImports": {
-          if (!message.nodeId || !currentGraph || !currentPanel) return;
+          if (!message.nodeId || !currentGraph || !currentPanel) {
+            return;
+          }
           log.debug(`[Backend] WebView requested imports for:${message.nodeId}`);
           const focusNode = currentGraph.nodes.find((n) => n.id === message.nodeId);
           if (focusNode && focusNode.data.fileUri) {
@@ -2694,18 +2876,6 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
         case "clearRelationships":
           detailsProvider.clearDetails();
           return;
-        case "traceDataFlow": {
-          if (message.startNodeId && currentGraph && currentPanel) {
-            log.debug(`[Extension] Calculating data flow for: ${message.startNodeId}`);
-            const flowPath = calculateDataFlow(currentGraph, message.startNodeId);
-            log.debug(`[Extension] Path found: ${flowPath.join(" -> ")}`);
-            currentPanel.webview.postMessage({
-              command: "displayDataFlow",
-              path: flowPath
-            });
-          }
-          return;
-        }
       }
     },
     void 0,
@@ -2724,15 +2894,15 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
 }
 async function activate(context) {
   function getLanguage() {
-    const config = vscode23.workspace.getConfiguration("satori");
+    const config = vscode25.workspace.getConfiguration("satori");
     return config.get("language", "en");
   }
   log.debug("\u{1F680} Satori: starting\u2026");
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
-  const dartExtension = vscode23.extensions.getExtension("Dart-Code.dart-code");
+  const dartExtension = vscode25.extensions.getExtension("Dart-Code.dart-code");
   if (!dartExtension || !dartExtension.isActive) {
-    vscode23.window.showErrorMessage(
+    vscode25.window.showErrorMessage(
       "Dart extension is required for Satori to work properly."
     );
     return;
@@ -2742,46 +2912,42 @@ async function activate(context) {
   const state = new ExtensionState();
   const detailsProvider = new DetailsViewProvider(context.extensionUri);
   context.subscriptions.push(
-    vscode23.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
+    vscode25.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
   );
-  const analyzeCurrentProjectCommand = vscode23.commands.registerCommand(
+  const runAnalysis = (rootUri) => vscode25.window.withProgress({
+    location: vscode25.ProgressLocation.Notification,
+    title: "Satori",
+    cancellable: false
+  }, async (progress) => {
+    progress.report({ increment: 0, message: t("progress.starting") });
+    const result = await analyzeProject(rootUri, context, progress);
+    if (!result) {
+      log.debug("Analysis returned NULL - ABORTING");
+      vscode25.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
+      return;
+    }
+    state.setGraph(result.panel, result.graph);
+    setupWebviewMessageHandlers(state, detailsProvider, context);
+    progress.report({ increment: 100, message: t("progress.completed") });
+    log.debug("Analysis completed successfully");
+  });
+  const analyzeCurrentProjectCommand = vscode25.commands.registerCommand(
     "satori.analyzeProject",
     async () => {
-      log.debug("========== EXECUTING satori.analyzeProject ==========");
       const rootUri = await findFlutterProjectRoot();
       if (!rootUri) {
-        log.debug("\u274C No Flutter project root found - ABORTING");
+        log.debug("No Flutter project root found - ABORTING");
         return;
       }
-      log.debug(`\u2705 Flutter project root confirmed: ${rootUri.fsPath}`);
-      await vscode23.window.withProgress({
-        location: vscode23.ProgressLocation.Notification,
-        title: "Satori",
-        cancellable: false
-      }, async (progress) => {
-        progress.report({ increment: 0, message: t("progress.starting") });
-        log.debug(`\u{1F504} Starting analysis process...`);
-        const result = await analyzeProject(rootUri, context, progress);
-        if (!result) {
-          log.debug("Analysis returned NULL - ABORTING");
-          vscode23.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
-          return;
-        }
-        log.debug("Analysis complete! Setting up state and handlers...");
-        state.setGraph(result.panel, result.graph);
-        setupWebviewMessageHandlers(state, detailsProvider, context);
-        progress.report({ increment: 100, message: t("progress.completed") });
-        log.debug("========== satori.analyzeProject COMPLETED SUCCESSFULLY ==========");
-      });
+      await runAnalysis(rootUri);
     }
   );
   log.info("Command satori.analyzeProject registered");
   context.subscriptions.push(analyzeCurrentProjectCommand);
-  const showProjectDiagramCommand = vscode23.commands.registerCommand(
+  const showProjectDiagramCommand = vscode25.commands.registerCommand(
     "extension.showProjectDiagram",
     async () => {
-      log.debug("========== EXECUTING extension.showProjectDiagram ==========");
-      const pick = await vscode23.window.showOpenDialog({
+      const pick = await vscode25.window.showOpenDialog({
         canSelectFolders: true,
         canSelectMany: false,
         openLabel: "Select project folder"
@@ -2790,26 +2956,7 @@ async function activate(context) {
         log.debug("No folder selected - ABORTING");
         return;
       }
-      log.debug(`Folder selected: ${pick[0].fsPath}`);
-      await vscode23.window.withProgress({
-        location: vscode23.ProgressLocation.Notification,
-        title: "Satori",
-        cancellable: false
-      }, async (progress) => {
-        progress.report({ increment: 0, message: t("progress.starting") });
-        log.debug(`\u{1F504} Starting analysis process...`);
-        const result = await analyzeProject(pick[0], context, progress);
-        if (!result) {
-          log.debug("Analysis returned NULL - ABORTING");
-          vscode23.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
-          return;
-        }
-        log.debug("Analysis complete! Setting up state and handlers...");
-        state.setGraph(result.panel, result.graph);
-        setupWebviewMessageHandlers(state, detailsProvider, context);
-        progress.report({ increment: 100, message: t("progress.completed") });
-        log.debug("\u{1F389} ========== extension.showProjectDiagram COMPLETED SUCCESSFULLY ==========");
-      });
+      await runAnalysis(pick[0]);
     }
   );
   log.info("Command extension.showProjectDiagram registered");
@@ -2856,23 +3003,28 @@ async function activate(context) {
             return;
           }
           try {
-            const uri = vscode23.Uri.parse(node.data.fileUri);
-            const doc = await vscode23.workspace.openTextDocument(uri);
-            await vscode23.window.showTextDocument(doc, {
-              viewColumn: vscode23.ViewColumn.Two,
+            const uri = vscode25.Uri.parse(node.data.fileUri);
+            const doc = await vscode25.workspace.openTextDocument(uri);
+            await vscode25.window.showTextDocument(doc, {
+              viewColumn: vscode25.ViewColumn.Two,
               preview: false,
               preserveFocus: false
             });
             log.debug(`Successfully opened file: ${node.data.fileUri}`);
           } catch (error) {
             log.error(`Error opening file ${node.data.fileUri}: ${error}`);
-            vscode23.window.showErrorMessage(`Could not open file: ${node.label}`);
+            vscode25.window.showErrorMessage(`Could not open file: ${node.label}`);
           }
           return;
         }
       }
     });
     return originalResolveWebviewView(webviewView, ...args);
+  };
+  return {
+    getGraph: () => state.getGraph(),
+    getStats: () => ({ ...state.stats }),
+    focusNode: (nodeId) => state.getPanel()?.webview.postMessage({ command: "setFocusInGraph", nodeId })
   };
 }
 function normalizePath(p) {

@@ -4,6 +4,7 @@ import path from "path";
 import { findDartFilesInPackage } from "./package_files";
 import { log } from "../utils/logger";
 import { findProjectRootWithPubspec } from "../filesystem/pattern_matcher";
+import { isPathInside } from "../filesystem/path_utils";
 
 /**
  * Analyzes an external package and extracts relevant information
@@ -93,7 +94,7 @@ export function determinePackageType(packageName: string, packagePath: string, p
     actualProjectRoot = findProjectRootWithPubspec(packagePath) || findProjectRootWithPubspec(process.cwd());
   }
   
-  if (actualProjectRoot && packagePath.startsWith(actualProjectRoot)) {
+  if (actualProjectRoot && isPathInside(packagePath, actualProjectRoot)) {
     return 'custom';
   }
 

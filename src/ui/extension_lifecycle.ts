@@ -5,13 +5,13 @@ import * as fs from 'fs';
 import { ProjectGraphModel } from '../types/index';
 import { DetailsViewProvider } from './providers/details_provider';
 import { findCustomDartDirectories } from '../filesystem/directory_scanner';
-import { calculateDataFlow } from '../core';
 import { extractPackageImportsFromFile } from '../packages/package_files';
-import { createWebview } from './webview_creator';
+import { createWebview, saveAnnotations } from './webview_creator';
 import { log } from '../utils/logger';
 import { registerDebugCommands } from './command_registry';
 import { transformLspSymbols } from '../analysis/symbol_transformer';
 import { t, Localization } from '../utils/localization';
+import { buildSnippet } from '../analysis/snippet';
 
 /**
  * Manages the global state of the Satori extension.
@@ -22,16 +22,18 @@ import { t, Localization } from '../utils/localization';
 class ExtensionState {
     mainGraphPanel: vscode.WebviewPanel | undefined;
     projectGraph: ProjectGraphModel | undefined;
+    stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
 
     /**
      * Sets the webview panel and project graph in the global state.
-     * 
+     *
      * @param panel - Webview panel that displays the graph visualization
      * @param graph - Graph data model with the project's nodes and edges
      */
     setGraph(panel: vscode.WebviewPanel, graph: ProjectGraphModel) {
         this.mainGraphPanel = panel;
         this.projectGraph = graph;
+        this.stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
     }
 
     /**
@@ -41,6 +43,7 @@ class ExtensionState {
     clear() {
         this.mainGraphPanel = undefined;
         this.projectGraph = undefined;
+        this.stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
     }
 
     /**
@@ -98,6 +101,108 @@ async function findFlutterProjectRoot(): Promise<vscode.Uri | undefined> {
     return undefined;
 }
 
+type FileData = { file: string; fileUri: string; symbols: any[] };
+
+/**
+ * Finds the unique Dart files to analyze: `lib/` plus custom directories when
+ * the folder is a project root, or every `.dart` file otherwise.
+ */
+async function discoverDartFiles(
+    rootUri: vscode.Uri,
+    isProjectRoot: boolean,
+    progress: vscode.Progress<{ increment: number; message: string }>
+): Promise<vscode.Uri[]> {
+    const root = rootUri.fsPath;
+    const uris: vscode.Uri[] = [];
+    const pattern = isProjectRoot ? 'lib/**/*.dart' : '**/*.dart';
+
+    try {
+        const files = await vscode.workspace.findFiles(
+            new vscode.RelativePattern(rootUri, pattern),
+            '**/.dart_tool/**'
+        );
+        uris.push(...files);
+        log.debug(`  • Pattern '${pattern}': ${files.length} files`);
+    } catch (error: any) {
+        log.error(`  ❌ Error searching pattern '${pattern}': ${error.message}`);
+    }
+
+    progress.report({ increment: 20, message: t('progress.searchingCustomDirs') });
+
+    if (isProjectRoot) {
+        let customDirectories: vscode.Uri[] = [];
+        try {
+            customDirectories = await findCustomDartDirectories(rootUri);
+            log.debug(`🔍 Found ${customDirectories.length} custom directories`);
+        } catch (error: any) {
+            log.error(`❌ Error finding custom directories: ${error.message}`);
+        }
+
+        for (const customDir of customDirectories) {
+            try {
+                const customFiles = await vscode.workspace.findFiles(
+                    new vscode.RelativePattern(customDir, '**/*.dart'),
+                    '**/.*'
+                );
+                uris.push(...customFiles);
+                log.debug(` • Custom directory '${path.relative(root, customDir.fsPath)}': ${customFiles.length} files`);
+            } catch (error: any) {
+                log.error(`  ❌ Error in custom directory ${customDir.fsPath}: ${error.message}`);
+            }
+        }
+    } else {
+        log.debug(`📊 Skipping custom directory search (not in project root)`);
+    }
+
+    const uniqueUris = Array.from(new Set(uris.map(u => u.toString()))).map(s => vscode.Uri.parse(s));
+    log.debug(`📄 Total unique files found: ${uniqueUris.length}`);
+    return uniqueUris;
+}
+
+/**
+ * Requests document symbols from the Dart language server for each file and
+ * transforms them into the extension's symbol model.
+ */
+async function extractFileSymbols(
+    uris: vscode.Uri[],
+    progress: vscode.Progress<{ increment: number; message: string }>
+): Promise<FileData[]> {
+    const filesData: FileData[] = [];
+    let analyzedCount = 0;
+    let errorCount = 0;
+    let emptyCount = 0;
+
+    for (const u of uris) {
+        let syms: any[] = [];
+        try {
+            const raw = await vscode.commands.executeCommand(
+                'vscode.executeDocumentSymbolProvider',
+                u
+            ) as vscode.DocumentSymbol[] | null | undefined;
+
+            if (!Array.isArray(raw)) {
+                log.debug(`[DIAGNOSTIC] No symbol array for ${path.basename(u.fsPath)}: ${raw === null ? 'null' : typeof raw}`);
+                if (raw === null) { emptyCount++; } else { errorCount++; }
+            } else if (raw.length === 0) {
+                emptyCount++;
+            } else {
+                analyzedCount++;
+            }
+
+            syms = transformLspSymbols(Array.isArray(raw) ? raw : [], undefined, u.toString());
+        } catch (e: any) {
+            log.error(`⚠️ Error getting symbols for ${path.basename(u.fsPath)}: ${e.message}`);
+            errorCount++;
+        }
+
+        filesData.push({ file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms });
+        progress.report({ increment: 40 / uris.length, message: t('progress.analyzingFile') });
+    }
+
+    log.debug(`📊 Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
+    return filesData;
+}
+
 /**
  * Analyzes a Flutter/Dart project and generates the architecture graph.
  * 
@@ -128,72 +233,8 @@ async function analyzeProject(
     log.debug(`📊 Is project root (has pubspec.yaml): ${isProjectRoot}`);
 
     progress.report({ increment: 10, message: t('progress.searchingFiles') });
-    log.debug('📂 Searching files in standard directories...');
-    
-    const standardPatterns = isProjectRoot 
-        ? [
-            'lib/**/*.dart',
-          ]
-        : [
-            '**/*.dart'
-          ];
+    const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot, progress);
 
-    log.debug(`📊 Using patterns: ${JSON.stringify(standardPatterns)}`);
-
-    let uris: vscode.Uri[] = [];
-    let totalFilesByPattern: { [pattern: string]: number } = {};
-    
-    for (const pattern of standardPatterns) {
-        try {
-            const files = await vscode.workspace.findFiles(
-                new vscode.RelativePattern(rootUri, pattern),
-                '**/.dart_tool/**'
-            );
-            uris.push(...files);
-            totalFilesByPattern[pattern] = files.length;
-            log.debug(`  • Pattern '${pattern}': ${files.length} files`);
-        } catch (error: any) {
-            log.error(`  ❌ Error searching pattern '${pattern}': ${error.message}`);
-            totalFilesByPattern[pattern] = 0;
-        }
-    }
-
-    log.debug(`📊 Files found by pattern: ${JSON.stringify(totalFilesByPattern, null, 2)}`);
-
-    progress.report({ increment: 20, message: t('progress.searchingCustomDirs') });
-    
-    let customDirectories: vscode.Uri[] = [];
-    if (isProjectRoot) {
-        try {
-            customDirectories = await findCustomDartDirectories(rootUri);
-            log.debug(`🔍 Found ${customDirectories.length} custom directories`);
-        } catch (error: any) {
-            log.error(`❌ Error finding custom directories: ${error.message}`);
-        }
-        
-        for (const customDir of customDirectories) {
-            try {
-                const customFiles = await vscode.workspace.findFiles(
-                    new vscode.RelativePattern(customDir, '**/*.dart'),
-                    '**/.*' 
-                );
-                
-                uris.push(...customFiles);
-                const relativePath = path.relative(root, customDir.fsPath);
-                log.debug(` • Custom directory  '${relativePath}': ${customFiles.length} files`);
-            } catch (error: any) {
-                log.error(`  ❌ Error in custom directory ${customDir.fsPath}: ${error.message}`);
-            }
-        }
-    } else {
-        log.debug(`📊 Skipping custom directory search (not in project root)`);
-    }
-
-    const uniqueUris = Array.from(new Set(uris.map(u => u.toString())))
-        .map(uriString => vscode.Uri.parse(uriString));
-    
-    log.debug(`📄 Total unique files found: ${uniqueUris.length}`);
-    
     if (uniqueUris.length === 0) {
         log.info('❌ No Dart files found in the project.');
         vscode.window.showWarningMessage('No Dart files found in the project. Please check your project structure.');
@@ -207,63 +248,12 @@ async function analyzeProject(
 
     progress.report({ increment: 30, message: t('progress.analyzingFiles', uniqueUris.length.toString()) });
 
-    type FileData = { file: string; fileUri: string; symbols: any[] }; 
-    const filesDataArray: FileData[] = []; 
-
-    let analyzedCount = 0;
-    let errorCount = 0;
-    let emptyCount = 0;
-
-    for (const u of uniqueUris) {
-        let syms: any[] = []; 
-        try {
-            const raw = await vscode.commands.executeCommand(
-                'vscode.executeDocumentSymbolProvider',
-                u
-            ) as vscode.DocumentSymbol[] | null | undefined;
-            
-            if (raw === null) {
-                log.debug(`[DIAGNOSTIC] Received NULL for ${path.basename(u.fsPath)}`);
-                emptyCount++;
-            } else if (raw === undefined) {
-                log.debug(`[DIAGNOSTIC] Received UNDEFINED for ${path.basename(u.fsPath)}`);
-                errorCount++;
-            } else if (!Array.isArray(raw)) {
-                log.debug(`[DIAGNOSTIC] Received non-array type for ${path.basename(u.fsPath)}: ${typeof raw}`);
-                errorCount++;
-            } else if (raw.length === 0) {
-                emptyCount++;
-            } else {
-                analyzedCount++;
-            }
-            
-            const rawSymbols = Array.isArray(raw) ? raw : [];
-            syms = transformLspSymbols(rawSymbols as vscode.DocumentSymbol[], undefined, u.toString());
-            
-        } catch (e: any) {
-            log.error(`⚠️ Error getting symbols for ${path.basename(u.fsPath)}: ${e.message}`);
-            errorCount++;
-        }
-        
-        filesDataArray.push({ file: normalizePath(u.fsPath),  fileUri: u.toString(), symbols: syms });
-
-        const progressIncrement = 40 / uniqueUris.length; 
-        progress.report({ 
-            increment: progressIncrement, 
-            message: t('progress.analyzingFile') 
-        });
-    }
-
-    log.debug(`📊 Analysis Summary:`);
-    log.debug(`   ✅ Successfully analyzed: ${analyzedCount} files`);
-    log.debug(`   📭 Empty results: ${emptyCount} files`);
-    log.debug(`   ❌ Errors: ${errorCount} files`);
-    log.debug(`   📦 Total files processed: ${filesDataArray.length}`);
+    const filesDataArray = await extractFileSymbols(uniqueUris, progress);
 
     if (filesDataArray.every(f => f.symbols.length === 0) && filesDataArray.length > 0) {
         log.info('⚠️ No classes/symbols found in any project Dart files.');
         vscode.window.showWarningMessage('No classes or symbols found in the project. The diagram may be empty.');
-    }  
+    }
 
     progress.report({ increment: 80, message: t('progress.buildingGraph') });
 
@@ -303,6 +293,60 @@ async function analyzeProject(
     }
 }
 
+type LspPosition = { line: number; character: number };
+
+/** Messages the graph webview sends to the extension. */
+type GraphWebviewMessage =
+    | { command: 'log'; args: unknown[] }
+    | { command: 'openClass'; file?: string; start?: LspPosition; end?: LspPosition }
+    | { command: 'ready' }
+    | { command: 'saveAnnotations'; projectRoot: string; data: Record<string, unknown> }
+    | { command: 'getSnippet'; requestId: number; reveal?: boolean; nodeId?: string; sourceId?: string; targetId?: string }
+    | { command: 'showRelationships'; data: { focusedNodeLabel: string; focusedNodeId?: string; edges: any[] } | null }
+    | { command: 'getImports'; nodeId?: string }
+    | { command: 'clearRelationships' };
+
+/** Messages the details side view sends to the extension. */
+type DetailsWebviewMessage =
+    | { command: 'log'; args: unknown[] }
+    | { command: 'focusNode'; nodeId: string }
+    | { command: 'highlightPath'; sourceId: string; targetId: string }
+    | { command: 'openFile'; nodeId?: string };
+
+/**
+ * Shows a range of a file in the editor beside the graph. With `preserveFocus`
+ * the graph keeps keyboard focus, so navigating the trail does not steal it.
+ */
+async function revealInEditor(file: string, start: LspPosition, end: LspPosition, preserveFocus = false) {
+    try {
+        const uri = vscode.Uri.parse(file);
+        const startPos = new vscode.Position(start.line, start.character);
+        const endPos = new vscode.Position(end.line, end.character);
+        const range = new vscode.Range(startPos, endPos);
+
+        const existingEditor = vscode.window.visibleTextEditors.find(e =>
+            e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode.ViewColumn.Two
+        );
+
+        if (existingEditor) {
+            existingEditor.selection = new vscode.Selection(startPos, endPos);
+            existingEditor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+            return;
+        }
+
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const editor = await vscode.window.showTextDocument(doc, {
+            viewColumn: vscode.ViewColumn.Two,
+            preview: true,
+            preserveFocus,
+            selection: range
+        });
+        editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+    } catch (e) {
+        log.error(`Could not open or read file: ${file} (${e instanceof Error ? e.message : String(e)})`);
+    }
+}
+
 /**
  * Sets up message handlers for bidirectional communication between the
  * webview and the extension.
@@ -311,7 +355,6 @@ async function analyzeProject(
  * - 'openClass': Opens files in the editor with navigation to symbols
  * - 'showRelationships': Updates the side details panel with relationships
  * - 'getImports': Extracts and sends imports from a file
- * - 'traceDataFlow': Calculates and visualizes the data flow
  * - 'log': Logs debug messages from the webview
  * 
  * Also handles state cleanup when the panel is closed.
@@ -337,7 +380,7 @@ function setupWebviewMessageHandlers(
     log.debug(`📊 Graph stats for handlers: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
 
     panel.webview.onDidReceiveMessage(
-        async (message) => {
+        async (message: GraphWebviewMessage) => {
             const currentGraph = state.getGraph();
             const currentPanel = state.getPanel();
 
@@ -346,57 +389,55 @@ function setupWebviewMessageHandlers(
                     log.debug(`[WebView] ${message.args.join(' ')}`);
                     return;
 
+
                 case 'openClass':
                     if (!message.file || !message.start || !message.end) {
                         log.info(`Received openClass request without required file data.`);
                         return;
                     }
-                    try {
-                        const uri = vscode.Uri.parse(message.file);
-                        const start = new vscode.Position(message.start.line, message.start.character);
-                        const end = new vscode.Position(message.end.line, message.end.character);
-                        const range = new vscode.Range(start, end);
+                    await revealInEditor(message.file, message.start, message.end);
+                    return;
 
-                        const existingEditor = vscode.window.visibleTextEditors.find(e =>
-                            e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode.ViewColumn.Two
-                        );
+                case 'ready':
+                    state.stats.webviewReady = true;
+                    return;
 
-                        if (existingEditor) {
-                            existingEditor.selection = new vscode.Selection(start, end);
-                            existingEditor.revealRange(range, vscode.TextEditorRevealType.InCenter);
-                        } else {
-                            const doc = await vscode.workspace.openTextDocument(uri);
-                            const editor = await vscode.window.showTextDocument(doc, {
-                                viewColumn: vscode.ViewColumn.Two,
-                                preview: true,
-                                selection: range
-                            });
-                            editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
-                        }
-                    } catch (e) {
-                        console.error(e);
-                        log.error(`Could not open or read file: ${message.file}`);
+                case 'saveAnnotations':
+                    if (typeof message.projectRoot === 'string' && message.data && typeof message.data === 'object') {
+                        await saveAnnotations(context.workspaceState, message.projectRoot, message.data);
+                        state.stats.annotationSaves++;
                     }
                     return;
 
+                case 'getSnippet': {
+                    if (!currentGraph || !currentPanel) { return; }
+                    const snippet = buildSnippet(currentGraph, message);
+                    state.stats.snippetsServed++;
+                    currentPanel.webview.postMessage({ command: 'snippet', requestId: message.requestId, snippet });
+                    if (snippet && message.reveal) {
+                        await revealInEditor(snippet.file, snippet.jump.start, snippet.jump.end, true);
+                    }
+                    return;
+                }
+
                 case 'showRelationships':
-                    if (message.data && currentGraph) {
-                        const focusedNode = currentGraph.nodes.find(node => 
-                            node.label === message.data.focusedNodeLabel || 
-                            node.id === message.data.focusedNodeId
-                        );
-                        
-                        detailsProvider.updateDetails({
-                            ...message.data,
-                            focusedNode: focusedNode
-                        });
-                    } else {
-                        detailsProvider.updateDetails(message.data);
+                    {
+                        state.stats.relationshipUpdates++;
+                        const data = message.data;
+                        if (data && currentGraph) {
+                            const focusedNode = currentGraph.nodes.find(node =>
+                                node.label === data.focusedNodeLabel ||
+                                node.id === data.focusedNodeId
+                            );
+                            detailsProvider.updateDetails({ ...data, focusedNode });
+                        } else {
+                            detailsProvider.updateDetails(data);
+                        }
                     }
                     return;
 
                 case 'getImports': {
-                    if (!message.nodeId || !currentGraph || !currentPanel) return;
+                    if (!message.nodeId || !currentGraph || !currentPanel) {return;}
 
                     log.debug(`[Backend] WebView requested imports for:${message.nodeId}`);
 
@@ -420,22 +461,6 @@ function setupWebviewMessageHandlers(
                 case 'clearRelationships':
                     detailsProvider.clearDetails();
                     return;
-
-                case 'traceDataFlow': {
-                    if (message.startNodeId && currentGraph && currentPanel) {
-                        log.debug(`[Extension] Calculating data flow for: ${message.startNodeId}`);
-
-                        const flowPath = calculateDataFlow(currentGraph, message.startNodeId);
-
-                        log.debug(`[Extension] Path found: ${flowPath.join(' -> ')}`);
-
-                        currentPanel.webview.postMessage({
-                            command: 'displayDataFlow',
-                            path: flowPath
-                        });
-                    }
-                    return;
-                }
             }
         },
         undefined,
@@ -499,102 +524,64 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
     );
 
-    const analyzeCurrentProjectCommand = vscode.commands.registerCommand(
-        'satori.analyzeProject',
-        async () => {
-            log.debug('========== EXECUTING satori.analyzeProject ==========');
-            
-            const rootUri = await findFlutterProjectRoot();
-            
-            if (!rootUri) {
-                log.debug('❌ No Flutter project root found - ABORTING');
+    const runAnalysis = (rootUri: vscode.Uri) =>
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Satori",
+            cancellable: false
+        }, async (progress) => {
+            progress.report({ increment: 0, message: t('progress.starting') });
+
+            const result = await analyzeProject(rootUri, context, progress);
+
+            if (!result) {
+                log.debug('Analysis returned NULL - ABORTING');
+                vscode.window.showErrorMessage('Analysis failed. Check the Output panel (Satori) for details.');
                 return;
             }
 
-            log.debug(`✅ Flutter project root confirmed: ${rootUri.fsPath}`);
+            state.setGraph(result.panel, result.graph);
+            setupWebviewMessageHandlers(state, detailsProvider, context);
 
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "Satori",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: t('progress.starting') });
-                
-                log.debug(`🔄 Starting analysis process...`);
-                const result = await analyzeProject(rootUri, context, progress);
-                
-                if (!result) {
-                    log.debug('Analysis returned NULL - ABORTING');
-                    vscode.window.showErrorMessage('Analysis failed. Check the Output panel (Satori) for details.');
-                    return;
-                }
+            progress.report({ increment: 100, message: t('progress.completed') });
+            log.debug('Analysis completed successfully');
+        });
 
-                log.debug('Analysis complete! Setting up state and handlers...');
-                
-                state.setGraph(result.panel, result.graph);
-                setupWebviewMessageHandlers(state, detailsProvider, context);
-                
-                progress.report({ increment: 100, message: t('progress.completed') });
-                
-                log.debug('========== satori.analyzeProject COMPLETED SUCCESSFULLY ==========');
-            });
+    const analyzeCurrentProjectCommand = vscode.commands.registerCommand(
+        'satori.analyzeProject',
+        async () => {
+            const rootUri = await findFlutterProjectRoot();
+            if (!rootUri) {
+                log.debug('No Flutter project root found - ABORTING');
+                return;
+            }
+            await runAnalysis(rootUri);
         }
     );
-
     log.info('Command satori.analyzeProject registered');
     context.subscriptions.push(analyzeCurrentProjectCommand);
+
     const showProjectDiagramCommand = vscode.commands.registerCommand(
         'extension.showProjectDiagram',
         async () => {
-            log.debug('========== EXECUTING extension.showProjectDiagram ==========');
-            
             const pick = await vscode.window.showOpenDialog({
                 canSelectFolders: true,
                 canSelectMany: false,
                 openLabel: 'Select project folder'
             });
-            
             if (!pick?.length) {
                 log.debug('No folder selected - ABORTING');
                 return;
             }
-
-            log.debug(`Folder selected: ${pick[0].fsPath}`);
-
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "Satori",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: t('progress.starting') });
-                
-                log.debug(`🔄 Starting analysis process...`);
-                const result = await analyzeProject(pick[0], context, progress);
-                
-                if (!result) {
-                    log.debug('Analysis returned NULL - ABORTING');
-                    vscode.window.showErrorMessage('Analysis failed. Check the Output panel (Satori) for details.');
-                    return;
-                }
-
-                log.debug('Analysis complete! Setting up state and handlers...');
-                
-                state.setGraph(result.panel, result.graph);
-                setupWebviewMessageHandlers(state, detailsProvider, context);
-                
-                progress.report({ increment: 100, message: t('progress.completed') });
-                
-                log.debug('🎉 ========== extension.showProjectDiagram COMPLETED SUCCESSFULLY ==========');
-            });
+            await runAnalysis(pick[0]);
         }
     );
-
     log.info('Command extension.showProjectDiagram registered');
     context.subscriptions.push(showProjectDiagramCommand);
 
     const originalResolveWebviewView = detailsProvider.resolveWebviewView.bind(detailsProvider);
     detailsProvider.resolveWebviewView = (webviewView, ...args) => {
-        webviewView.webview.onDidReceiveMessage(async message => {
+        webviewView.webview.onDidReceiveMessage(async (message: DetailsWebviewMessage) => {
             switch (message.command) {
                 case 'log':
                     log.debug(`[DetailsView] ${message.args.join(' ')}`);
@@ -655,6 +642,12 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
         return originalResolveWebviewView(webviewView, ...args);
+    };
+
+    return {
+        getGraph: () => state.getGraph(),
+        getStats: () => ({ ...state.stats }),
+        focusNode: (nodeId: string) => state.getPanel()?.webview.postMessage({ command: 'setFocusInGraph', nodeId })
     };
 }
 

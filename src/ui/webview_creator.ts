@@ -8,9 +8,36 @@ import { buildGraphModel } from '../graph/graph_builder';
 import { resolvedTypesCache } from '../utils/caches';
 import { log } from '../utils/logger';
 import { processSymbolRecursiveLSP } from '../analysis/symbol_processor';
+import { buildClassRelationsFromSymbols } from '../analysis/class_relations';
 import { Localization, t } from '../utils/localization';
 import { buildTypeIndex, clearTypeIndex } from '../analysis/enrichment/type-resolver';
 import { clearHoverCache } from '../lsp/hover_enrichment';
+
+/** Workspace-state key under which the drawings made in edit mode are kept for a project. */
+export function annotationsKey(projectRoot: string): string {
+  return `satori.annotations:${projectRoot}`;
+}
+
+/** Drawings saved for a project, or an empty object when there are none. */
+export function loadAnnotations(memento: vscode.Memento, projectRoot: string): Record<string, unknown> {
+  return memento.get<Record<string, unknown>>(annotationsKey(projectRoot), {});
+}
+
+export function saveAnnotations(memento: vscode.Memento, projectRoot: string, data: Record<string, unknown>): Thenable<void> {
+  return memento.update(annotationsKey(projectRoot), data);
+}
+
+/**
+ * Finds the field or property of a class matching a `this.fieldName` constructor parameter.
+ */
+export function findClassFieldSymbol(classSymbol: EnrichedSymbol, fieldName: string): EnrichedSymbol | undefined {
+  return classSymbol.children?.find(
+    f => f.name === fieldName && (
+      f.kind === vscode.SymbolKind.Field ||
+      f.kind === vscode.SymbolKind.Property
+    )
+  );
+}
 
 /**
  * Creates and configures a webview to visualize the project's AST diagram.
@@ -48,7 +75,7 @@ export async function createWebview(
   const csp = [
     `default-src 'none'`,
     `style-src ${panel.webview.cspSource} 'unsafe-inline'`,
-    `script-src 'nonce-${nonce}' https://cdnjs.cloudflare.com https://unpkg.com ${panel.webview.cspSource}`,
+    `script-src 'nonce-${nonce}' ${panel.webview.cspSource}`,
     `img-src data: ${panel.webview.cspSource}`
   ].join('; ');
 
@@ -92,7 +119,7 @@ export async function createWebview(
   log.debug('✅ Deep enrichment of all files completed.');
 
   clearTypeIndex();
-  log.debug('✅ Deep enrichment of all files completed.');
+  log.debug('✅ Type index cleared.');
 
   log.debug('Phase 2: Building project graph model...');
   const projectGraph = await buildGraphModel(data.files, data.projectRoot);
@@ -108,10 +135,10 @@ export async function createWebview(
 
   data.files.forEach(fileData => {
     function collectUniqueIds(symbols: EnrichedSymbol[] | undefined) {
-      if (!symbols) return;
+      if (!symbols) {return;}
       for (const s of symbols) {
-        if (s.uniqueId) existingUniqueIds.add(s.uniqueId);
-        if (s.children) collectUniqueIds(s.children);
+        if (s.uniqueId) {existingUniqueIds.add(s.uniqueId);}
+        if (s.children) {collectUniqueIds(s.children);}
       }
     }
     collectUniqueIds(fileData.symbols);
@@ -119,7 +146,7 @@ export async function createWebview(
 
   data.files.forEach(fileData => {
     function findClassAndResolveThisFieldsRecursive(symbols: EnrichedSymbol[] | undefined) {
-      if (!symbols) return;
+      if (!symbols) {return;}
 
       for (const s of symbols) {
         log.debug(`[DEBUG-KIND-CHECK] Symbol: ${s.name}, kind: ${s.kind}, children: ${s.children?.length ?? 0}`);
@@ -154,12 +181,7 @@ export async function createWebview(
                   if (param.type?.startsWith('self_field:')) {
                     const fieldName = param.type.substring('self_field:'.length);
 
-                    const fieldSymbol = classSymbol.children?.find(
-                      f => f.name === fieldName && (
-                        f.kind === vscode.SymbolKind.Field ||
-                        f.kind === vscode.SymbolKind.Constructor
-                      )
-                    );
+                    const fieldSymbol = findClassFieldSymbol(classSymbol, fieldName);
 
                     if (fieldSymbol) {
                       if (fieldSymbol.resolvedType) {
@@ -198,12 +220,12 @@ export async function createWebview(
 
   log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId ↔ uniqueId...`);
   function validateParentIds(symbols: EnrichedSymbol[] | undefined) {
-    if (!symbols) return;
+    if (!symbols) {return;}
     for (const sym of symbols) {
       if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
         log.debug(`❌ Inconsistency detected: parentId '${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
       }
-      if (sym.children) validateParentIds(sym.children);
+      if (sym.children) {validateParentIds(sym.children);}
     }
   }
   data.files.forEach(fileData => validateParentIds(fileData.symbols));
@@ -219,7 +241,8 @@ export async function createWebview(
   sanitizeObjectStrings(dataForWebview);
   log.debug('[Sanitize] String sanitization completed.');
 
-  const astJson = JSON.stringify(dataForWebview, (key, value) => {
+  const savedAnnotations = loadAnnotations(context.workspaceState, data.projectRoot);
+  const astJson = JSON.stringify({ ...dataForWebview, annotations: savedAnnotations }, (key, value) => {
     if (typeof value === 'string') {
       return value.replace(/\\/g, '/');
     }
@@ -232,125 +255,24 @@ export async function createWebview(
 
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
-  const translations = {
-    'loader.analyzing': t('loader.analyzing'),
-    'loader.processing': t('loader.processing'),
-    'loader.error': t('loader.error'),
-    'loader.waiting': t('loader.waiting'),
-    'loader.dataLoaded': t('loader.dataLoaded'),
-    'button.back': t('button.back'),
-    'layer.view': t('layer.view'),
-    'layer.state': t('layer.state'),
-    'layer.service': t('layer.service'),
-    'layer.model': t('layer.model'),
-    'layer.utility': t('layer.utility'),
-    'overview.views': t('overview.views'),
-    'overview.state': t('overview.state'),
-    'overview.service': t('overview.service'),
-    'overview.model': t('overview.model'),
-    'overview.utility': t('overview.utility'),
-    'overview.noLayers': t('overview.noLayers'),
-    'context.traceFlow': t('context.traceFlow'),
-    'search.placeholder': t('search.placeholder'),
-    'search.noResults': t('search.noResults'),
-    'folder.label': t('folder.label'),
-    'breadcrumb.folders': t('breadcrumb.folders'),
-    'legend.responsibilities': t('legend.responsibilities'),
-    'legend.attributes': t('legend.attributes'),
-    'legend.collaborators': t('legend.collaborators'),
-    'legend.groupedObjects': t('legend.groupedObjects'),
-    'legend.symbols': t('legend.symbols'),
-    'legend.relationships': t('legend.relationships'),
-    'packages.developed': t('packages.developed'),
-    'packages.consumed': t('packages.consumed'),
-    'edge.extends': t('edge.extends'),
-    'edge.implements': t('edge.implements'),
-    'edge.calls': t('edge.calls'),
-    'edge.readsFrom': t('edge.readsFrom'),
-    'edge.writesTo': t('edge.writesTo'),
-    'narrative.showsUser': t('narrative.showsUser'),
-    'narrative.readsFrom': t('narrative.readsFrom'),
-    'narrative.buildsAndShows': t('narrative.buildsAndShows'),
-    'narrative.instanceOf': t('narrative.instanceOf'),
-    'narrative.notifies': t('narrative.notifies'),
-    'narrative.delegates': t('narrative.delegates'),
-    'narrative.formats': t('narrative.formats'),
-    'narrative.managesState': t('narrative.managesState'),
-    'narrative.reactsTo': t('narrative.reactsTo'),
-    'narrative.implements': t('narrative.implements'),
-    'narrative.extends': t('narrative.extends'),
-    'overview.members': t('overview.members'),
-    'legend.inDegree': t('legend.inDegree'),
-    'legend.outDegree': t('legend.outDegree'),
-  };
 
+  const translations = Localization.getInstance().getByPrefix('trail.', 'hud.', 'layer.');
+
+  const mediaUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media')).toString();
   let html = fs.readFileSync(
     path.join(context.extensionUri.fsPath, 'media', 'webviewContent.html'),
     'utf8'
   );
+  // Function replacers keep "$&"-style sequences inside the data from being interpreted.
   html = html
-    .replace(/__CSP__/, csp)
-    .replace(/__NONCE__/g, nonce)
-    .replace(/__AST_JSON_PLACEHOLDER__/g, astJson)
-    .replace(/__TRANSLATIONS__/g, JSON.stringify(translations));
+    .replace(/__CSP__/, () => csp)
+    .replace(/__MEDIA__/g, () => mediaUri)
+    .replace(/__NONCE__/g, () => nonce)
+    .replace(/__AST_JSON_PLACEHOLDER__/g, () => astJson)
+    .replace(/__TRANSLATIONS__/g, () => JSON.stringify(translations).replace(/</g, '\\u003c'));
 
   panel.webview.html = html;
 
-  panel.webview.onDidReceiveMessage(async m => {
-    if (m.command === 'log') {
-      log.debug(m.args.join(' '));
-
-    } else if (m.command === 'openClass') {
-      const uri   = vscode.Uri.parse(m.file);
-      const start = new vscode.Position(m.start.line, m.start.character);
-      const end   = new vscode.Position(m.end.line, m.end.character);
-      const range = new vscode.Range(start, end);
-
-      const existing = vscode.window.visibleTextEditors.find(e =>
-        e.document.uri.fsPath === m.file && e.viewColumn === vscode.ViewColumn.Two
-      );
-      if (existing) {
-        existing.selection = new vscode.Selection(start, end);
-        existing.revealRange(range, vscode.TextEditorRevealType.InCenter);
-        return;
-      }
-
-      panel.reveal(panel.viewColumn, true);
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc, {
-        viewColumn: vscode.ViewColumn.Two,
-        preview: true
-      });
-      editor.selection = new vscode.Selection(start, end);
-      editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
-
-    } else if (m.command === 'openFile') {
-      const filePath = m.filePath;
-      if (!filePath) return;
-
-      const alreadyOpenEditor = vscode.window.visibleTextEditors.find(
-        e => e.document.uri.fsPath === filePath
-      );
-      if (alreadyOpenEditor) {
-        vscode.window.showTextDocument(alreadyOpenEditor.document, {
-          viewColumn: alreadyOpenEditor.viewColumn,
-          preserveFocus: false
-        });
-        return;
-      }
-
-      const uri = vscode.Uri.parse(filePath);
-      try {
-        const doc = await vscode.workspace.openTextDocument(uri);
-        await vscode.window.showTextDocument(doc, {
-          viewColumn: vscode.ViewColumn.Two,
-          preview: true
-        });
-      } catch (error) {
-        log.error(`Error opening file: ${filePath}`);
-      }
-    }
-  });
 
   return { panel, graph: projectGraph };
 }
@@ -369,34 +291,3 @@ function getNonce() {
   return text;
 }
 
-function buildClassRelationsFromSymbols(
-  filesData: Array<{ fileUri: string; symbols: vscode.DocumentSymbol[] }>
-): Map<string, { extends?: string[]; with: string[]; implements?: string[] }> {
-  const relations = new Map<string, { extends?: string[]; with: string[]; implements?: string[] }>();
-  const extendsRegex    = /extends\s+([\w<, >]+)/;
-  const withRegex       = /with\s+([\w<, >]+(?:\s*,\s*[\w<, >]+)*)/;
-  const implementsRegex = /implements\s+([\w<, >]+(?:\s*,\s*[\w<, >]+)*)/;
-
-  function findClassesRecursive(symbols: vscode.DocumentSymbol[], fileUri: string) {
-    for (const symbol of symbols) {
-      if (symbol.kind === vscode.SymbolKind.Class && symbol.detail) {
-        const classRelations = { extends: [] as string[], with: [] as string[], implements: [] as string[] };
-
-        const extendsMatch = symbol.detail.match(extendsRegex);
-        if (extendsMatch) classRelations.extends.push(extendsMatch[1].trim());
-
-        const withMatch = symbol.detail.match(withRegex);
-        if (withMatch) classRelations.with.push(...withMatch[1].split(',').map(s => s.trim()));
-
-        const implementsMatch = symbol.detail.match(implementsRegex);
-        if (implementsMatch) classRelations.implements.push(...implementsMatch[1].split(',').map(s => s.trim()));
-
-        relations.set(`${fileUri}#${symbol.name}`, classRelations);
-      }
-      if (symbol.children) findClassesRecursive(symbol.children, fileUri);
-    }
-  }
-
-  for (const file of filesData) findClassesRecursive(file.symbols, file.fileUri);
-  return relations;
-}

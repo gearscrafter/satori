@@ -19,7 +19,7 @@ export async function enrichWithTypesFromDetail(
     dependencies: EnrichmentDependencies
 ): Promise<void> {
     const symbol = enrichedSym; 
-    if (!symbol.detail || typeof symbol.detail !== 'string') return;
+    if (!symbol.detail || typeof symbol.detail !== 'string') {return;}
 
     log.debug(`[DEBUG-ENRICH-DETAIL] Enriching ${symbol.name}, detail: ${symbol.detail}`);
 
@@ -85,7 +85,7 @@ export async function enrichWithTypesFromDetail(
                         let remaining = paramSubString.trim();
                         const parsedParams: ParsedParameter[] = [];
 
-                        if (remaining === '') return parsedParams;
+                        if (remaining === '') {return parsedParams;}
 
                         const singleParamRegex = /^\s*(?:(required|covariant)\s+)?((?:[\w$.<>?\[\]\s(),']+?|Function\s*\((?:[^)]*\))?\s*\??))\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/;
                         const thisFieldWithOptionalRequiredRegex = /^\s*(required\s+)?this\.([\w$]+)\s*(?:=.*?)?(?:,|$)/;

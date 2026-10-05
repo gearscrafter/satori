@@ -2,6 +2,7 @@ import path from "path";
 import { ExternalPackageInfo, FileSource } from "../types/index";
 import * as vscode from 'vscode';
 import { log } from "../utils/logger";
+import { isPathInside } from "../filesystem/path_utils";
 
 /**
  * Determines the origin of a file by analyzing its path and comparing it against
@@ -17,18 +18,16 @@ export function determineFileSource(
   allPackages: ExternalPackageInfo[]
 ): FileSource {
   try {
-    if (!fileUri) return { type: 'project' };
+    if (!fileUri) {return { type: 'project' };}
     const filePath = vscode.Uri.parse(fileUri).fsPath;
 
-    if (filePath.includes('dart-sdk/lib') || filePath.includes('flutter/bin/cache/dart-sdk')) {
+    const posixFilePath = filePath.replace(/\\/g, '/');
+    if (posixFilePath.includes('dart-sdk/lib') || posixFilePath.includes('flutter/bin/cache/dart-sdk')) {
       return { type: 'sdk', packageType: 'sdk' };
     }
 
-    const normalizedFilePath = path.normalize(filePath);
-
     for (const pkg of allPackages) {
-      const normalizedPkgPath = path.normalize(pkg.path);
-      if (normalizedFilePath.startsWith(normalizedPkgPath)) {
+      if (isPathInside(filePath, pkg.path)) {
         
         return {
           type: pkg.type === 'custom' ? 'project' : 'external_package',
@@ -44,7 +43,7 @@ export function determineFileSource(
 
   } catch (error) {
     log.error(`❌ ERROR in determineFileSource when processing URI: "${fileUri}"`);
-    if (error instanceof Error) log.error(`   -> Message:${error.message}`);
+    if (error instanceof Error) {log.error(`   -> Message:${error.message}`);}
     return { type: 'project' };
   }
 }

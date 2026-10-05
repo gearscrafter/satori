@@ -20,7 +20,8 @@
     "compile-tests": "tsc -p . --outDir out",
     "test": "npm run compile-tests && node ./out/test/runTest.js",
     "pretest": "npm run compile-tests && npm run lint",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "test:e2e": "node esbuild.js && node ./e2e/run.js"
   },
   "activationEvents": [
     "workspaceContains:pubspec.yaml"
