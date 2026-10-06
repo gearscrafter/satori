@@ -17,6 +17,8 @@
         reset: ['M3 8a5 5 0 1 0 1.6-3.7', 'M3 2.5V5.5H6'],
         search: [['circle', 7, 7, 4.5], 'M10.5 10.5L14 14'],
         close: ['M3.5 3.5L12.5 12.5', 'M12.5 3.5L3.5 12.5'],
+        'zoom-in': [['circle', 7, 7, 4.5], 'M10.5 10.5L14 14', 'M5 7H9', 'M7 5V9'],
+        'zoom-out': [['circle', 7, 7, 4.5], 'M10.5 10.5L14 14', 'M5 7H9'],
         help: [['circle', 8, 8, 6.5], 'M6.2 6.3a1.9 1.9 0 1 1 2.7 1.7c-.6.3-.9.7-.9 1.4', ['circle', 8, 11.5, 0.5, true]],
         open: ['M9 2H14V7', 'M14 2L7.5 8.5', 'M12 9.5V14H2V4H6.5'],
         trace: [['circle', 3.2, 3.8, 1.6], ['circle', 12.8, 12.2, 1.6], 'M4.8 3.8H8a2 2 0 0 1 2 2v4.4a2 2 0 0 0 2 2'],
@@ -30,6 +32,7 @@
         eye: ['M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8Z', ['circle', 8, 8, 2]],
         'eye-off': ['M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8Z', ['circle', 8, 8, 2], 'M2.5 13.5L13.5 2.5'],
         // edit mode tools
+        flame: ['M8 1.500C8.500 4 11.500 5.500 11.500 9a3.500 3.500 0 0 1-7 0c0-1.500.700-2.500 1.500-3.300.200 1 .700 1.500 1.300 1.800C7.200 5.500 7.300 3.200 8 1.500Z'],
         edit: ['M2.5 13.5L3 10.3L10.7 2.6a1.4 1.4 0 0 1 2 0l.7.7a1.4 1.4 0 0 1 0 2L5.7 13Z', 'M9.3 4L12 6.7'],
         pen: ['M2 11.5c1.6-6 3.4-6.5 4.6-3.2S9.600 11 14 4.500'],
         line: ['M3 13L13 3'],
@@ -50,6 +53,7 @@
         constructor: [['rect', 2.500, 2.500, 11, 11, 2], 'M8 5.500V10.500', 'M5.500 8H10.500'],
         field: [['rect', 2.500, 5, 11, 6, 1], 'M6.500 5V11'],
         property: ['M2.500 5H13.500', 'M2.500 11H13.500', ['circle', 6, 5, 1.700, true], ['circle', 10, 11, 1.700, true]],
+        folder: ['M1.500 4.500V12.500H14.500V5.500H7.500L6.200 3.500H1.500Z'],
         package: ['M8 1.800L13.500 4.800V11.200L8 14.200L2.500 11.200V4.800Z', 'M2.500 4.800L8 8L13.500 4.800', 'M8 8V14.200', 'M5.200 3.300L10.800 6.400'],
         sdk: [['rect', 4, 4, 8, 8, 1], 'M6.500 2V4', 'M9.500 2V4', 'M6.500 12V14', 'M9.500 12V14', 'M2 6.500H4', 'M2 9.500H4', 'M12 6.500H14', 'M12 9.500H14'],
         // architecture layers
@@ -63,7 +67,8 @@
     // Which icon represents each graph node kind.
     const KIND_ICON = {
         class: 'class', mixin: 'interface', interface: 'interface', enum: 'enum', method: 'method', function: 'function',
-        constructor: 'constructor', field: 'field', property: 'property', variable: 'field', enummember: 'enum'
+        constructor: 'constructor', field: 'field', property: 'property', variable: 'field', enummember: 'enum',
+        package: 'package', library: 'open'
     };
 
     function names() { return Object.keys(ICONS); }

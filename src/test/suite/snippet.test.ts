@@ -97,6 +97,21 @@ suite('Snippet Test Suite', () => {
         assert.strictEqual(s.highlightLine, 3);
     });
 
+    test('a file line is shown with its neighbours and the requested columns highlighted', () => {
+        const s = buildSnippet(graph(), { fileUri, line: 8, column: 15, length: 4 });
+        assert.ok(s);
+        assert.strictEqual(s.highlightLine, 8);
+        assert.deepStrictEqual(s.jump, { start: { line: 8, character: 15 }, end: { line: 8, character: 19 } });
+        assert.strictEqual(s.title, 'await repo.save(user);');
+        assert.ok(s.startLine <= 7 && s.startLine + s.lines.length - 1 >= 9);
+    });
+
+    test('a file line outside the file or in an unreadable file gives nothing', () => {
+        assert.strictEqual(buildSnippet(graph(), { fileUri, line: 999 }), null);
+        assert.strictEqual(buildSnippet(graph(), { fileUri, line: -1 }), null);
+        assert.strictEqual(buildSnippet(graph(), { fileUri: vscode.Uri.file(path.join(dir, 'nope.dart')).toString(), line: 0 }), null);
+    });
+
     test('returns null for unknown nodes and unreadable files', () => {
         assert.strictEqual(buildSnippet(graph(), { nodeId: 'missing' }), null);
         const g = graph();

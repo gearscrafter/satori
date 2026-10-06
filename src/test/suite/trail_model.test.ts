@@ -205,6 +205,115 @@ suite('Trail Model Test Suite', () => {
     });
 });
 
+suite('Trail Dependencies Test Suite', () => {
+    test('classifyImport tells the Dart SDK, Flutter, third-party and own imports apart', () => {
+        const c = (uri: string) => TrailModel.classifyImport(uri, 'my_app');
+        assert.deepStrictEqual(c('dart:async'), { kind: 'sdk', name: 'dart:async' });
+        assert.deepStrictEqual(c('package:flutter/material.dart'), { kind: 'flutter', name: 'flutter' });
+        assert.deepStrictEqual(c('package:flutter_test/flutter_test.dart'), { kind: 'flutter', name: 'flutter_test' });
+        assert.deepStrictEqual(c('package:flutter_bloc/flutter_bloc.dart'), { kind: 'package', name: 'flutter_bloc' });
+        assert.deepStrictEqual(c('package:dio/dio.dart'), { kind: 'package', name: 'dio' });
+        assert.strictEqual(c('package:my_app/models/user.dart').kind, 'own');
+        assert.strictEqual(c('../models/user.dart').kind, 'own');
+        assert.strictEqual(TrailModel.classifyImport('package:my_app/x.dart', '').kind, 'package');
+    });
+
+    const file = 'file:///c%3A/proj/lib/ui/home.dart';
+    const withImports = (imports: any[]) => TrailModel.createModel({
+        nodes: [
+            { id: 'H', label: 'Home', kind: 'class', data: { fileUri: file, layer: 'view', source: { type: 'project' } } },
+            { id: 'H.build', label: 'build', kind: 'method', parent: 'H', data: { fileUri: file, layer: 'member', source: { type: 'project' } } }
+        ],
+        edges: []
+    }, { fileImports: { [file]: imports }, ownPackage: 'my_app' });
+
+    test('dependenciesOf groups a file\'s imports by kind and package, leaving the project\'s own out', () => {
+        const m = withImports([
+            { uri: 'package:flutter/material.dart', line: 0, column: 8 },
+            { uri: 'package:flutter/widgets.dart', line: 1, column: 8 },
+            { uri: 'package:dio/dio.dart', line: 2, column: 8 },
+            { uri: 'package:my_app/models/user.dart', line: 3, column: 8 },
+            { uri: '../state/controller.dart', line: 4, column: 8 },
+            { uri: 'dart:async', line: 5, column: 8 }
+        ]);
+        const deps = m.dependenciesOf('H');
+        assert.deepStrictEqual(deps.map((g: any) => g.kind), ['flutter', 'package', 'sdk']);
+        assert.deepStrictEqual(deps[0].packages.map((p: any) => [p.name, p.count]), [['flutter', 2]]);
+        assert.strictEqual(deps[0].total, 2);
+        assert.deepStrictEqual(deps[1].packages[0].imports[0], { uri: 'package:dio/dio.dart', line: 2, column: 8, fileUri: file });
+    });
+
+    test('dependenciesOf works from a member and gives nothing for unknown nodes or files without imports', () => {
+        const m = withImports([{ uri: 'package:dio/dio.dart', line: 0, column: 8 }]);
+        assert.strictEqual(m.dependenciesOf('H.build')[0].packages[0].name, 'dio');
+        assert.deepStrictEqual(m.dependenciesOf('nope'), []);
+        assert.deepStrictEqual(withImports([]).dependenciesOf('H'), []);
+    });
+
+    test('packages with more imports come first', () => {
+        const m = withImports([
+            { uri: 'package:b/x.dart', line: 0, column: 8 }, { uri: 'package:a/x.dart', line: 1, column: 8 },
+            { uri: 'package:b/y.dart', line: 2, column: 8 }
+        ]);
+        assert.deepStrictEqual(m.dependenciesOf('H')[0].packages.map((p: any) => p.name), ['b', 'a']);
+    });
+});
+
+suite('Trail Libraries Test Suite', () => {
+    const home = 'file:///c%3A/proj/lib/ui/home.dart';
+    const svc = 'file:///c%3A/proj/lib/data/service.dart';
+    const cls = (id: string, label: string, fileUri: string, layer: string) => ({ id, label, kind: 'class', data: { fileUri, layer, source: { type: 'project' } } });
+    const build = () => TrailModel.createModel({
+        nodes: [cls('H', 'Home', home, 'view'), cls('S', 'Service', svc, 'service')],
+        edges: [{ id: 'e1', source: 'H', target: 'S', label: 'CALLS' }]
+    }, {
+        ownPackage: 'app',
+        fileImports: {
+            [home]: [{ uri: 'package:dio/dio.dart', line: 0, column: 8 }, { uri: 'dart:async', line: 1, column: 8 }, { uri: 'package:app/x.dart', line: 2, column: 8 }],
+            [svc]: [{ uri: 'package:dio/src/response.dart', line: 3, column: 8 }, { uri: 'package:dio/dio.dart', line: 4, column: 8 }]
+        }
+    });
+
+    test('every imported library becomes a node you can navigate to; the project\'s own package does not', () => {
+        const m = build();
+        assert.ok(m.isLibrary('lib:package:dio') && m.isLibrary('lib:sdk:dart:async'));
+        assert.strictEqual(m.isLibrary('lib:own:app'), false);
+        assert.strictEqual(m.nodes.get('lib:package:dio').label, 'dio');
+    });
+
+    test('focusing a library lists the classes that import it, grouped by layer, and the files they import', () => {
+        const f = build().focus('lib:package:dio');
+        assert.strictEqual(f.isLibrary, true);
+        assert.strictEqual(f.center.label, 'dio');
+        assert.deepStrictEqual(f.center.members.map((x: any) => x.uri).sort(), ['package:dio/dio.dart', 'package:dio/src/response.dart']);
+        assert.deepStrictEqual(f.left.map((g: any) => [g.layer, g.cards.map((c: any) => c.label)]), [['view', ['Home']], ['service', ['Service']]]);
+        assert.deepStrictEqual(f.right, []);
+        const service = f.left[1].cards[0];
+        assert.deepStrictEqual(service.imports.map((i: any) => [i.uri, i.line]), [['package:dio/src/response.dart', 3], ['package:dio/dio.dart', 4]]);
+    });
+
+    test('libraries stay out of the layers, the layer flow and the class focus', () => {
+        const m = build();
+        const classes = m.overview().layers.flatMap((l: any) => l.classes.map((c: any) => c.label));
+        assert.deepStrictEqual(classes.sort(), ['Home', 'Service']);
+        assert.deepStrictEqual(m.layerFlow().map((f: any) => f.from + '>' + f.to), ['view>service']);
+        const focus = m.focus('H');
+        assert.deepStrictEqual(focus.right.flatMap((g: any) => g.cards.map((c: any) => c.label)), ['Service']);
+    });
+
+    test('libraries() groups them by origin with how many classes use each', () => {
+        const libs = build().libraries();
+        assert.deepStrictEqual(libs.map((g: any) => g.kind), ['package', 'sdk']);
+        assert.deepStrictEqual(libs[0].items, [{ id: 'lib:package:dio', name: 'dio', users: 2 }]);
+    });
+
+    test('a library can be found by name and dependenciesOf points at its node', () => {
+        const m = build();
+        assert.deepStrictEqual(m.search('dio').map((r: any) => [r.id, r.kind]), [['lib:package:dio', 'package']]);
+        assert.strictEqual(m.dependenciesOf('H').find((g: any) => g.kind === 'package').packages[0].id, 'lib:package:dio');
+    });
+});
+
 suite('Trail Scale Helpers Test Suite', () => {
     const inFolder = (id: string, label: string, folder: string, layer = 'view') => ({
         id, label, kind: 'class', data: { fileUri: `file:///c%3A/proj/lib/${folder}/${id}.dart`, layer, source: { type: 'project' } }
@@ -283,5 +392,107 @@ suite('Trail History Test Suite', () => {
         assert.deepStrictEqual(t.list(), ['a']);
         ['b', 'c', 'd'].forEach(x => t.push(x));
         assert.deepStrictEqual(t.list(), ['b', 'c', 'd']);
+    });
+});
+
+suite('Trail Audit Test Suite', () => {
+    test('finds the circular dependency that runs through the layers', () => {
+        const a = TrailModel.createModel(graph).audit();
+        assert.strictEqual(a.cycles.length, 1);
+        assert.deepStrictEqual(a.cycles[0].members.map((m: any) => m.label).sort(), ['HomeController', 'HomeView', 'Item', 'ItemRepository']);
+    });
+
+    test('lists the layer violation with the classes at both ends', () => {
+        const a = TrailModel.createModel(graph).audit();
+        assert.strictEqual(a.violations.length, 1);
+        assert.strictEqual(a.violations[0].sourceLabel, 'Item');
+        assert.strictEqual(a.violations[0].targetLabel, 'HomeView');
+    });
+
+    test('leaves the SDK and packages out of the audit', () => {
+        const a = TrailModel.createModel(graph, { showSdk: true, showPackages: true }).audit();
+        assert.strictEqual(a.classes.has('SDK'), false);
+        assert.strictEqual(a.classes.has('PKG'), false);
+    });
+
+    test('heat grows with cycles and violations and stays between 0 and 1', () => {
+        const m = TrailModel.createModel(graph);
+        assert.ok(m.heatOf('M', 'risk') > m.heatOf('R', 'risk'), 'the class that breaks the layers is hotter');
+        ['V', 'S', 'R', 'M'].forEach(id => assert.ok(m.heatOf(id, 'risk') > 0 && m.heatOf(id, 'risk') <= 1));
+        assert.strictEqual(m.heatOf('V.build', 'cycles'), 1, 'a member takes the heat of its class');
+        assert.strictEqual(m.heatOf('nope', 'risk'), 0);
+    });
+
+    // A class is a God Class by Lanza and Marinescu: ATFD > 5, WMC >= 47 and TCC < 1/3.
+    const withComplexity = (id: string, label: string, parent: string, complexity: number) => {
+        const n: any = node(id, label, 'method', 'member', parent);
+        n.data.complexity = complexity;
+        return n;
+    };
+    function godGraph(complexity: number, foreign: number, shareOwnField: boolean) {
+        const nodes: any[] = [node('G', 'Boss', 'class', 'state'), node('G.f', 'f', 'field', 'member', 'G'), node('O', 'Other', 'class', 'model')];
+        const edges: any[] = [];
+        for (let i = 0; i < 6; i++) { nodes.push(withComplexity('G.m' + i, 'm' + i, 'G', complexity)); }
+        for (let i = 0; i < foreign; i++) {
+            nodes.push(node('O.a' + i, 'a' + i, 'field', 'member', 'O'));
+            edges.push(edge('r' + i, 'G.m' + (i % 6), 'O.a' + i, 'READS_FROM'));
+        }
+        if (shareOwnField) { for (let i = 0; i < 6; i++) { edges.push(edge('s' + i, 'G.m' + i, 'G.f', 'READS_FROM')); } }
+        return { nodes, edges };
+    }
+
+    test('flags a God Class by the standard rule: complex, many foreign attributes, little cohesion', () => {
+        const c = TrailModel.createModel(godGraph(9, 6, false)).audit().classes.get('G');
+        assert.strictEqual(c.wmc, 54);
+        assert.strictEqual(c.atfd, 6);
+        assert.strictEqual(c.tcc, 0);
+        assert.strictEqual(c.god, true);
+        assert.strictEqual(c.reasons.find((r: any) => r.type === 'god').wmc, 54);
+    });
+
+    test('each condition of the rule matters', () => {
+        const god = (g: any, cfg?: any) => TrailModel.createModel(g, cfg ? { audit: cfg } : undefined).audit().classes.get('G').god;
+        assert.strictEqual(god(godGraph(7, 6, false)), false, 'WMC 42 is below 47');
+        assert.strictEqual(god(godGraph(9, 5, false)), false, 'ATFD must be above 5');
+        assert.strictEqual(god(godGraph(9, 6, true)), false, 'methods that share a field are cohesive');
+    });
+
+    test('the thresholds can be changed', () => {
+        const g = godGraph(7, 6, false);
+        assert.strictEqual(TrailModel.createModel(g, { audit: { godWmc: 40 } }).audit().classes.get('G').god, true);
+        assert.strictEqual(TrailModel.createModel(godGraph(9, 6, false), { audit: { godAtfd: 6 } }).audit().classes.get('G').god, false);
+    });
+
+    test('the weights change the risk', () => {
+        const base = TrailModel.createModel(graph).heatOf('M', 'risk');
+        const heavier = TrailModel.createModel(graph, { audit: { weights: { violations: 1 } } }).heatOf('M', 'risk');
+        assert.notStrictEqual(base, heavier);
+    });
+
+    test('works on a long chain without overflowing the stack', () => {
+        const nodes = Array.from({ length: 4000 }, (_, i) => node('C' + i, 'C' + i, 'class', 'service'));
+        const edges = nodes.slice(1).map((n, i) => edge('x' + i, 'C' + i, n.id, 'CALLS'));
+        edges.push(edge('back', 'C3999', 'C0', 'CALLS'));
+        const a = TrailModel.createModel({ nodes, edges }).audit();
+        assert.strictEqual(a.cycles[0].size, 4000);
+    });
+});
+
+suite('Trail Audit Reasons Test Suite', () => {
+    test('explains why a class is hot, heaviest reason first, with the classes involved', () => {
+        const a = TrailModel.createModel(graph).audit();
+        const item = a.classes.get('M');
+        const types = item.reasons.map((r: any) => r.type);
+        assert.ok(types.includes('cycle') && types.includes('violation'));
+        const violation = item.reasons.find((r: any) => r.type === 'violation');
+        assert.deepStrictEqual(violation.names, ['HomeView']);
+        const cycle = item.reasons.find((r: any) => r.type === 'cycle');
+        assert.deepStrictEqual(cycle.names.slice().sort(), ['HomeController', 'HomeView', 'ItemRepository']);
+        assert.strictEqual(item.reasons[0].type, 'violation', 'a broken layer comes first');
+    });
+
+    test('a class that is cool has nothing to explain', () => {
+        const m = TrailModel.createModel({ nodes: [node('A', 'Lonely', 'class', 'service')], edges: [] });
+        assert.deepStrictEqual(m.audit().classes.get('A').reasons, []);
     });
 });

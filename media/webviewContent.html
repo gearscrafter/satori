@@ -23,20 +23,29 @@
                 <div id="search-results" role="listbox" hidden></div>
             </div>
             <div class="filters" id="filters"></div>
+            <div class="zoom-controls" role="group" aria-label="Zoom">
+                <button id="btn-zoom-out" type="button"></button>
+                <button id="zoom-label" type="button">100%</button>
+                <button id="btn-zoom-in" type="button"></button>
+            </div>
             <div class="mode-buttons">
+                <button id="btn-audit" type="button" aria-pressed="false" aria-controls="auditpanel"></button>
                 <button id="btn-edit" type="button" aria-pressed="false"></button>
                 <button id="btn-help" type="button" aria-pressed="false" aria-controls="hud"></button>
             </div>
         </header>
         <div id="flowpath" class="filters" hidden></div>
         <section id="layerflow" aria-label="Layer flow"></section>
+        <section id="auditpanel" hidden></section>
         <main id="stage">
             <div id="painttools" role="toolbar" hidden></div>
             <aside id="hud" hidden></aside>
-            <div id="canvas">
-                <svg id="edges" aria-hidden="true"></svg>
-                <div id="columns"></div>
-                <svg id="paint" aria-hidden="true"></svg>
+            <div id="zoomsizer">
+                <div id="canvas" class="lod-detail">
+                    <svg id="edges" aria-hidden="true"></svg>
+                    <div id="columns"></div>
+                    <svg id="paint" aria-hidden="true"></svg>
+                </div>
             </div>
         </main>
         <section id="codepane">

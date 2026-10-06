@@ -3,6 +3,7 @@ import { ProjectGraphModel, EnrichedSymbol, ProjectGraphEdge, ProjectGraphNode, 
 import { getSourceCodeForSymbol } from "../analysis/source_analyzer";
 import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges } from "../lsp/reference_analysis";
 import { methodBody } from "../analysis/signature";
+import { cyclomaticComplexity } from "../analysis/complexity";
 import { log } from "../utils/logger";
 
 /**
@@ -91,6 +92,7 @@ export async function createGraphEdgesFromSymbols(
 
             // Only the body can call something: the method's own name in its signature is not a call.
             const body = methodBody(cleanedSource);
+            sourceNode.data.complexity = cyclomaticComplexity(body);
             const mentionedNames: string[] = [];
             for (const [name, pattern] of symbolPatterns) {
                 if (pattern.test(body)) {

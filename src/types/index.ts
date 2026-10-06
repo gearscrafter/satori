@@ -12,6 +12,7 @@ export interface ProjectGraphNode {
     access?: 'public' | 'private' | 'protected';
     isSDK?: boolean;
     returnType?: string; // For functions/methods
+    complexity?: number; // Cyclomatic complexity of a method, constructor or function
     resolvedType?: string; // For fields/variables
     layer?: 'view' | 'state' | 'service' | 'model' | 'utility' | 'member';
     // Adding missing properties

@@ -6,6 +6,11 @@ export interface SnippetRequest {
     nodeId?: string;
     sourceId?: string;
     targetId?: string;
+    /** Show a line of a file directly (used for import directives). */
+    fileUri?: string;
+    line?: number;
+    column?: number;
+    length?: number;
 }
 
 export interface Snippet {
@@ -49,7 +54,32 @@ function escapeRegExp(text: string): string {
  * locates the line inside the source symbol that references the target; for a
  * single node it shows the node's own definition.
  */
+function buildLineSnippet(fileUri: string, line: number, column: number, length: number): Snippet | null {
+    let fileLines: string[];
+    try {
+        fileLines = fs.readFileSync(vscode.Uri.parse(fileUri).fsPath, 'utf8').split(/\r?\n/);
+    } catch {
+        return null;
+    }
+    if (!Number.isInteger(line) || line < 0 || line >= fileLines.length) {
+        return null;
+    }
+    const from = Math.max(0, line - CONTEXT - 1);
+    const to = Math.min(fileLines.length - 1, line + CONTEXT + 1);
+    return {
+        file: fileUri,
+        startLine: from,
+        lines: fileLines.slice(from, to + 1),
+        highlightLine: line,
+        jump: { start: { line, character: column }, end: { line, character: column + Math.max(1, length) } },
+        title: fileLines[line].trim()
+    };
+}
+
 export function buildSnippet(graph: ProjectGraphModel, request: SnippetRequest): Snippet | null {
+    if (request.fileUri !== undefined && request.line !== undefined) {
+        return buildLineSnippet(request.fileUri, request.line, request.column ?? 0, request.length ?? 1);
+    }
     const byId = new Map(graph.nodes.map(n => [n.id, n]));
     const primary = byId.get(request.sourceId ?? request.nodeId ?? '');
     if (!primary || !primary.data.fileUri) {

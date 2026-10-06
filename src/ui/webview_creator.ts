@@ -10,8 +10,61 @@ import { log } from '../utils/logger';
 import { processSymbolRecursiveLSP } from '../analysis/symbol_processor';
 import { buildClassRelationsFromSymbols } from '../analysis/class_relations';
 import { Localization } from '../utils/localization';
+import { parseImports, parsePubspecName, ImportRef } from '../analysis/imports';
+import { findProjectRootWithPubspec } from '../filesystem/pattern_matcher';
+import { readPackageLibDirs, findSdkLibDir, resolveImportFile } from '../packages/import_targets';
+import { findDartSdk } from '../lsp/dart_sdk';
 import { buildTypeIndex, clearTypeIndex } from '../analysis/enrichment/type-resolver';
 import { clearHoverCache } from '../lsp/hover_enrichment';
+import { readAuditConfig } from '../analysis/audit_config';
+
+/** Name of the package the analysed folder belongs to, from the closest pubspec.yaml. Empty when there is none. */
+function readOwnPackageName(projectRoot: string): string {
+  try {
+    const root = findProjectRootWithPubspec(projectRoot);
+    return root ? parsePubspecName(fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8')) : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Source file behind every external import of the project (`package:dio/dio.dart`, `dart:async`...), as a file URI,
+ * so the diagram can open the code of a dependency. Imports that cannot be found are simply left out.
+ */
+function resolveImportTargets(projectRoot: string, fileImports: Record<string, ImportRef[]>, ownPackage: string): Record<string, string> {
+  const targets: Record<string, string> = {};
+  try {
+    const root = findProjectRootWithPubspec(projectRoot);
+    if (!root) { return targets; }
+    const configPath = path.join(root, '.dart_tool', 'package_config.json');
+    let libDirs: Record<string, string> = {};
+    const candidates: string[] = [];
+    if (fs.existsSync(configPath)) {
+      const json = fs.readFileSync(configPath, 'utf8');
+      libDirs = readPackageLibDirs(json, path.dirname(configPath));
+      const flutterRoot = (JSON.parse(json) as { flutterRoot?: string }).flutterRoot;
+      if (flutterRoot) { candidates.push(path.join(vscode.Uri.parse(flutterRoot).fsPath, 'bin', 'cache', 'dart-sdk')); }
+    }
+    const dart = findDartSdk();
+    if (dart) {
+      candidates.push(path.dirname(path.dirname(dart)), path.join(path.dirname(dart), 'cache', 'dart-sdk'));
+    }
+    const sdkLib = findSdkLibDir(candidates);
+
+    const wanted = new Set<string>();
+    Object.values(fileImports).forEach(list => list.forEach(i => {
+      if (i.uri.startsWith('dart:') || (i.uri.startsWith('package:') && !i.uri.startsWith(`package:${ownPackage}/`))) { wanted.add(i.uri); }
+    }));
+    wanted.forEach(uri => {
+      const file = resolveImportFile(uri, libDirs, sdkLib);
+      if (file) { targets[uri] = vscode.Uri.file(file).toString(); }
+    });
+  } catch (error) {
+    log.debug(`Could not resolve the imports to files: ${error}`);
+  }
+  return targets;
+}
 
 /** Workspace-state key under which the drawings made in edit mode are kept for a project. */
 export function annotationsKey(projectRoot: string): string {
@@ -90,11 +143,15 @@ export async function createWebview(
   buildTypeIndex(data.files);
   log.debug('[TypeIndex] Type index built — starting enrichment.');
 
+  const fileImports: Record<string, ImportRef[]> = {};
+
   const processedFilesPromises = data.files.map(async (f_item) => {
     const fileContent = fs.readFileSync(f_item.file, 'utf8');
     const fileUriString = (typeof f_item.fileUri === 'string' && f_item.fileUri.startsWith('file:'))
       ? f_item.fileUri
       : vscode.Uri.file(f_item.file).toString();
+    const imports = parseImports(fileContent);
+    if (imports.length) { fileImports[fileUriString] = imports; }
 
     const enrichmentDeps: EnrichmentDependencies = {
       projectClassRelations,
@@ -235,9 +292,14 @@ export async function createWebview(
 
   log.debug('[✓] Resolution of this.fieldName fields in constructors completed.');
 
+  const ownPackage = readOwnPackageName(data.projectRoot);
   const dataForWebview = {
     projectRoot: data.projectRoot,
-    graph: projectGraph
+    graph: projectGraph,
+    fileImports,
+    ownPackage,
+    auditConfig: readAuditConfig(key => vscode.workspace.getConfiguration('satori').get(key)),
+    importTargets: resolveImportTargets(data.projectRoot, fileImports, ownPackage)
   };
 
   log.debug('[Sanitize] Starting string sanitization for JSON...');

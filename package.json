@@ -99,6 +99,53 @@
           "default": false,
           "description": "Enable detailed debug logs (may slow down processing)"
         },
+        "satori.audit.godClass.wmc": {
+          "type": "number",
+          "default": 47,
+          "minimum": 1,
+          "description": "Audit: a class is a God Class when its complexity (WMC, the sum of the cyclomatic complexity of its methods) reaches this value. 47 is the \"very high\" threshold of Lanza and Marinescu, Object-Oriented Metrics in Practice."
+        },
+        "satori.audit.godClass.atfd": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "description": "Audit: a God Class must use MORE than this many attributes of other classes (ATFD). 5 is the top of \"few\" in Lanza and Marinescu."
+        },
+        "satori.audit.godClass.tcc": {
+          "type": "number",
+          "default": 0.33,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Audit: a God Class must have a cohesion (TCC, the share of method pairs that use a common attribute) BELOW this value. 0.33 is the \"one third\" of Lanza and Marinescu."
+        },
+        "satori.audit.weights.coupling": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Audit: weight of coupling (how many classes it is connected to, relative to the most connected one) in the risk score."
+        },
+        "satori.audit.weights.size": {
+          "type": "number",
+          "default": 0.15,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Audit: weight of size (members, relative to the largest class; a God Class counts as the maximum) in the risk score."
+        },
+        "satori.audit.weights.cycles": {
+          "type": "number",
+          "default": 0.25,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Audit: weight of being part of a circular dependency in the risk score."
+        },
+        "satori.audit.weights.violations": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Audit: weight of layer violations in the risk score."
+        },
         "satori.dartSdkPath": {
           "type": "string",
           "default": "",

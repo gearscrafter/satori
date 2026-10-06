@@ -39,6 +39,19 @@
         return best;
     }
 
+    // Packages that ship with Flutter itself. Names like flutter_bloc or flutter_svg are third-party and are not listed.
+    const FLUTTER_PACKAGES = new Set(['flutter', 'flutter_test', 'flutter_localizations', 'flutter_web_plugins', 'flutter_driver', 'integration_test']);
+    const DEPENDENCY_KINDS = ['flutter', 'package', 'sdk'];
+
+    /** Where an imported URI comes from: the Dart SDK, Flutter, a third-party package, or the project itself. */
+    function classifyImport(uri, ownPackage) {
+        if (/^dart:/.test(uri)) { return { kind: 'sdk', name: uri }; }
+        const m = /^package:([^/]+)\//.exec(uri);
+        if (!m) { return { kind: 'own', name: uri }; }
+        if (ownPackage && m[1] === ownPackage) { return { kind: 'own', name: m[1] }; }
+        return { kind: FLUTTER_PACKAGES.has(m[1]) ? 'flutter' : 'package', name: m[1] };
+    }
+
     /** Path of a file URI relative to the project: the part after "/lib/" when there is one, else after the root. */
     function relativeFolder(fileUri, projectRoot) {
         if (!fileUri) { return ''; }
@@ -56,7 +69,7 @@
     }
 
     function createModel(graph, options) {
-        const opts = Object.assign({ showSdk: false, showPackages: true, edgeLabels: null, projectRoot: '' }, options || {});
+        const opts = Object.assign({ showSdk: false, showPackages: true, edgeLabels: null, projectRoot: '', fileImports: {}, ownPackage: '', audit: null }, options || {});
         const nodes = new Map();
         for (const n of (graph && graph.nodes) || []) {
             if (n.kind !== 'package_container') { nodes.set(n.id, n); }
@@ -169,6 +182,92 @@
             };
         }
 
+        /**
+         * Libraries (the Dart SDK, Flutter, third-party packages) as nodes you can navigate to. They are built from the
+         * import lines, so a library node knows which classes import it and which of its files they import, but not
+         * the classes inside it. They live outside the layers: they never appear in the overview columns or in the
+         * layer flow, and the dependency strip stands in for them next to a class.
+         */
+        const libNodes = new Map();
+        const importEdges = [];
+        (function buildLibraries() {
+            const ownersByFile = new Map();
+            owners.forEach(function (o) {
+                const uri = o.data && o.data.fileUri;
+                if (!uri || !opts.fileImports[uri]) { return; }
+                if (!ownersByFile.has(uri)) { ownersByFile.set(uri, []); }
+                ownersByFile.get(uri).push(o);
+            });
+            Object.keys(opts.fileImports).forEach(function (fileUri) {
+                const fileOwners = ownersByFile.get(fileUri);
+                if (!fileOwners) { return; }
+                const linked = new Set();
+                opts.fileImports[fileUri].forEach(function (imp) {
+                    const c = classifyImport(imp.uri, opts.ownPackage);
+                    if (c.kind === 'own') { return; }
+                    const id = 'lib:' + c.kind + ':' + c.name;
+                    let lib = libNodes.get(id);
+                    if (!lib) {
+                        lib = { id: id, label: c.name, kind: 'package', data: { fileUri: '', layer: 'utility', depKind: c.kind, uris: [], source: { type: 'library', packageName: c.name } } };
+                        libNodes.set(id, lib);
+                    }
+                    if (lib.data.uris.indexOf(imp.uri) < 0) { lib.data.uris.push(imp.uri); }
+                    if (linked.has(id)) { return; }
+                    linked.add(id);
+                    fileOwners.forEach(function (o) { importEdges.push({ id: 'imp' + importEdges.length, source: o.id, target: id, label: 'IMPORTS', fileUri: fileUri }); });
+                });
+            });
+            libNodes.forEach(function (lib) { nodes.set(lib.id, lib); });
+        })();
+
+        function isLibrary(id) { return libNodes.has(id); }
+
+        /** What a library looks like when it is the centre: who imports it, and which of its files they import. */
+        function focusLibrary(id) {
+            const lib = libNodes.get(id);
+            const cards = new Map();
+            importEdges.filter(function (e) { return e.target === id; }).forEach(function (e) {
+                const owner = nodes.get(e.source);
+                const imports = (opts.fileImports[e.fileUri] || []).filter(function (imp) {
+                    const c = classifyImport(imp.uri, opts.ownPackage);
+                    return 'lib:' + c.kind + ':' + c.name === id;
+                }).map(function (imp) { return { pkg: lib.label, uri: imp.uri, line: imp.line, column: imp.column, fileUri: e.fileUri }; });
+                cards.set(owner.id, Object.assign(ownerSummary(owner), {
+                    edgeCount: imports.length, byLabel: { IMPORTS: imports.length }, dominantLabel: 'IMPORTS', violation: false,
+                    refs: [{ id: e.id, source: e.source, target: id, label: 'IMPORTS', incoming: true }],
+                    memberIds: [], centerMemberIds: [id], members: [], imports: imports
+                }));
+            });
+            const all = Array.from(cards.values());
+            return {
+                focusId: id, ownerId: id, activeMemberId: null, isLibrary: true,
+                center: {
+                    id: id, label: lib.label, kind: 'package', layer: 'utility', source: 'library', depKind: lib.data.depKind,
+                    inDeg: all.length, outDeg: 0, internalCount: 0,
+                    members: lib.data.uris.map(function (uri) { return { id: 'lib-file:' + uri, label: uri, kind: 'library', uri: uri, inCount: 0, outCount: 0 }; })
+                },
+                left: LAYERS.map(function (layer) {
+                    return { layer: layer, cards: all.filter(function (c) { return c.layer === layer; }).sort(function (a, b) { return a.label.localeCompare(b.label); }) };
+                }).filter(function (g) { return g.cards.length > 0; }),
+                right: []
+            };
+        }
+
+        /** Libraries grouped by where they come from, with how many classes import each one, for the overview. */
+        function libraries() {
+            const users = new Map();
+            importEdges.forEach(function (e) {
+                if (!users.has(e.target)) { users.set(e.target, new Set()); }
+                users.get(e.target).add(e.source);
+            });
+            return DEPENDENCY_KINDS.map(function (kind) {
+                const items = Array.from(libNodes.values()).filter(function (l) { return l.data.depKind === kind; })
+                    .map(function (l) { return { id: l.id, name: l.label, users: (users.get(l.id) || new Set()).size }; })
+                    .sort(function (a, b) { return b.users - a.users || a.name.localeCompare(b.name); });
+                return { kind: kind, items: items };
+            }).filter(function (g) { return g.items.length > 0; });
+        }
+
         function layerFlow() {
             const flow = new Map();
             for (const agg of aggregated.values()) {
@@ -217,6 +316,199 @@
             return { layers: LAYERS.map(layer => ({ layer, classes: byLayer[layer] })), flow: layerFlow() };
         }
 
+        /**
+         * Architecture audit over the class graph of the project: circular dependencies (strongly connected groups),
+         * layer violations and a heat score per class. Libraries and the SDK are left out, only the project is judged.
+         */
+        function audit(config) {
+            // Defaults follow the God Class detection strategy of Lanza and Marinescu (Object-Oriented Metrics in Practice):
+            // ATFD above "few" (5), WMC "very high" (47) and TCC below one third. The weights are Satori's own.
+            const cfg = Object.assign({ godWmc: 47, godAtfd: 5, godTcc: 0.33, weights: { coupling: 0.3, size: 0.15, cycles: 0.25, violations: 0.3 } }, opts.audit || {}, config || {});
+            const weights = Object.assign({ coupling: 0.3, size: 0.15, cycles: 0.25, violations: 0.3 }, cfg.weights || {});
+            const weightSum = Math.max(0.0001, weights.coupling + weights.size + weights.cycles + weights.violations);
+            const own = owners.filter(function (n) { return sourceTypeOf(n.id) === 'project'; });
+            const ids = new Set(own.map(function (n) { return n.id; }));
+            const next = new Map();
+            own.forEach(function (n) { next.set(n.id, []); });
+            const degree = new Map();
+            aggregated.forEach(function (agg) {
+                if (ids.has(agg.source) && ids.has(agg.target) && agg.source !== agg.target) {
+                    next.get(agg.source).push(agg.target);
+                    degree.set(agg.source, (degree.get(agg.source) || 0) + 1);
+                    degree.set(agg.target, (degree.get(agg.target) || 0) + 1);
+                }
+            });
+
+            // Tarjan, iterative so a long chain of classes cannot overflow the stack.
+            const index = new Map();
+            const low = new Map();
+            const onStack = new Set();
+            const stack = [];
+            const components = [];
+            let counter = 0;
+            own.forEach(function (root) {
+                if (index.has(root.id)) { return; }
+                const work = [{ id: root.id, i: 0 }];
+                index.set(root.id, counter); low.set(root.id, counter); counter++;
+                stack.push(root.id); onStack.add(root.id);
+                while (work.length) {
+                    const frame = work[work.length - 1];
+                    const out = next.get(frame.id);
+                    if (frame.i < out.length) {
+                        const w = out[frame.i++];
+                        if (!index.has(w)) {
+                            index.set(w, counter); low.set(w, counter); counter++;
+                            stack.push(w); onStack.add(w);
+                            work.push({ id: w, i: 0 });
+                        } else if (onStack.has(w)) {
+                            low.set(frame.id, Math.min(low.get(frame.id), index.get(w)));
+                        }
+                    } else {
+                        work.pop();
+                        if (work.length) {
+                            const parent = work[work.length - 1].id;
+                            low.set(parent, Math.min(low.get(parent), low.get(frame.id)));
+                        }
+                        if (low.get(frame.id) === index.get(frame.id)) {
+                            const comp = [];
+                            let w;
+                            do { w = stack.pop(); onStack.delete(w); comp.push(w); } while (w !== frame.id);
+                            if (comp.length > 1) { components.push(comp); }
+                        }
+                    }
+                }
+            });
+            const cycleOf = new Map();
+            const cycles = components.map(function (comp) {
+                const set = new Set(comp);
+                const refs = [];
+                aggregated.forEach(function (agg) { if (set.has(agg.source) && set.has(agg.target) && agg.source !== agg.target) { refs.push(agg.id); } });
+                return {
+                    size: comp.length, edges: refs,
+                    members: comp.slice().sort(function (a, b) { return nameOf(a).localeCompare(nameOf(b)); }).map(function (id) { return { id: id, label: nameOf(id), layer: layerOf(id) }; })
+                };
+            }).sort(function (a, b) { return b.size - a.size; });
+            cycles.forEach(function (c, i) {
+                c.id = 'cycle:' + i;
+                c.members.forEach(function (m) { cycleOf.set(m.id, i); });
+            });
+
+            const violations = [];
+            const violationsBy = new Map();
+            const violationTargets = new Map();
+            aggregated.forEach(function (agg) {
+                if (!agg.violation || !ids.has(agg.source) || !ids.has(agg.target)) { return; }
+                violations.push({
+                    id: agg.id, source: agg.source, target: agg.target, count: agg.count,
+                    sourceLabel: nameOf(agg.source), targetLabel: nameOf(agg.target), from: layerOf(agg.source), to: layerOf(agg.target)
+                });
+                violationsBy.set(agg.source, (violationsBy.get(agg.source) || 0) + 1);
+                if (!violationTargets.has(agg.source)) { violationTargets.set(agg.source, []); }
+                violationTargets.get(agg.source).push(nameOf(agg.target));
+            });
+            violations.sort(function (a, b) { return b.count - a.count || a.sourceLabel.localeCompare(b.sourceLabel); });
+
+            const memberCount = new Map();
+            nodes.forEach(function (n) { if (n.parent && ids.has(n.parent)) { memberCount.set(n.parent, (memberCount.get(n.parent) || 0) + 1); } });
+            let maxCoupling = 1;
+            let maxMembers = 1;
+            own.forEach(function (n) {
+                maxCoupling = Math.max(maxCoupling, degree.get(n.id) || 0);
+                maxMembers = Math.max(maxMembers, memberCount.get(n.id) || 0);
+            });
+
+            // WMC: sum of the cyclomatic complexity of the methods. ATFD: foreign attributes it touches.
+            // TCC: share of method pairs that use a common attribute of the class.
+            const wmcOf = new Map();
+            const methodCount = new Map();
+            nodes.forEach(function (n) {
+                if (!n.parent || !ids.has(n.parent) || (n.kind !== 'method' && n.kind !== 'constructor' && n.kind !== 'function')) { return; }
+                const c = (n.data && n.data.complexity) || 1;
+                wmcOf.set(n.parent, (wmcOf.get(n.parent) || 0) + c);
+                if (n.kind === 'method') { methodCount.set(n.parent, (methodCount.get(n.parent) || 0) + 1); }
+            });
+            const foreign = new Map();
+            const usedBy = new Map();
+            flowEdges.forEach(function (fe) {
+                if (fe.label !== 'READS_FROM' && fe.label !== 'WRITES_TO') { return; }
+                const user = fe.consumer;
+                const attr = fe.provider;
+                const attrNode = nodes.get(attr);
+                const userNode = nodes.get(user);
+                if (!attrNode || !userNode || (attrNode.kind !== 'field' && attrNode.kind !== 'property' && attrNode.kind !== 'variable')) { return; }
+                const userOwner = ownerOf(user);
+                const attrOwner = ownerOf(attr);
+                if (!ids.has(userOwner) || !ids.has(attrOwner)) { return; }
+                if (userOwner !== attrOwner) {
+                    if (!foreign.has(userOwner)) { foreign.set(userOwner, new Set()); }
+                    foreign.get(userOwner).add(attr);
+                } else if (userNode.kind === 'method') {
+                    if (!usedBy.has(attr)) { usedBy.set(attr, new Set()); }
+                    usedBy.get(attr).add(user);
+                }
+            });
+            const cohesion = new Map();
+            own.forEach(function (n) {
+                const count = methodCount.get(n.id) || 0;
+                if (count < 2) { cohesion.set(n.id, 1); return; }
+                const connected = new Set();
+                usedBy.forEach(function (methods) {
+                    const list = Array.from(methods).filter(function (m) { return ownerOf(m) === n.id; });
+                    for (let i = 0; i < list.length; i++) { for (let j = i + 1; j < list.length; j++) { connected.add(list[i] < list[j] ? list[i] + '|' + list[j] : list[j] + '|' + list[i]); } }
+                });
+                cohesion.set(n.id, connected.size / (count * (count - 1) / 2));
+            });
+
+            const classes = new Map();
+            own.forEach(function (n) {
+                const coupling = degree.get(n.id) || 0;
+                const size = memberCount.get(n.id) || 0;
+                const viol = violationsBy.get(n.id) || 0;
+                const wmc = wmcOf.get(n.id) || 0;
+                const atfd = foreign.has(n.id) ? foreign.get(n.id).size : 0;
+                const tcc = cohesion.get(n.id);
+                const god = atfd > cfg.godAtfd && wmc >= cfg.godWmc && tcc < cfg.godTcc;
+                const parts = {
+                    coupling: coupling / maxCoupling,
+                    size: god ? 1 : size / maxMembers,
+                    cycles: cycleOf.has(n.id) ? 1 : 0,
+                    violations: Math.min(1, viol / 3)
+                };
+                // Why it is hot: every factor that weighs in, the heaviest first, with the numbers behind it.
+                const reasons = [];
+                if (parts.cycles) {
+                    const others = cycles[cycleOf.get(n.id)].members.filter(function (m) { return m.id !== n.id; }).map(function (m) { return m.label; });
+                    reasons.push({ type: 'cycle', weight: weights.cycles, names: others, value: others.length + 1 });
+                }
+                if (viol) { reasons.push({ type: 'violation', weight: weights.violations * parts.violations, names: violationTargets.get(n.id).slice(0, 3), value: viol }); }
+                if (parts.coupling >= 0.5) { reasons.push({ type: 'coupling', weight: weights.coupling * parts.coupling, value: coupling, max: maxCoupling }); }
+                if (god) { reasons.push({ type: 'god', weight: weights.size, wmc: wmc, atfd: atfd, tcc: tcc }); }
+                else if (parts.size >= 0.5) { reasons.push({ type: 'size', weight: weights.size * parts.size, value: size, max: maxMembers }); }
+                // The most actionable first: a broken layer, then a circle, then the numbers.
+                const priority = { violation: 0, god: 1, cycle: 2, coupling: 3, size: 4 };
+                reasons.sort(function (a, b) { return priority[a.type] - priority[b.type]; });
+                classes.set(n.id, {
+                    reasons: reasons,
+                    id: n.id, label: stripDecor(n.label), layer: layerOf(n.id), folder: folderOf(n.id),
+                    coupling: coupling, members: size, cycle: cycleOf.has(n.id) ? cycleOf.get(n.id) : -1, violations: viol,
+                    god: god, wmc: wmc, atfd: atfd, tcc: tcc, parts: parts,
+                    risk: Math.min(1, (parts.coupling * weights.coupling + parts.size * weights.size + parts.cycles * weights.cycles + parts.violations * weights.violations) / weightSum)
+                });
+            });
+            const hotspots = Array.from(classes.values()).filter(function (c) { return c.risk > 0; })
+                .sort(function (a, b) { return b.risk - a.risk || a.label.localeCompare(b.label); });
+            return { classes: classes, cycles: cycles, violations: violations, hotspots: hotspots };
+        }
+
+        /** 0..1 heat of a class for one metric ("risk" mixes all of them), 0 when the class is not part of the project. */
+        let auditCache = null;
+        function heatOf(id, metric) {
+            if (!auditCache) { auditCache = audit(opts.audit); }
+            const c = auditCache.classes.get(ownerOf(id));
+            if (!c) { return 0; }
+            return metric && metric !== 'risk' ? c.parts[metric] || 0 : c.risk;
+        }
+
         function membersOf(ownerId) {
             const members = [];
             for (const n of nodes.values()) {
@@ -228,6 +520,7 @@
         }
 
         function focus(id) {
+            if (isLibrary(id)) { return focusLibrary(id); }
             const owner = ownerOf(id);
             if (!owner || !isVisible(owner)) { return null; }
             const activeMemberId = owner === id ? null : id;
@@ -380,6 +673,33 @@
             };
         }
 
+        /**
+         * What the file of a class imports, grouped by where it comes from (Flutter, third-party packages,
+         * Dart SDK) and then by package. The project's own imports are left out: those are the classes
+         * already drawn at the sides.
+         */
+        function dependenciesOf(id) {
+            const n = nodes.get(ownerOf(id));
+            const imports = (n && n.data && opts.fileImports && opts.fileImports[n.data.fileUri]) || [];
+            const byKind = {};
+            DEPENDENCY_KINDS.forEach(function (k) { byKind[k] = new Map(); });
+            imports.forEach(function (imp) {
+                const c = classifyImport(imp.uri, opts.ownPackage);
+                if (c.kind === 'own') { return; }
+                const packages = byKind[c.kind];
+                if (!packages.has(c.name)) { packages.set(c.name, { name: c.name, count: 0, imports: [] }); }
+                const p = packages.get(c.name);
+                p.count++;
+                p.imports.push({ uri: imp.uri, line: imp.line, column: imp.column, fileUri: n.data.fileUri });
+            });
+            return DEPENDENCY_KINDS.map(function (kind) {
+                const packages = Array.from(byKind[kind].values())
+                    .sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+                packages.forEach(function (p) { p.id = 'lib:' + kind + ':' + p.name; });
+                return { kind: kind, packages: packages, total: packages.reduce(function (s, p) { return s + p.count; }, 0) };
+            }).filter(function (g) { return g.packages.length > 0; });
+        }
+
         function flowRefs(fromLayer, toLayer) {
             const refs = [];
             for (const agg of aggregated.values()) {
@@ -393,7 +713,7 @@
         return {
             nodes, edges, internalCount,
             ownerOf, layerOf, nameOf, sourceTypeOf,
-            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders,
+            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders, dependenciesOf, libraries, isLibrary, audit, heatOf,
             nodeRange: id => normalizeRange(nodes.get(id) && nodes.get(id).data && (nodes.get(id).data.range || nodes.get(id).data.selectionRange))
         };
     }
@@ -446,5 +766,5 @@
         return members.filter(function (m) { return keep.has(m.id); });
     }
 
-    return { LAYERS, LAYER_RANK, createModel, createTrail, stripDecor, normalizeRange, dominantLabel, limitCards, visibleMembers, relativeFolder };
+    return { LAYERS, LAYER_RANK, DEPENDENCY_KINDS, createModel, createTrail, stripDecor, normalizeRange, dominantLabel, limitCards, visibleMembers, relativeFolder, classifyImport };
 });

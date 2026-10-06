@@ -330,7 +330,8 @@ type GraphWebviewMessage =
     | { command: 'openClass'; file?: string; start?: LspPosition; end?: LspPosition }
     | { command: 'ready' }
     | { command: 'saveAnnotations'; projectRoot: string; data: Record<string, unknown> }
-    | { command: 'getSnippet'; requestId: number; reveal?: boolean; nodeId?: string; sourceId?: string; targetId?: string }
+    | { command: 'getSnippet'; requestId: number; reveal?: boolean; nodeId?: string; sourceId?: string; targetId?: string;
+        fileUri?: string; line?: number; column?: number; length?: number }
     | { command: 'showRelationships'; data: { focusedNodeLabel: string; focusedNodeId?: string; edges: any[] } | null }
     | { command: 'getImports'; nodeId?: string }
     | { command: 'clearRelationships' };

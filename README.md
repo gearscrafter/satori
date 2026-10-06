@@ -37,6 +37,9 @@ Satori transforms your Flutter code into interactive diagrams, allowing you to e
 - **Trail history**: back / forward buttons and breadcrumbs through the elements you visited
 - **Smooth transitions**: boxes glide to their new place and new ones unfold from the centre
 - **Move anything**: drag a box, or a whole layer, and the arrows follow
+- **Audit and heat map**: the flame button paints every box from cool to red by risk (coupling, size, cycles and layer violations), the way hotspot maps do, and lists the circular dependencies, the layer violations and the hottest classes. Pick one factor to see it alone; click a name to open it. Folded containers take the heat of the hottest class inside
+- **Dependency column**: below the "uses" column, a vertical stack with what the focused class's file imports split into **Flutter**, **third-party packages** and the **Dart SDK**, with arrows from the class. Click an arrow to read the import lines, or a package to **navigate into it**: it opens as a node showing which classes import it, with its source file one click away. Unfolded groups also appear as bundles in the overview, like Sourcetrail's grouped library symbols
+- **Zoom with levels of detail**: zoom out and the members of the neighbouring boxes fold, then each layer folds into a container that still lists its classes, then layers regroup into the project folders (Sourcetrail-style containers); zoom in and everything unfolds with an animation. Click a layer title to fold or unfold it by hand
 
 ### 🔗 **Relationship Analysis**
 
@@ -119,6 +122,24 @@ Press `?` (or the help button) for a legend that explains the layer colours and 
 | `satori.language` | `en` | Interface language (`en` or `es`) |
 | `satori.enableDebugLogs` | `false` | Detailed logs in the "satori" output channel (may slow down processing) |
 | `satori.dartSdkPath` | `""` | Path to the Dart SDK, if it cannot be found automatically |
+| `satori.audit.godClass.wmc` | `47` | Audit: complexity (WMC) from which a class can be a God Class |
+| `satori.audit.godClass.atfd` | `5` | Audit: a God Class must use MORE than this many attributes of other classes (ATFD) |
+| `satori.audit.godClass.tcc` | `0.33` | Audit: a God Class must have a cohesion (TCC) BELOW this value |
+| `satori.audit.weights.coupling` | `0.3` | Audit: weight of coupling in the risk score |
+| `satori.audit.weights.size` | `0.15` | Audit: weight of size in the risk score |
+| `satori.audit.weights.cycles` | `0.25` | Audit: weight of circular dependencies in the risk score |
+| `satori.audit.weights.violations` | `0.3` | Audit: weight of layer violations in the risk score |
+
+### How the audit decides
+
+Every number in the audit is either a standard threshold or relative to your own project, and the panel says which:
+
+- **God Class** follows the detection strategy of Lanza and Marinescu (*Object-Oriented Metrics in Practice*): a class is flagged when it is very complex (**WMC ≥ 47**, the sum of the cyclomatic complexity of its methods), uses many attributes of other classes (**ATFD > 5**) and has little cohesion (**TCC < 1/3**, the share of method pairs that use a common attribute). The three thresholds are the `satori.audit.godClass.*` settings. Those thresholds come from Java projects, so treat them as a starting point.
+- **Cyclomatic complexity** is estimated from the source of each method: one path plus one for every `if`, `for`, `while`, `case`, `catch`, `&&`, `||`, `??` and ternary `?`.
+- **Circular dependencies** are groups of classes that depend on each other in a circle (strongly connected components of the class graph).
+- **Layer violations** are dependencies that go against the flow View → State → Service → Model. The layer of each class is a heuristic based on names and structure, so it can be wrong.
+- **Coupling and size** are *relative*: a class is compared with the most connected and the largest class of your project, not with a fixed number. They show where to look first, not what is wrong.
+- **Risk** mixes the four factors with the weights above (they are normalised, so only their proportions matter). Each hot class lists the reasons and the numbers behind them.
 
 ## 📖 Usage
 
@@ -159,6 +180,8 @@ Drag the header of a box to place it where you want; drag the title of a layer c
 | Key | Action |
 |-----|--------|
 | `/` | Search a class or member |
+| `+` / `-` / `0` | Zoom in / zoom out / back to 100% |
+| `Ctrl` + mouse wheel | Zoom around the cursor |
 | `Alt+←` / `Alt+->` | Back / forward in the trail |
 | `E` | Toggle edit mode |
 | `?` | Toggle the legend |
@@ -222,7 +245,7 @@ The expected direction is **View -> State -> Service -> Model**. References that
 - **Complex generics**: Some generic type relationships may not be detected
 - **Generated code**: `.g.dart` files are processed but may create noise
 - **Semantic analysis**: Internal responsibilities and decisions are in development
-- **External packages**: Analysis limited to main public symbols
+- **External packages and the SDK**: Satori shows which packages a file imports (the dependency strip), not the classes inside those packages or inside the Dart SDK. You can navigate to each library and open its file, but the library node does not list its classes. The strip is built from the `import` lines, so it does not say which classes of a package are used
 - **Dart extension dependency**: Requires the official Dart extension to be installed and active
 - **Symbol analysis**: Depends on the Dart extension's language server for symbol information
 - **Data flow trace**: it follows calls and field accesses. Values that travel through local variables, return values or callbacks are not followed, so a trace can be shorter than the real flow

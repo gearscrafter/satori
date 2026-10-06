@@ -20,6 +20,10 @@
     }
 
     let projectRoot = '';
+    let fileImports = {};
+    let ownPackage = '';
+    let auditConfig = null;
+    let importTargets = {};
     let graph;
     let savedAnnotations = {};
     try {
@@ -27,6 +31,10 @@
         graph = payload.graph || { nodes: [], edges: [] };
         projectRoot = payload.projectRoot || '';
         savedAnnotations = payload.annotations || {};
+        fileImports = payload.fileImports || {};
+        ownPackage = payload.ownPackage || '';
+        auditConfig = payload.auditConfig || null;
+        importTargets = payload.importTargets || {};
     } catch (e) {
         graph = { nodes: [], edges: [] };
         vscodeApi.postMessage({ command: 'log', args: ['[Trail] Could not parse graph data: ' + e.message] });
@@ -41,7 +49,7 @@
     const FLOW_ORDER = ['view', 'state', 'service', 'model'];
     const VERBS = {
         CALLS: 'calls', EXTENDS: 'extends', IMPLEMENTS: 'implements', READS_FROM: 'reads',
-        WRITES_TO: 'writes', USES_AS_TYPE: 'type', INSTANCE_OF: 'creates', PASSES_AS_ARGUMENT: 'passes'
+        WRITES_TO: 'writes', USES_AS_TYPE: 'type', INSTANCE_OF: 'creates', PASSES_AS_ARGUMENT: 'passes', IMPORTS: 'imports'
     };
     const KEYWORDS = new Set(['abstract', 'as', 'async', 'await', 'class', 'const', 'else', 'enum', 'extends', 'extension', 'factory', 'final',
         'for', 'get', 'if', 'implements', 'import', 'in', 'is', 'late', 'mixin', 'new', 'null', 'on', 'override', 'required', 'return', 'set',
@@ -54,13 +62,28 @@
     const MAX_MEMBERS_SHOWN = 16;
     const MAX_OVERVIEW_PER_LAYER = 30;
 
+    const ZOOM_MIN = 0.2;
+    const ZOOM_MAX = 2;
+    const ZOOM_STEP = 1.2;
+
     const state = {
+        zoom: 1,
+        scale: 1,
+        groupBy: 'layer',
+        audit: { on: false, metric: 'risk' },
+        lod: 'detail',
+        libOpen: new Set(),
+        groupMode: new Map([['dep:sdk', 'closed']]),
+        trackUntil: 0,
+        tracking: false,
         expand: { left: false, right: false },
         expandMembers: false,
         overviewOpen: new Set(),
         folder: null,
         focusFull: null,
-        filters: { showSdk: false, showPackages: true, groups: { calls: true, inherit: true, data: true, types: true } },
+        filters: { groups: { calls: true, inherit: true, data: true, types: true } },
+        deps: { flutter: true, package: true, sdk: true },
+        depGroups: [],
         layerEmphasis: null,
         sel: null,
         flowSel: null,
@@ -93,7 +116,7 @@
             labels = new Set();
             Object.keys(groups).forEach(function (k) { if (groups[k]) { EDGE_GROUPS[k].forEach(function (l) { labels.add(l); }); } });
         }
-        return M.createModel(graph, { showSdk: state.filters.showSdk, showPackages: state.filters.showPackages, edgeLabels: labels, projectRoot: projectRoot });
+        return M.createModel(graph, { edgeLabels: labels, projectRoot: projectRoot, fileImports: fileImports, ownPackage: ownPackage, audit: auditConfig });
     }
 
     /* ---------- DOM helpers ---------- */
@@ -134,13 +157,14 @@
         return node;
     }
     function layerLabel(layer) { return t('layer.' + layer); }
-    function sourceBadge(source) { return source === 'sdk' ? 'SDK' : source === 'external_package' ? 'pkg' : null; }
     function cssEscape(value) { return (window.CSS && CSS.escape) ? CSS.escape(value) : String(value).replace(/"/g, '\\"'); }
     function canvasOrigin() { return $('canvas').getBoundingClientRect(); }
+    /** Box position inside the canvas, in canvas units (the zoom scales the canvas as a whole). */
     function rectRel(node) {
         const r = node.getBoundingClientRect();
         const c = canvasOrigin();
-        return { x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height };
+        const z = state.scale;
+        return { x: (r.left - c.left) / z, y: (r.top - c.top) / z, w: r.width / z, h: r.height / z };
     }
 
     /* ---------- navigation ---------- */
@@ -157,6 +181,7 @@
     function resetCollapse() {
         state.expand = { left: false, right: false };
         state.expandMembers = false;
+        state.groupMode = new Map([['dep:sdk', 'closed']]);
     }
     function afterNavigation() {
         resetSelection();
@@ -213,9 +238,24 @@
     }
 
     /* ---------- selection of connections ---------- */
+    /** Opens the source of an imported library (a package file or a Dart SDK file) when it can be found on disk. */
+    function openLibraryFile(uri) {
+        const file = importTargets[uri];
+        if (!file) { return; }
+        vscodeApi.postMessage({ command: 'openClass', file: file, start: { line: 0, character: 0 }, end: { line: 0, character: 0 } });
+    }
+
     function selectCard(card, side) {
         state.sel = { cardId: card.id, side: side };
         state.flowSel = null;
+        if (card.imports && card.imports.length) {
+            // The arrow of a library stands for import lines, so those are what is listed and shown.
+            state.code.mode = 'deps';
+            state.code.refs = card.imports.slice();
+            applySelectionStyles();
+            selectImport(0, true);
+            return;
+        }
         state.code.mode = 'edge';
         state.code.refs = card.refs.map(function (r) { return { source: r.source, target: r.target, label: r.label }; });
         applySelectionStyles();
@@ -230,9 +270,32 @@
         renderLayerFlow();
         if (state.code.refs.length) { selectRef(0, true); } else { renderRefs(); }
     }
+    /** Lists the import lines behind one group of the dependency strip and shows the first one. */
+    function selectDependency(kind) {
+        const group = state.depGroups.find(function (g) { return g.kind === kind; });
+        if (!group) { return; }
+        state.sel = { dep: kind };
+        state.flowSel = null;
+        state.code.mode = 'deps';
+        state.code.refs = [];
+        group.packages.forEach(function (p) { p.imports.forEach(function (imp) { state.code.refs.push({ pkg: p.name, uri: imp.uri, line: imp.line, column: imp.column, fileUri: imp.fileUri }); }); });
+        applySelectionStyles();
+        selectImport(0, true);
+    }
+    function selectImport(index, reveal) {
+        const ref = state.code.refs[index];
+        if (!ref) { return; }
+        state.code.active = index;
+        renderRefs();
+        requestSnippet({ fileUri: ref.fileUri, line: ref.line, column: ref.column, length: ref.uri.length }, reveal !== false);
+    }
     function applySelectionStyles() {
-        document.querySelectorAll('.card.selected').forEach(function (n) { n.classList.remove('selected'); });
+        document.querySelectorAll('.card.selected, .dep-group.selected').forEach(function (n) { n.classList.remove('selected'); });
         document.querySelectorAll('#edges .edge.selected').forEach(function (n) { n.classList.remove('selected'); });
+        if (state.sel && state.sel.dep) {
+            document.querySelectorAll('.dep-group[data-kind="' + state.sel.dep + '"], #edges .edge.dep[data-dep="' + state.sel.dep + '"]').forEach(function (n) { n.classList.add('selected'); });
+            return;
+        }
         if (!state.sel) { return; }
         document.querySelectorAll('.card[data-id="' + cssEscape(state.sel.cardId) + '"][data-side="' + state.sel.side + '"]').forEach(function (n) { n.classList.add('selected'); });
         document.querySelectorAll('#edges .edge[data-card="' + cssEscape(state.sel.cardId) + '"][data-side="' + state.sel.side + '"]').forEach(function (n) { n.classList.add('selected'); });
@@ -378,14 +441,6 @@
     function renderFilters() {
         const box = $('filters');
         box.replaceChildren();
-        function check(label, tip, icon, checked, onChange) {
-            const input = el('input', { type: 'checkbox' });
-            input.checked = checked;
-            input.addEventListener('change', function () { onChange(input.checked); });
-            return el('label', { title: tip }, input, ico(icon, 13), label);
-        }
-        box.appendChild(check(t('trail.showSdk'), t('trail.tip.sdk'), 'sdk', state.filters.showSdk, function (v) { state.filters.showSdk = v; refilter(); }));
-        box.appendChild(check(t('trail.showPackages'), t('trail.tip.packages'), 'package', state.filters.showPackages, function (v) { state.filters.showPackages = v; refilter(); }));
         Object.keys(EDGE_GROUPS).forEach(function (g) {
             const btn = el('button', {
                 class: 'chip-toggle e-' + EDGE_GROUPS[g][0], 'aria-pressed': String(state.filters.groups[g]),
@@ -410,10 +465,21 @@
         else if (state.focus) { requestSnippet({ nodeId: state.focus.focusId }, false); }
     }
 
+    /** Zoomed out around a class, only the layers that take part in its trail matter; the others fade out of the bar. */
+    function involvedLayers() {
+        if (!state.focus || (state.lod !== 'groups' && state.lod !== 'folders')) { return null; }
+        const set = new Set([state.focus.center.layer]);
+        ['left', 'right'].forEach(function (side) {
+            state.focus[side].forEach(function (g) { g.cards.forEach(function (c) { set.add(c.layer); }); });
+        });
+        return set;
+    }
+
     function renderLayerFlow() {
         const strip = $('layerflow');
         strip.replaceChildren();
-        const flows = model.layerFlow();
+        const involved = involvedLayers();
+        const flows = model.layerFlow().filter(function (f) { return !involved || (involved.has(f.from) && involved.has(f.to)); });
         const get = function (a, b) { return flows.find(function (f) { return f.from === a && f.to === b; }); };
         strip.appendChild(el('span', { class: 'flow-label', text: t('trail.layerFlow') }));
 
@@ -437,15 +503,16 @@
         }
 
         const shown = new Set();
-        FLOW_ORDER.forEach(function (layer, i) {
+        const order = FLOW_ORDER.filter(function (layer) { return !involved || involved.has(layer); });
+        order.forEach(function (layer, i) {
             strip.appendChild(pill(layer));
-            if (i < FLOW_ORDER.length - 1) {
-                const f = get(layer, FLOW_ORDER[i + 1]);
+            if (i < order.length - 1) {
+                const f = get(layer, order[i + 1]);
                 strip.appendChild(el('span', { class: 'flow-arrow' }, '->', f ? flowChip(f) : null));
                 if (f) { shown.add(f.from + '>' + f.to); }
             }
         });
-        strip.appendChild(pill('utility'));
+        if (!involved || involved.has('utility')) { strip.appendChild(pill('utility')); }
 
         flows.filter(function (f) { return !shown.has(f.from + '>' + f.to); })
             .sort(function (a, b) { return (b.violation - a.violation) || (b.count - a.count); })
@@ -471,16 +538,20 @@
         const token = ++state.renderToken;
         columns.replaceChildren();
         $('edges').replaceChildren();
+        state.depGroups = [];
         const current = trail.current();
         state.depFocus = current ? model.focus(current) : null;
         state.focusFull = state.depFocus && state.trace ? traceFocus(state.depFocus) : state.depFocus;
         state.focus = state.focusFull ? limitFocus(state.focusFull) : null;
         if (state.focus) { renderFocus(state.focus, columns); } else { renderOverview(columns); }
+        renderLayerFlow();
         renderPaint();
 
         const finish = function () {
             if (token !== state.renderToken) { return; }
+            syncSizer();
             drawEdges(animate && !REDUCED_MOTION);
+            applyHeat();
             renderPaint();
         };
         if (animate && !REDUCED_MOTION) {
@@ -493,12 +564,50 @@
         }
     }
 
+    /** Re-buckets the neighbour boxes by the folder of their file, the way Sourcetrail groups nodes by namespace. */
+    function byFolder(groups) {
+        const buckets = new Map();
+        groups.forEach(function (g) {
+            g.cards.forEach(function (c) {
+                const name = model.folderOf(c.id) || t('trail.folder.root');
+                if (!buckets.has(name)) { buckets.set(name, { layer: 'folder:' + name, folder: name, label: name, colorLayer: c.layer, cards: [] }); }
+                buckets.get(name).cards.push(c);
+            });
+        });
+        return Array.from(buckets.values()).sort(function (a, b) { return b.cards.length - a.cards.length || a.label.localeCompare(b.label); });
+    }
+
+    /** Crossing into or out of the folder level changes which container holds the boxes, so the stage is built again. */
+    function regroupFor(lod, prev) {
+        const want = lod === 'folders' ? 'folder' : 'layer';
+        if (want === state.groupBy || prev === undefined) { return false; }
+        state.groupBy = want;
+        return true;
+    }
+    /** The focused box keeps its place on screen across the rebuild, so zooming back in returns to what was being looked at. */
+    function refit(anchor, contentY, ay) {
+        renderStage({ animate: true });
+        syncSizer();
+        const stage = $('stage');
+        const box = stage.getBoundingClientRect();
+        const node = document.querySelector('.card.center');
+        if (anchor && node) {
+            const r = node.getBoundingClientRect();
+            stage.scrollLeft += (r.left - box.left) - anchor.x;
+            stage.scrollTop += (r.top - box.top) - anchor.y;
+        } else {
+            stage.scrollLeft = 0;
+            stage.scrollTop = Math.max(0, contentY * state.scale - ay);
+        }
+        trackEdges(450);
+    }
+
     /** A hub can have hundreds of neighbours: only the most connected ones are drawn until the user asks for the rest. */
     function limitFocus(f) {
         const left = M.limitCards(f.left, state.expand.left ? Infinity : MAX_CARDS_PER_SIDE);
         const right = M.limitCards(f.right, state.expand.right ? Infinity : MAX_CARDS_PER_SIDE);
         return Object.assign({}, f, {
-            left: left.groups, right: right.groups,
+            left: state.groupBy === 'folder' ? byFolder(left.groups) : left.groups, right: state.groupBy === 'folder' ? byFolder(right.groups) : right.groups,
             hidden: { left: left.hidden, right: right.hidden }, total: { left: left.total, right: right.total }
         });
     }
@@ -552,6 +661,43 @@
         return el('span', { class: 'badge ' + (extraClass || ''), title: tip, text: text });
     }
 
+    /**
+     * Libraries the project imports, as bundles: one box per origin (Flutter, packages, Dart SDK) that unfolds
+     * into the libraries it holds. Picking one focuses it, to see which classes import it.
+     */
+    function libraryBundles() {
+        const groups = model.libraries();
+        if (!groups.length) { return null; }
+        const total = groups.reduce(function (n, g) { return n + g.items.length; }, 0);
+        const section = el('div', { class: 'overview-libs' },
+            el('h3', null, ico('package', 15), t('trail.deps.libraries'), el('span', { class: 'n', text: String(total) })),
+            el('p', { class: 'overview-hint', text: t('trail.deps.librariesHint') }));
+        const row = el('div', { class: 'lib-bundles' });
+        groups.forEach(function (g) {
+            const open = state.libOpen.has(g.kind);
+            const head = el('div', { class: 'dep-group-head', title: t('trail.tip.deps.' + g.kind) },
+                ico(DEP_ICON[g.kind], 14), el('span', { class: 'dep-group-name', text: t('trail.deps.' + g.kind) }),
+                el('span', { class: 'badge count', text: String(g.items.length) }),
+                el('span', { class: 'band-chevron' }, ico(open ? 'arrow-up' : 'arrow-down', 12)));
+            const box = el('div', { class: 'dep-group lib-bundle dep-' + g.kind + (open ? ' user-open' : ' user-closed'), 'data-kind': g.kind }, head);
+            const pills = el('div', { class: 'dep-pills' });
+            g.items.forEach(function (item) {
+                const pill = el('span', { class: 'dep-pill', title: t('trail.tip.pill', item.name) },
+                    item.name, el('span', { class: 'pill-count', text: String(item.users) }));
+                clickable(pill, function () { navigate(item.id); });
+                pills.appendChild(pill);
+            });
+            box.appendChild(pills);
+            clickable(head, function () {
+                if (open) { state.libOpen.delete(g.kind); } else { state.libOpen.add(g.kind); }
+                renderStage({ animate: false });
+            });
+            row.appendChild(box);
+        });
+        section.appendChild(row);
+        return section;
+    }
+
     function folderSelect() {
         const folders = model.folders();
         if (folders.length < 2) { return null; }
@@ -570,6 +716,30 @@
         return el('label', { class: 'folder-filter', title: t('trail.tip.folder') }, ico('class', 13), t('trail.folder.label'), select);
     }
 
+    /** The overview at the folder level: the classes of every layer re-bucketed by the folder of their file. */
+    function overviewFolders(o) {
+        const buckets = new Map();
+        o.layers.forEach(function (l) {
+            l.classes.forEach(function (c) {
+                const name = model.folderOf(c.id) || t('trail.folder.root');
+                if (!buckets.has(name)) { buckets.set(name, { key: 'folder:' + name, layer: 'utility', label: name, folder: model.folderOf(c.id) || '', classes: [] }); }
+                buckets.get(name).classes.push(c);
+            });
+        });
+        return Array.from(buckets.values()).sort(function (a, b) { return b.classes.length - a.classes.length || a.label.localeCompare(b.label); });
+    }
+
+    /** At the far levels a column of the overview is a summary: clicking it zooms in on that layer or folder. */
+    function overviewZoomInto(bucket, byFolders) {
+        if (state.lod !== 'groups' && state.lod !== 'folders') { return; }
+        if (byFolders) { state.folder = bucket.folder; state.groupBy = 'layer'; }
+        else { state.overviewOpen.add(bucket.key); }
+        state.zoom = 1;
+        applyZoom();
+        state.groupBy = 'layer';
+        renderStage({ animate: true });
+    }
+
     function renderOverview(columns) {
         const o = model.overview(state.folder === null ? undefined : { folder: state.folder });
         const total = o.layers.reduce(function (n, l) { return n + l.classes.length; }, 0);
@@ -583,16 +753,21 @@
         columns.appendChild(el('div', { class: 'overview-head' },
             el('p', { class: 'overview-hint' }, ico('pointer', 14), t('trail.overviewHint')), picker));
         const grid = el('div', { id: 'overview' });
-        o.layers.forEach(function (l) {
-            const col = el('div', { class: 'overview-col layer-' + l.layer + (state.layerEmphasis && state.layerEmphasis !== l.layer ? ' dim' : ''), title: t('hud.layer.' + l.layer) });
-            col.appendChild(el('h3', null, ico('layer-' + l.layer, 15), layerLabel(l.layer), el('span', { class: 'n', text: String(l.classes.length) })));
-            const open = state.overviewOpen.has(l.layer);
+        const byFolders = state.groupBy === 'folder';
+        const buckets = byFolders ? overviewFolders(o) : o.layers.map(function (l) { return { key: l.layer, layer: l.layer, label: layerLabel(l.layer), classes: l.classes }; });
+        buckets.forEach(function (l) {
+            const col = el('div', { class: 'overview-col layer-' + (byFolders ? 'utility folder-col' : l.layer) + (!byFolders && state.layerEmphasis && state.layerEmphasis !== l.layer ? ' dim' : ''), title: byFolders ? l.label : t('hud.layer.' + l.layer) });
+            col.appendChild(el('h3', null, byFolders ? ico('folder', 15) : ico('layer-' + l.layer, 15), el('span', { class: 'band-title', text: l.label }), el('span', { class: 'n', text: String(l.classes.length) })));
+            const chips = el('div', { class: 'group-chips' });
+            l.classes.slice(0, 6).forEach(function (c) { chips.appendChild(chipFor(c)); });
+            if (l.classes.length > 6) { chips.appendChild(el('span', { class: 'group-chip more', text: '+' + (l.classes.length - 6) })); }
+            col.appendChild(chips);
+            clickable(col.querySelector('h3'), function () { overviewZoomInto(l, byFolders); });
+            const open = state.overviewOpen.has(l.key);
             (open ? l.classes : l.classes.slice(0, MAX_OVERVIEW_PER_LAYER)).forEach(function (c) {
-                const badge = sourceBadge(c.source);
                 const item = el('button', { class: 'overview-item layer-' + c.layer + (c.inDeg + c.outDeg === 0 ? ' idle' : ''), 'data-id': c.id, title: c.label + ' — ' + t('trail.tip.member') },
                     kindIcon(c.kind, 14),
                     el('span', { class: 'name', text: c.label }),
-                    badge ? countBadge(badge, t('hud.boxes.source'), 'source') : null,
                     ioBadge(c.inDeg, c.outDeg, 'badge io'));
                 item.addEventListener('click', function () { navigate(c.id); });
                 col.appendChild(item);
@@ -602,7 +777,7 @@
                 const toggle = el('button', { class: 'more-toggle', title: t('trail.tip.showMore') },
                     ico(open ? 'arrow-up' : 'arrow-down', 12), open ? t('trail.less') : t('trail.more.side', String(hiddenCount)));
                 toggle.addEventListener('click', function () {
-                    if (open) { state.overviewOpen.delete(l.layer); } else { state.overviewOpen.add(l.layer); }
+                    if (open) { state.overviewOpen.delete(l.key); } else { state.overviewOpen.add(l.key); }
                     renderStage({ animate: false });
                 });
                 col.appendChild(toggle);
@@ -610,20 +785,24 @@
             grid.appendChild(col);
         });
         columns.appendChild(grid);
+        const libs = libraryBundles();
+        if (libs) { columns.appendChild(libs); }
     }
 
     function memberRow(m, extra) {
         const inFlow = state.trace && state.trace.nodeIds.has(m.id);
         const kindClass = (m.kind === 'method' || m.kind === 'function' || m.kind === 'constructor') ? ' kind-method'
             : (m.kind === 'field' || m.kind === 'property') ? ' kind-field' : '';
+        const isLibraryFile = m.kind === 'library';
+        const resolvable = isLibraryFile && !!importTargets[m.uri];
         const row = el('div', {
-            class: 'member' + kindClass + (extra && extra.active ? ' active' : '') + (inFlow ? ' in-flow' : ''), 'data-id': m.id,
-            title: m.label + ' — ' + t('trail.tip.member')
+            class: 'member' + (isLibraryFile ? ' kind-lib' + (resolvable ? '' : ' missing') : kindClass) + (extra && extra.active ? ' active' : '') + (inFlow ? ' in-flow' : ''), 'data-id': m.id,
+            title: isLibraryFile ? m.label + ' — ' + (resolvable ? t('trail.tip.libFile') : t('trail.tip.libFileMissing')) : m.label + ' — ' + t('trail.tip.member')
         },
             el('span', { class: 'mk' }, kindIcon(m.kind, 12)),
             el('span', { class: 'label', text: m.label }),
             extra && extra.io ? ioBadge(extra.io.inCount, extra.io.outCount) : null);
-        return clickable(row, function () { navigate(m.id); });
+        return clickable(row, function () { if (isLibraryFile) { openLibraryFile(m.uri); } else { navigate(m.id); } });
     }
 
     function applyOffset(node, key) {
@@ -642,11 +821,9 @@
             class: 'card' + (card.violation ? ' violation' : '') + (dim ? ' dim' : '') + (traced ? ' in-flow' : ''),
             'data-id': card.id, 'data-side': side, 'data-key': key, 'data-layer': card.layer
         });
-        const badge = sourceBadge(card.source);
         const head = el('div', { class: 'card-head', title: (card.violation ? t('trail.violation') + '. ' : '') + t('trail.tip.card') },
             kindIcon(card.kind, 15),
             el('span', { class: 'name', text: card.label }),
-            badge ? countBadge(badge, t('hud.boxes.source'), 'source') : null,
             countBadge(String(card.edgeCount), t('trail.tip.count'), 'count'));
         clickable(head, function () { navigate(card.id); });
         makeDraggable(head, node, key);
@@ -655,10 +832,138 @@
             const list = el('div', { class: 'members' });
             card.members.slice(0, 6).forEach(function (m) { list.appendChild(memberRow(m)); });
             if (card.members.length > 6) { list.appendChild(el('div', { class: 'card-foot', text: t('trail.more', String(card.members.length - 6)) })); }
-            node.appendChild(list);
+            node.appendChild(el('div', { class: 'members-wrap' }, list));
         }
         applyOffset(node, key);
         return node;
+    }
+
+    /* ---------- audit: cycles, layer violations and a heat map ---------- */
+    const AUDIT_METRICS = ['risk', 'coupling', 'size', 'cycles'];
+
+    // Below this the class is left in its layer colour: the map should point at a few boxes, not paint all of them.
+    const HEAT_FLOOR = 0.2;
+
+    function heatColor(h) {
+        // One hue from pale to red, like the hotspot scale of CodeScene: the redder, the riskier.
+        return 'color-mix(in srgb, #e5484d ' + Math.round(6 + Math.pow(h, 1.4) * 74) + '%, #ffffff)';
+    }
+
+    /** Paints every box with the heat of its class; containers take the heat of the hottest box inside. */
+    function applyHeat() {
+        document.querySelectorAll('.heat, .heat-box').forEach(function (n) {
+            if (n.dataset.baseTitle !== undefined) { n.title = n.dataset.baseTitle; delete n.dataset.baseTitle; }
+            n.classList.remove('heat', 'heat-box');
+            n.style.removeProperty('--heat-bg');
+            n.removeAttribute('data-heat');
+        });
+        if (!state.audit.on) { return; }
+        const metric = state.audit.metric;
+        const audit = model.audit();
+        const heatFor = function (id) { return model.heatOf(id, metric); };
+        document.querySelectorAll('.overview-item[data-id], .card[data-id], .group-chip[data-id]').forEach(function (n) {
+            const h = heatFor(n.dataset.id);
+            if (h < HEAT_FLOOR) { return; }
+            n.classList.add('heat');
+            n.style.setProperty('--heat-bg', heatColor(h));
+            n.dataset.heat = String(Math.round(h * 100));
+            const info = audit.classes.get(model.ownerOf(n.dataset.id));
+            if (info && info.reasons.length) {
+                if (n.dataset.baseTitle === undefined) { n.dataset.baseTitle = n.title || ''; }
+                n.title = (n.dataset.baseTitle ? n.dataset.baseTitle + '\n\n' : '') + t('trail.audit.why') + ':\n' + info.reasons.map(function (r) { return reasonIcon(r) + ' ' + reasonText(r); }).join('\n');
+            }
+        });
+        document.querySelectorAll('.layer-group, .overview-col').forEach(function (box) {
+            let top = 0;
+            box.querySelectorAll('[data-id]').forEach(function (n) { top = Math.max(top, Number(n.dataset.heat || 0)); });
+            if (top >= HEAT_FLOOR * 100) {
+                box.classList.add('heat-box');
+                box.style.setProperty('--heat-bg', heatColor(top / 100));
+                box.dataset.heat = String(top);
+            }
+        });
+    }
+
+    function reasonText(r) {
+        if (r.type === 'cycle') { return t('trail.audit.why.cycle', r.names.slice(0, 3).join(', ') + (r.names.length > 3 ? ' +' + (r.names.length - 3) : '')); }
+        if (r.type === 'violation') { return t('trail.audit.why.violation', r.names.join(', ')); }
+        if (r.type === 'god') { return t('trail.audit.why.god', String(r.wmc), String(r.atfd), String(Math.round(r.tcc * 100))); }
+        if (r.type === 'coupling') { return t('trail.audit.why.coupling', String(r.value), String(r.max)); }
+        return t('trail.audit.why.size', String(r.value), String(r.max));
+    }
+    function reasonIcon(r) { return r.type === 'cycle' ? '↻' : r.type === 'violation' ? '⚠' : r.type === 'coupling' ? '⇄' : r.type === 'god' ? '⚖' : '▤'; }
+
+    function renderAudit() {
+        const panel = $('auditpanel');
+        $('btn-audit').setAttribute('aria-pressed', String(state.audit.on));
+        panel.hidden = !state.audit.on;
+        panel.replaceChildren();
+        if (!state.audit.on) { return; }
+        const a = model.audit();
+        const gods = a.hotspots.filter(function (c) { return c.god; }).length;
+
+        const head = el('div', { class: 'audit-head' }, ico('flame', 15), el('span', { class: 'audit-title', text: t('trail.audit.title') }));
+        AUDIT_METRICS.forEach(function (m) {
+            const chip = el('button', { class: 'chip-toggle', 'aria-pressed': String(state.audit.metric === m), title: t('trail.audit.tip.' + m), text: t('trail.audit.metric.' + m) });
+            chip.addEventListener('click', function () { state.audit.metric = m; renderAudit(); applyHeat(); });
+            head.appendChild(chip);
+        });
+        head.appendChild(el('span', { class: 'heat-legend', title: t('trail.audit.legendTip') },
+            el('span', { text: t('trail.audit.low') }), el('span', { class: 'heat-bar' }), el('span', { text: t('trail.audit.high') })));
+        panel.appendChild(head);
+
+        function list(title, count, rows, empty) {
+            const col = el('div', { class: 'audit-col' }, el('h4', null, title, el('span', { class: 'badge', text: String(count) })));
+            if (!rows.length) { col.appendChild(el('div', { class: 'audit-empty', text: empty })); }
+            rows.forEach(function (r) { col.appendChild(r); });
+            return col;
+        }
+        function classLink(id, label, layer) {
+            const b = el('button', { class: 'audit-link layer-' + layer, title: t('trail.tip.member'), text: label });
+            b.addEventListener('click', function () { navigate(id); });
+            return b;
+        }
+        const cycleRows = a.cycles.slice(0, 6).map(function (c) {
+            const row = el('div', { class: 'audit-row cycle' }, el('span', { class: 'audit-flag', title: t('trail.audit.tip.cycle', String(c.size)) }, '↻ ' + c.size));
+            c.members.slice(0, 5).forEach(function (m) { row.appendChild(classLink(m.id, m.label, m.layer)); });
+            if (c.members.length > 5) { row.appendChild(el('span', { class: 'audit-more', text: '+' + (c.members.length - 5) })); }
+            return row;
+        });
+        const violationRows = a.violations.slice(0, 8).map(function (v) {
+            return el('div', { class: 'audit-row violation' }, ico('warning', 12),
+                classLink(v.source, v.sourceLabel, v.from), el('span', { class: 'audit-arrow', text: '->' }), classLink(v.target, v.targetLabel, v.to),
+                el('span', { class: 'audit-more', title: t('trail.audit.tip.violation', layerLabel(v.from), layerLabel(v.to)), text: '×' + v.count }));
+        });
+        const hotRows = a.hotspots.slice(0, 8).map(function (c) {
+            const score = state.audit.metric === 'risk' ? c.risk : c.parts[state.audit.metric];
+            const row = el('div', { class: 'audit-row hot' }, classLink(c.id, c.label, c.layer),
+                el('span', { class: 'audit-meter', title: Math.round(score * 100) + '%', style: '--heat-bg:' + heatColor(score) + ';--w:' + Math.round(score * 100) + '%' }),
+                c.god ? el('span', { class: 'audit-flag', title: t('trail.audit.tip.god', String(c.wmc)) }, t('trail.audit.god')) : null);
+            const why = el('div', { class: 'audit-why' });
+            c.reasons.forEach(function (r) { why.appendChild(el('span', { class: 'why why-' + r.type, title: reasonText(r), text: reasonIcon(r) + ' ' + reasonText(r) })); });
+            return el('div', { class: 'audit-hot' }, row, why);
+        });
+        const body = el('div', { class: 'audit-body' },
+            list(t('trail.audit.cycles'), a.cycles.length, cycleRows, t('trail.audit.noCycles')),
+            list(t('trail.audit.violations'), a.violations.length, violationRows, t('trail.audit.noViolations')),
+            list(t('trail.audit.hotspots'), a.hotspots.length, hotRows, t('trail.audit.noHotspots')));
+        panel.appendChild(body);
+        if (gods) { panel.appendChild(el('div', { class: 'audit-foot', text: t('trail.audit.godNote', String(gods)) })); }
+    }
+
+    function setAudit(on) {
+        state.audit.on = on;
+        renderStage({ animate: false });
+        renderAudit();
+        syncSizer();
+    }
+
+    /** A name inside a folded container: still a target, so it can be opened without zooming back in first. */
+    function chipFor(c) {
+        const chip = el('span', { 'data-id': c.id, class: 'group-chip', title: c.label + ' — ' + t('trail.tip.member'), text: c.label });
+        clickable(chip, function () { navigate(c.id); });
+        chip.addEventListener('click', function (e) { e.stopPropagation(); });
+        return chip;
     }
 
     function sideColumn(groups, side, title, emptyText, f) {
@@ -668,11 +973,28 @@
         if (!groups.length) { col.appendChild(el('div', { class: 'empty-side', text: emptyText })); }
         groups.forEach(function (g) {
             const key = 'group:' + side + ':' + g.layer;
-            const group = el('div', { class: 'layer-group layer-' + g.layer });
-            const band = el('div', { class: 'layer-band', title: t('trail.tip.band') }, ico('layer-' + g.layer, 13), layerLabel(g.layer));
+            const title = g.label || layerLabel(g.layer);
+            const colorLayer = g.colorLayer || g.layer;
+            const mode = state.groupMode.get(side + ':' + g.layer);
+            const group = el('div', {
+                class: 'layer-group layer-' + colorLayer + (g.folder ? ' folder-group' : '') + (mode === 'open' ? ' user-open' : mode === 'closed' ? ' user-closed' : ''),
+                'data-side': side, 'data-layer': g.layer
+            });
+            const connections = g.cards.reduce(function (n, c) { return n + c.edgeCount; }, 0);
+            const band = el('div', { class: 'layer-band', title: t('trail.tip.band') },
+                g.folder ? ico('folder', 13) : ico('layer-' + g.layer, 13), el('span', { class: 'band-title', text: title }),
+                el('span', { class: 'band-count', text: t('trail.group.count', String(g.cards.length), String(connections)) }),
+                el('span', { class: 'band-chevron' }, ico('arrow-down', 12)));
             makeDraggable(band, group, key);
+            clickable(band, function () { toggleGroup(group, side, g.layer); });
+            const chips = el('div', { class: 'group-chips' });
+            g.cards.slice(0, 4).forEach(function (c) { chips.appendChild(chipFor(c)); });
+            if (g.cards.length > 4) { chips.appendChild(el('span', { class: 'group-chip more', text: '+' + (g.cards.length - 4) })); }
+            const inner = el('div', { class: 'group-inner' });
+            g.cards.forEach(function (c) { inner.appendChild(neighborCard(c, side)); });
             group.appendChild(band);
-            g.cards.forEach(function (c) { group.appendChild(neighborCard(c, side)); });
+            group.appendChild(chips);
+            group.appendChild(el('div', { class: 'group-body' }, inner));
             applyOffset(group, key);
             col.appendChild(group);
         });
@@ -700,17 +1022,28 @@
         }
         const c = f.center;
         const key = 'center:' + c.id;
+        const bandName = state.groupBy === 'folder' ? (model.folderOf(c.id) || t('trail.folder.root')) : layerLabel(c.layer);
+        const centerBand = el('div', { class: 'center-band layer-' + c.layer, title: t('trail.tip.band') },
+            state.groupBy === 'folder' ? ico('folder', 13) : ico('layer-' + c.layer, 13), el('span', { class: 'band-title', text: bandName }));
+        clickable(centerBand, function () { zoomInto(centerBand); });
+        center.appendChild(centerBand);
         const isStart = state.trace && model.ownerOf(state.trace.startId) === c.id;
         const card = el('div', { class: 'card center' + (isStart ? ' trace-start' : ''), 'data-id': c.id, 'data-key': key, 'data-layer': c.layer });
-        const badge = sourceBadge(c.source);
         const head = el('div', { class: 'card-head', title: t('trail.tip.card') },
-            kindIcon(c.kind, 16),
+            c.kind === 'package' ? ico(DEP_ICON[c.depKind] || 'package', 16) : kindIcon(c.kind, 16),
             el('span', { class: 'name', text: c.label }),
-            badge ? countBadge(badge, t('hud.boxes.source'), 'source') : null,
-            el('span', { class: 'badge', title: t('hud.layer.' + c.layer) }, ico('layer-' + c.layer, 11), layerLabel(c.layer)));
+            c.kind === 'package'
+                ? el('span', { class: 'badge', title: t('trail.tip.deps.' + c.depKind) }, ico(DEP_ICON[c.depKind] || 'package', 11), t('trail.deps.' + c.depKind))
+                : el('span', { class: 'badge', title: t('hud.layer.' + c.layer) }, ico('layer-' + c.layer, 11), layerLabel(c.layer)));
         clickable(head, function () { navigate(c.id); });
         makeDraggable(head, card, key);
         card.appendChild(head);
+        const auditInfo = state.audit.on && c.kind !== 'package' ? model.audit().classes.get(c.id) : null;
+        if (auditInfo && auditInfo.reasons.length) {
+            const why = el('div', { class: 'card-why', title: t('trail.audit.why') });
+            auditInfo.reasons.forEach(function (r) { why.appendChild(el('span', { class: 'why why-' + r.type, text: reasonIcon(r) + ' ' + reasonText(r) })); });
+            card.appendChild(why);
+        }
         if (c.members.some(function (m) { return m.inCount || m.outCount; })) {
             card.appendChild(el('div', { class: 'io-legend', title: t('trail.tip.inout') },
                 el('span', { class: 'io-in', text: '↘ ' + t('trail.legend.in') }), ' · ', el('span', { class: 'io-out', text: '↗ ' + t('trail.legend.out') })));
@@ -728,22 +1061,80 @@
                 toggle.addEventListener('click', function () { state.expandMembers = !state.expandMembers; renderStage({ animate: false }); });
                 list.appendChild(toggle);
             }
-            card.appendChild(list);
+            card.appendChild(el('div', { class: 'members-wrap' }, list));
         }
         if (c.internalCount) { card.appendChild(el('div', { class: 'card-foot', text: t('trail.internal', String(c.internalCount)) })); }
         applyOffset(card, key);
         center.appendChild(card);
-        const trace = el('button', { title: t('trail.tip.traceButton') }, ico('trace', 14), t('trail.traceFlow'));
-        trace.addEventListener('click', function () { startTrace(f.focusId); });
-        center.appendChild(el('div', { class: 'center-actions' }, trace));
+        if (!f.isLibrary) {
+            const trace = el('button', { title: t('trail.tip.traceButton') }, ico('trace', 14), t('trail.traceFlow'));
+            trace.addEventListener('click', function () { startTrace(f.focusId); });
+            center.appendChild(el('div', { class: 'center-actions' }, trace));
+        }
 
         const leftTitle = f.traceMode ? t('trail.trace.leftTitle') : t('trail.usedBy');
         const rightTitle = f.traceMode ? t('trail.trace.rightTitle') : t('trail.uses');
         const leftEmpty = f.traceMode ? t('trail.trace.empty') : t('trail.noneUsedBy');
         const rightEmpty = f.traceMode ? t('trail.trace.empty') : t('trail.noneUses');
+        const rail = dependencyRail(f);
+        const rightCol = sideColumn(f.right, 'right', rightTitle, rightEmpty, f);
+        if (rail) { rightCol.appendChild(rail); }
         columns.appendChild(sideColumn(f.left, 'left', leftTitle, leftEmpty, f));
         columns.appendChild(center);
-        columns.appendChild(sideColumn(f.right, 'right', rightTitle, rightEmpty, f));
+        columns.appendChild(rightCol);
+    }
+
+    /**
+     * The strip above the focused class with what its file imports, split by where it comes from. Arrows rise from the
+     * class to each group because the class depends on them. Only imports are known for packages and the SDK: their
+     * classes are not analysed, so they are shown as packages, not as boxes of classes.
+     */
+    const DEP_ICON = { flutter: 'layer-view', package: 'package', sdk: 'sdk' };
+    function dependencyRail(f) {
+        if (state.trace) { return null; }
+        const all = model.dependenciesOf(f.focusId);
+        if (!all.length) { return null; }
+        const visible = all.filter(function (g) { return state.deps[g.kind]; });
+        state.depGroups = visible;
+
+        const head = el('div', { class: 'dep-head' }, ico('package', 15), el('span', { class: 'dep-title', text: t('trail.deps.title') }));
+        all.forEach(function (g) {
+            const chip = el('button', { class: 'dep-chip dep-' + g.kind, 'aria-pressed': String(!!state.deps[g.kind]), title: t('trail.tip.deps.' + g.kind) },
+                ico(DEP_ICON[g.kind], 13), t('trail.deps.' + g.kind), el('span', { class: 'badge', text: String(g.packages.length) }));
+            chip.addEventListener('click', function () {
+                state.deps[g.kind] = !state.deps[g.kind];
+                if (state.sel && state.sel.dep === g.kind) { resetSelection(); }
+                renderStage({ animate: false });
+                renderRefs();
+            });
+            head.appendChild(chip);
+        });
+
+        const body = el('div', { class: 'dep-groups' });
+        visible.forEach(function (g) {
+            const key = 'dep:' + g.kind;
+            const mode = state.groupMode.get(key);
+            const groupHead = el('div', { class: 'dep-group-head', title: t('trail.tip.depGroup') },
+                ico(DEP_ICON[g.kind], 14), el('span', { class: 'dep-group-name', text: t('trail.deps.' + g.kind) }),
+                el('span', { class: 'badge count', text: String(g.packages.length) }),
+                el('span', { class: 'band-chevron' }, ico('arrow-down', 12)));
+            const box = el('div', { class: 'dep-group dep-' + g.kind + (mode === 'open' ? ' user-open' : mode === 'closed' ? ' user-closed' : ''), 'data-kind': g.kind }, groupHead);
+            const pills = el('div', { class: 'dep-pills' });
+            g.packages.forEach(function (p) {
+                const pill = el('span', {
+                    'data-pkg': p.name, 'data-count': String(p.count), class: 'dep-pill', title: t('trail.tip.pill', p.name) + '\n' + p.imports.map(function (i) { return i.uri; }).join('\n'),
+                    text: p.name + (p.count > 1 ? ' ×' + p.count : '')
+                });
+                clickable(pill, function () { navigate(p.id); });
+                pills.appendChild(pill);
+            });
+            box.appendChild(pills);
+            clickable(groupHead, function () { toggleDepGroup(box, g.kind); });
+            makeDraggable(groupHead, box, key);
+            applyOffset(box, key);
+            body.appendChild(box);
+        });
+        return el('div', { class: 'dep-col', 'aria-label': t('trail.deps.title') }, head, body);
     }
 
     /* ---------- dragging boxes ---------- */
@@ -757,10 +1148,10 @@
             let moved = false;
 
             function onMove(ev) {
-                const dx = ev.clientX - startX;
-                const dy = ev.clientY - startY;
+                const dx = (ev.clientX - startX) / state.scale;
+                const dy = (ev.clientY - startY) / state.scale;
                 if (!moved) {
-                    if (Math.hypot(dx, dy) < DRAG_THRESHOLD) { return; }
+                    if (Math.hypot(dx, dy) * state.scale < DRAG_THRESHOLD) { return; }
                     moved = true;
                     target.classList.add('dragging');
                     try { handle.setPointerCapture(e.pointerId); } catch (err) { /* pointer already released */ }
@@ -783,6 +1174,156 @@
             window.addEventListener('pointercancel', onUp);
         });
     }
+    /* ---------- zoom and levels of detail ---------- */
+    function clampZoom(z) { return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100)); }
+
+    /** Detail follows the zoom: close up everything is open; further out members fold, then each layer folds into a summary. */
+    function lodFor(z) { return z >= 0.8 ? 'detail' : z >= 0.5 ? 'cards' : z >= 0.33 ? 'groups' : 'folders'; }
+
+    /**
+     * What is drawn grows less than the number says: below 50% the boxes have folded into containers, so the diagram is
+     * already small and shrinking it further would only leave empty space and unreadable text.
+     */
+    function scaleFor(z) { return z >= 0.5 ? z : 0.75 + (z - ZOOM_MIN) / (0.5 - ZOOM_MIN) * 0.25; }
+
+    /** Redraws the arrows on every frame for a while, so they follow boxes that are growing or shrinking. */
+    function trackEdges(ms) {
+        state.trackUntil = Math.max(state.trackUntil, performance.now() + ms);
+        if (state.tracking) { return; }
+        state.tracking = true;
+        (function loop() {
+            drawEdges(false);
+            syncSizer();
+            if (performance.now() < state.trackUntil) { requestAnimationFrame(loop); }
+            else { state.tracking = false; }
+        })();
+    }
+
+    /** The scaled canvas keeps its layout size, so the scrollable area is sized by hand. */
+    function syncSizer() {
+        const canvas = $('canvas');
+        const stage = $('stage');
+        const z = state.scale;
+        const w = stage.clientWidth;
+        if (z >= 1) {
+            // Zoomed in the layout gets narrower, so the scaled canvas still fills the width and scrolls vertically.
+            canvas.style.width = (w / z) + 'px';
+            canvas.style.marginLeft = '0px';
+        } else {
+            // Zoomed out the diagram just gets smaller and stays centred, instead of spreading its columns apart.
+            canvas.style.width = w + 'px';
+            canvas.style.marginLeft = Math.round(w * (1 - z) / 2) + 'px';
+        }
+        $('zoomsizer').style.height = Math.ceil(canvas.scrollHeight * z) + 'px';
+        layoutPaintSheet();
+    }
+
+    /**
+     * The drawing sheet covers the whole viewer, not only the diagram: when zoomed out the diagram is smaller than
+     * the viewer and there is room around it to annotate. The viewBox keeps shapes in canvas coordinates.
+     */
+    function layoutPaintSheet() {
+        const canvas = $('canvas');
+        const sheet = $('paint');
+        const z = state.scale;
+        const margin = parseFloat(canvas.style.marginLeft) || 0;
+        const x0 = z < 1 ? -margin / z : 0;
+        const width = z < 1 ? $('stage').clientWidth / z : canvas.clientWidth;
+        const height = canvas.scrollHeight;
+        sheet.style.left = x0 + 'px';
+        sheet.style.width = width + 'px';
+        sheet.setAttribute('height', String(height));
+        sheet.setAttribute('viewBox', x0 + ' 0 ' + width + ' ' + height);
+    }
+
+    function applyZoom() {
+        const canvas = $('canvas');
+        state.scale = scaleFor(state.zoom);
+        canvas.style.transform = 'scale(' + state.scale + ')';
+        syncSizer();
+        const lod = lodFor(state.zoom);
+        const changed = lod !== state.lod;
+        state.lod = lod;
+        if (changed) { renderLayerFlow(); }
+        canvas.classList.remove('lod-detail', 'lod-cards', 'lod-groups', 'lod-folders');
+        canvas.classList.add('lod-' + lod);
+        if (lod === 'folders') { canvas.classList.add('lod-groups'); }
+        const label = $('zoom-label');
+        label.textContent = Math.round(state.zoom * 100) + '%';
+        $('btn-zoom-in').disabled = state.zoom >= ZOOM_MAX;
+        $('btn-zoom-out').disabled = state.zoom <= ZOOM_MIN;
+        return changed;
+    }
+
+    /** Zooms around a point of the screen (the centre of the diagram when none is given). */
+    function setZoom(next, clientX, clientY, smooth) {
+        const z0 = state.scale;
+        const z1 = clampZoom(next);
+        if (z1 === state.zoom) { return; }
+        const stage = $('stage');
+        const box = stage.getBoundingClientRect();
+        const ax = (clientX === undefined ? box.left + box.width / 2 : clientX) - box.left;
+        const ay = (clientY === undefined ? box.top + box.height / 2 : clientY) - box.top;
+        const canvas = $('canvas');
+        const margin0 = parseFloat(canvas.style.marginLeft) || 0;
+        const contentX = (stage.scrollLeft + ax - margin0) / z0;
+        const contentY = (stage.scrollTop + ay) / z0;
+        const prevLod = state.lod;
+        const centerNode = document.querySelector('.card.center');
+        const anchor = centerNode ? { x: centerNode.getBoundingClientRect().left - box.left, y: centerNode.getBoundingClientRect().top - box.top } : null;
+        state.zoom = z1;
+        const lodChanged = applyZoom();
+        if (regroupFor(state.lod, prevLod)) { return refit(anchor, contentY, ay); }
+        const margin1 = parseFloat(canvas.style.marginLeft) || 0;
+        stage.scrollLeft = contentX * state.scale + margin1 - ax;
+        stage.scrollTop = contentY * state.scale - ay;
+        if (lodChanged) { flagGroupsAnimating(); }
+        trackEdges(smooth || lodChanged ? 450 : 80);
+    }
+
+    /** Lets the layer containers clip their content while they fold or unfold, then lets boxes be dragged out again. */
+    function flagGroupsAnimating() {
+        const groups = document.querySelectorAll('.layer-group');
+        groups.forEach(function (g) { g.classList.add('anim'); });
+        clearTimeout(flagGroupsAnimating.timer);
+        flagGroupsAnimating.timer = setTimeout(function () { groups.forEach(function (g) { g.classList.remove('anim'); }); }, 450);
+    }
+
+    /** A dependency group is a bundle: its package pills fold into the title, like Sourcetrail's bundle nodes. */
+    function toggleDepGroup(groupEl, kind) {
+        const pills = groupEl.querySelector('.dep-pills');
+        const folded = window.getComputedStyle(pills).display === 'none';
+        const key = 'dep:' + kind;
+        if (folded === (state.lod !== 'groups' && state.lod !== 'folders')) { state.groupMode.delete(key); } else { state.groupMode.set(key, folded ? 'open' : 'closed'); }
+        const mode = state.groupMode.get(key);
+        groupEl.classList.toggle('user-open', mode === 'open');
+        groupEl.classList.toggle('user-closed', mode === 'closed');
+        trackEdges(200);
+    }
+
+    /** A folded container is far too small to work in: clicking it brings the zoom back to where its content is readable. */
+    function zoomInto(node) {
+        const r = node.getBoundingClientRect();
+        setZoom(1, r.left + r.width / 2, r.top + r.height / 2, true);
+    }
+
+    function toggleGroup(groupEl, side, layer) {
+        if (state.lod === 'groups' || state.lod === 'folders') { zoomInto(groupEl); return; }
+        const inner = groupEl.querySelector('.group-inner');
+        const folded = inner.getBoundingClientRect().height / state.scale < 8;
+        // Asking for what the zoom level would do anyway puts the layer back in automatic mode instead of pinning it.
+        const automaticallyOpen = state.lod !== 'groups' && state.lod !== 'folders';
+        const wantOpen = folded;
+        const key = side + ':' + layer;
+        if (wantOpen === automaticallyOpen) { state.groupMode.delete(key); } else { state.groupMode.set(key, wantOpen ? 'open' : 'closed'); }
+        const mode = state.groupMode.get(key);
+        groupEl.classList.toggle('user-open', mode === 'open');
+        groupEl.classList.toggle('user-closed', mode === 'closed');
+        groupEl.classList.add('anim');
+        setTimeout(function () { groupEl.classList.remove('anim'); }, 450);
+        trackEdges(450);
+    }
+
     function scheduleEdges() {
         if (state.edgeFrame) { return; }
         state.edgeFrame = requestAnimationFrame(function () { state.edgeFrame = 0; drawEdges(false); });
@@ -806,40 +1347,79 @@
         const centerCard = document.querySelector('.card.center');
         if (!f || !centerCard) { svg.replaceChildren(); return; }
 
-        // ---- pass 1: read the layout ----
-        const canvasRect = canvasOrigin();
-        const cr = centerCard.getBoundingClientRect();
-        const centerHead = centerCard.querySelector('.card-head').getBoundingClientRect();
+        // ---- pass 1: read the layout, in canvas units so the zoom does not matter ----
+        const z = state.scale;
+        const origin = canvasOrigin();
+        const local = function (r) {
+            return { left: (r.left - origin.left) / z, right: (r.right - origin.left) / z, top: (r.top - origin.top) / z, bottom: (r.bottom - origin.top) / z, width: r.width / z, height: r.height / z };
+        };
+        const rectOf = function (node) { return local(node.getBoundingClientRect()); };
+        const cr = rectOf(centerCard);
+        const centerHead = rectOf(centerCard.querySelector('.card-head'));
+        const membersWrap = centerCard.querySelector('.members-wrap');
+        const membersShown = !!membersWrap && membersWrap.getBoundingClientRect().height / z > 8;
         const centerMembers = new Map();
-        centerCard.querySelectorAll('.member[data-id]').forEach(function (m) { centerMembers.set(m.dataset.id, m.getBoundingClientRect()); });
+        if (membersShown) {
+            centerCard.querySelectorAll('.member[data-id]').forEach(function (m) { centerMembers.set(m.dataset.id, rectOf(m)); });
+        }
         const cardEls = new Map();
         document.querySelectorAll('.card[data-side]').forEach(function (n) { cardEls.set(n.dataset.side + ':' + n.dataset.id, n); });
+        const groupEls = new Map();
+        document.querySelectorAll('.layer-group[data-side]').forEach(function (n) { groupEls.set(n.dataset.side + ':' + n.dataset.layer, n); });
 
-        const all = [];
-        f.left.forEach(function (g) { g.cards.forEach(function (c) { all.push({ card: c, side: 'left' }); }); });
-        f.right.forEach(function (g) { g.cards.forEach(function (c) { all.push({ card: c, side: 'right' }); }); });
-
-        const shapes = [];
-        all.forEach(function (item) {
-            const card = item.card;
-            const side = item.side;
-            const cardEl = cardEls.get(side + ':' + card.id);
-            if (!cardEl) { return; }
-            const headRect = cardEl.querySelector('.card-head').getBoundingClientRect();
-            const cardRect = cardEl.getBoundingClientRect();
+        function shapeFor(card, side, box, head) {
             let anchor = null;
             for (let i = 0; i < card.centerMemberIds.length && !anchor; i++) { anchor = centerMembers.get(card.centerMemberIds[i]) || null; }
             const ar = anchor || centerHead;
-            const cy = ar.top + ar.height / 2 - canvasRect.top;
-            const ny = headRect.top + headRect.height / 2 - canvasRect.top;
+            const cy = ar.top + ar.height / 2;
+            const ny = head.top + head.height / 2;
             // Connect through the side that faces the other box, so dragging a box across the centre still reads well.
-            const cardIsLeftOfCenter = cardRect.left + cardRect.width / 2 < cr.left + cr.width / 2;
-            const cardEdgeX = (cardIsLeftOfCenter ? cardRect.right : cardRect.left) - canvasRect.left;
-            const centerEdgeX = (cardIsLeftOfCenter ? cr.left : cr.right) - canvasRect.left;
-            let x1, y1, x2, y2;
-            if (side === 'left') { x1 = cardEdgeX; y1 = ny; x2 = centerEdgeX; y2 = cy; }
-            else { x1 = centerEdgeX; y1 = cy; x2 = cardEdgeX; y2 = ny; }
-            shapes.push({ card: card, side: side, x1: x1, y1: y1, x2: x2, y2: y2 });
+            const boxIsLeftOfCenter = box.left + box.width / 2 < cr.left + cr.width / 2;
+            const boxEdgeX = boxIsLeftOfCenter ? box.right : box.left;
+            const centerEdgeX = boxIsLeftOfCenter ? cr.left : cr.right;
+            return side === 'left'
+                ? { card: card, side: side, x1: boxEdgeX, y1: ny, x2: centerEdgeX, y2: cy }
+                : { card: card, side: side, x1: centerEdgeX, y1: cy, x2: boxEdgeX, y2: ny };
+        }
+
+        const shapes = [];
+        ['left', 'right'].forEach(function (side) {
+            f[side].forEach(function (group) {
+                const groupEl = groupEls.get(side + ':' + group.layer);
+                const inner = groupEl && groupEl.querySelector('.group-inner');
+                const open = !inner || inner.getBoundingClientRect().height / z > 8;
+                if (open) {
+                    group.cards.forEach(function (card) {
+                        const cardEl = cardEls.get(side + ':' + card.id);
+                        if (cardEl) { shapes.push(shapeFor(card, side, rectOf(cardEl), rectOf(cardEl.querySelector('.card-head')))); }
+                    });
+                } else if (groupEl) {
+                    // A folded layer draws a single arrow that stands for all of its boxes.
+                    shapes.push(shapeFor(groupAsCard(group, side), side, rectOf(groupEl), rectOf(groupEl.querySelector('.layer-band'))));
+                }
+            });
+        });
+
+        // Libraries stack vertically in the "uses" column: the class depends on them, so arrows leave its right edge.
+        const depShapes = [];
+        // Each library is its own node, stacked vertically; a folded group stands for all of them with one arrow.
+        document.querySelectorAll('.dep-col .dep-group').forEach(function (g) {
+            const r = rectOf(g);
+            const toRight = r.left + r.width / 2 > cr.left + cr.width / 2;
+            const x1 = toRight ? cr.right : cr.left;
+            const y1 = centerHead.top + centerHead.height / 2;
+            const x2 = toRight ? r.left : r.right;
+            const pills = g.querySelectorAll('.dep-pill[data-pkg]');
+            const shown = pills.length && pills[0].getBoundingClientRect().height / z > 4;
+            if (shown) {
+                pills.forEach(function (pill) {
+                    const pr = rectOf(pill);
+                    depShapes.push({ kind: g.dataset.kind, name: pill.dataset.pkg, count: Number(pill.dataset.count) || 1, x1: x1, y1: y1, x2: toRight ? pr.left : pr.right, y2: pr.top + pr.height / 2 });
+                });
+            } else {
+                const h = rectOf(g.querySelector('.dep-group-head'));
+                depShapes.push({ kind: g.dataset.kind, count: null, x1: x1, y1: y1, x2: x2, y2: h.top + h.height / 2 });
+            }
         });
         const height = $('canvas').scrollHeight;
 
@@ -888,9 +1468,60 @@
             if (animate) { group.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, easing: 'ease-out', fill: 'backwards' }); }
         });
 
+        depShapes.forEach(function (s) {
+            const group = state.depGroups.find(function (g) { return g.kind === s.kind; });
+            if (!group) { return; }
+            const dx = (s.x2 - s.x1) / 2;
+            const d = 'M' + s.x1 + ',' + s.y1 + ' C' + (s.x1 + dx) + ',' + s.y1 + ' ' + (s.x2 - dx) + ',' + s.y2 + ' ' + s.x2 + ',' + s.y2;
+            const edge = svgEl('g', { class: 'edge dep dep-' + s.kind, 'data-dep': s.kind });
+            edge.appendChild(svgEl('path', { class: 'edge-path', d: d, 'stroke-width': String(1.8 + Math.min(group.packages.length, 6) * 0.5), 'marker-end': 'url(#arrow)' }));
+            const hit = svgEl('path', { class: 'hit', d: d });
+            edge.appendChild(hit);
+            const bt = 0.78;
+            const u = 1 - bt;
+            const mx = u * u * u * s.x1 + 3 * u * u * bt * (s.x1 + dx) + 3 * u * bt * bt * (s.x2 - dx) + bt * bt * bt * s.x2;
+            const my = u * u * u * s.y1 + 3 * u * u * bt * s.y1 + 3 * u * bt * bt * s.y2 + bt * bt * bt * s.y2;
+            const text = String(s.count === null || s.count === undefined ? group.total : s.count);
+            const w = 12 + text.length * 7;
+            const chip = svgEl('g', { class: 'edge-chip' });
+            chip.appendChild(svgEl('rect', { x: String(mx - w / 2), y: String(my - 9), width: String(w), height: '18', rx: '9' }));
+            const label = svgEl('text', { x: String(mx), y: String(my) });
+            label.textContent = text;
+            chip.appendChild(label);
+            const title = svgEl('title');
+            title.textContent = t('trail.tip.depGroup');
+            chip.appendChild(title);
+            edge.appendChild(chip);
+            const select = function () { selectDependency(s.kind); };
+            hit.addEventListener('click', select);
+            chip.addEventListener('click', select);
+            frag.appendChild(edge);
+            if (animate) { edge.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, easing: 'ease-out', fill: 'backwards' }); }
+        });
+
         svg.setAttribute('height', String(height));
         svg.replaceChildren(frag);
         applySelectionStyles();
+    }
+
+    /** Stands in for every box of a folded layer: one arrow whose counter adds up all of their connections. */
+    function groupAsCard(group, side) {
+        const byLabel = {};
+        const refs = [];
+        const centerMemberIds = [];
+        let edgeCount = 0;
+        let violation = false;
+        group.cards.forEach(function (c) {
+            edgeCount += c.edgeCount;
+            violation = violation || c.violation;
+            Object.keys(c.byLabel).forEach(function (l) { byLabel[l] = (byLabel[l] || 0) + c.byLabel[l]; });
+            c.refs.forEach(function (r) { refs.push(r); });
+            c.centerMemberIds.forEach(function (id) { if (centerMemberIds.indexOf(id) < 0) { centerMemberIds.push(id); } });
+        });
+        return {
+            id: 'group:' + side + ':' + group.layer, label: group.label || layerLabel(group.layer), kind: 'class', layer: group.colorLayer || group.layer, edgeCount: edgeCount,
+            byLabel: byLabel, dominantLabel: M.dominantLabel(byLabel), refs: refs, centerMemberIds: centerMemberIds, memberIds: [], members: [], violation: violation, aggregated: true
+        };
     }
 
     /* ---------- refs list + code ---------- */
@@ -909,8 +1540,18 @@
                 f.left.forEach(function (g) { g.cards.forEach(function (c) { cards.push({ c: c, side: 'left' }); }); });
                 f.right.forEach(function (g) { g.cards.forEach(function (c) { cards.push({ c: c, side: 'right' }); }); });
             }
-            if (!cards.length) { box.appendChild(el('div', { class: 'ref-empty', text: f ? t('trail.noneUses') : t('trail.pickConnection') })); return; }
+            if (!cards.length && !state.depGroups.length) { box.appendChild(el('div', { class: 'ref-empty', text: f ? t('trail.noneUses') : t('trail.pickConnection') })); return; }
             box.appendChild(el('div', { class: 'ref-empty', text: t('trail.pickConnection') }));
+            state.depGroups.forEach(function (g) {
+                const row = el('div', { class: 'ref-row dep-ref dep-' + g.kind },
+                    el('div', { class: 'ref-line' },
+                        el('span', { class: 'verb', text: t('trail.deps.' + g.kind) }),
+                        ico('arrow-up', 12),
+                        el('span', { class: 'ref-name', text: g.packages.map(function (p) { return p.name; }).slice(0, 3).join(', ') + (g.packages.length > 3 ? '…' : '') }),
+                        el('span', { class: 'badge count', title: t('trail.tip.depGroup'), text: String(g.total) })));
+                clickable(row, function () { selectDependency(g.kind); });
+                box.appendChild(row);
+            });
             cards.forEach(function (item) {
                 const row = el('div', { class: 'ref-row e-' + item.c.dominantLabel },
                     el('div', { class: 'ref-line' },
@@ -919,6 +1560,18 @@
                         el('span', { class: 'ref-name', text: item.c.label }),
                         el('span', { class: 'badge count', title: t('trail.tip.count'), text: String(item.c.edgeCount) })));
                 clickable(row, function () { selectCard(item.c, item.side); });
+                box.appendChild(row);
+            });
+            return;
+        }
+        if (code.mode === 'deps') {
+            box.appendChild(el('h4', { text: t('trail.deps.imports') + ' (' + code.refs.length + ')' }));
+            code.refs.forEach(function (ref, i) {
+                const row = el('div', { class: 'ref-row' + (i === code.active ? ' active' : '') },
+                    el('div', { class: 'ref-line' },
+                        el('span', { class: 'ref-name', text: ref.uri }),
+                        el('span', { class: 'verb', text: ':' + (ref.line + 1) })));
+                clickable(row, function () { selectImport(i, true); });
                 box.appendChild(row);
             });
             return;
@@ -1092,8 +1745,15 @@
         boxes.appendChild(hudRow(el('span', { class: 'member kind-field hud-pill' }, el('span', { class: 'mk' }, ico('field', 12)), 'field'), t('hud.boxes.field')));
         boxes.appendChild(hudRow(el('span', { class: 'badge count', text: '3' }), t('hud.boxes.count')));
         boxes.appendChild(hudRow(ioBadge(1, 2, 'badge io'), t('hud.boxes.inout')));
-        boxes.appendChild(hudRow(el('span', { class: 'badge source', text: 'SDK' }), t('hud.boxes.source')));
         panel.appendChild(boxes);
+
+        const zoom = el('section', null, el('h3', { text: t('hud.zoom') }), el('p', { class: 'hud-note', text: t('hud.zoom.levels') }), el('p', { class: 'hud-note', text: t('hud.zoom.manual') }));
+
+        const deps = el('section', null, el('h3', { text: t('hud.deps') }), el('p', { class: 'hud-note', text: t('hud.deps.rail') }));
+        [['flutter', 'layer-view'], ['package', 'package'], ['sdk', 'sdk']].forEach(function (pair) {
+            deps.appendChild(hudRow(el('span', { class: 'hud-dep dep-' + pair[0] }, ico(pair[1], 12), t('trail.deps.' + pair[0])), t('trail.tip.deps.' + pair[0])));
+        });
+        deps.appendChild(el('p', { class: 'hud-note', text: t('hud.deps.chips') }));
 
         const arrows = el('section', null, el('h3', { text: t('hud.arrows') }), el('p', { class: 'hud-note', text: t('hud.arrows.dir') }));
         [['CALLS', 'calls'], ['EXTENDS', 'extends'], ['IMPLEMENTS', 'implements'], ['READS_FROM', 'reads'], ['WRITES_TO', 'writes'], ['INSTANCE_OF', 'creates'], ['USES_AS_TYPE', 'type']]
@@ -1102,6 +1762,11 @@
         arrows.appendChild(hudRow(hudEdgeSample('CALLS', 'violation'), t('hud.arrows.violation')));
         arrows.appendChild(hudRow(hudEdgeSample('CALLS', 'in-flow'), t('hud.arrows.flow')));
         panel.appendChild(arrows);
+        panel.appendChild(deps);
+        panel.appendChild(zoom);
+        const auditHud = el('section', null, el('h3', { text: t('hud.audit') }), el('p', { class: 'hud-note', text: t('hud.audit.desc') }),
+            hudRow(el('span', { class: 'heat-legend' }, el('span', { class: 'heat-bar' })), t('trail.audit.legendTip')));
+        panel.appendChild(auditHud);
 
         const use = el('section', null, el('h3', { text: t('hud.use') }));
         [['pointer', 'hud.use.click'], ['trace', 'hud.use.right'], ['move', 'hud.use.drag'], ['search', 'hud.use.arrow'], ['edit', 'hud.use.edit']].forEach(function (pair) {
@@ -1123,7 +1788,8 @@
     function paintScope() { return trail.current() || 'overview'; }
     function paintPoint(e) {
         const c = canvasOrigin();
-        return [Math.round((e.clientX - c.left) * 10) / 10, Math.round((e.clientY - c.top) * 10) / 10];
+        const z = state.scale;
+        return [Math.round((e.clientX - c.left) / z * 10) / 10, Math.round((e.clientY - c.top) / z * 10) / 10];
     }
     function shapeElement(s) {
         const common = { stroke: s.color, 'stroke-width': String(s.width), fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
@@ -1149,7 +1815,7 @@
     function renderPaint() {
         const svg = $('paint');
         svg.replaceChildren();
-        svg.setAttribute('height', String($('canvas').scrollHeight));
+        layoutPaintSheet();
         if (!state.paint.hidden) {
             state.paint.store.shapes(paintScope()).forEach(function (s) { svg.appendChild(shapeElement(s)); });
         }
@@ -1331,6 +1997,20 @@
         setIcon($('btn-back'), 'back', t('trail.tip.back'));
         setIcon($('btn-forward'), 'forward', t('trail.tip.forward'));
         setIcon($('btn-reset'), 'reset', t('trail.tip.reset'));
+        setIcon($('btn-zoom-out'), 'zoom-out', t('trail.tip.zoomOut'));
+        setIcon($('btn-zoom-in'), 'zoom-in', t('trail.tip.zoomIn'));
+        $('zoom-label').title = t('trail.tip.zoomReset');
+        $('zoom-label').setAttribute('aria-label', t('trail.tip.zoomReset'));
+        $('btn-zoom-in').addEventListener('click', function () { setZoom(state.zoom * ZOOM_STEP, undefined, undefined, true); });
+        $('btn-zoom-out').addEventListener('click', function () { setZoom(state.zoom / ZOOM_STEP, undefined, undefined, true); });
+        $('zoom-label').addEventListener('click', function () { setZoom(1, undefined, undefined, true); });
+        $('stage').addEventListener('wheel', function (e) {
+            if (!e.ctrlKey && !e.metaKey) { return; }
+            e.preventDefault();
+            setZoom(state.zoom * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY, false);
+        }, { passive: false });
+        applyZoom();
+        setIcon($('btn-audit'), 'flame', t('trail.tip.audit'));
         setIcon($('btn-edit'), 'edit', t('trail.tip.edit'));
         setIcon($('btn-help'), 'help', t('trail.tip.help'));
         $('btn-help').setAttribute('aria-pressed', String(state.hudOpen));
@@ -1345,6 +2025,7 @@
         $('btn-back').addEventListener('click', function () { step(-1); });
         $('btn-forward').addEventListener('click', function () { step(1); });
         $('btn-reset').addEventListener('click', function () { state.offsets = new Map(); renderStage({ animate: false }); });
+        $('btn-audit').addEventListener('click', function () { setAudit(!state.audit.on); });
         $('btn-edit').addEventListener('click', function () { setEditing(!state.paint.editing); });
         $('btn-help').addEventListener('click', function () { setHud(!state.hudOpen); });
         $('btn-open').addEventListener('click', function () {
@@ -1408,6 +2089,9 @@
             else if (e.altKey && e.key === 'ArrowRight') { step(1); }
             else if (e.key === '/' && !typing) { e.preventDefault(); input.focus(); }
             else if (e.key === '?' && !typing) { e.preventDefault(); setHud(!state.hudOpen); }
+            else if ((e.key === '+' || e.key === '=') && !typing && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setZoom(state.zoom * ZOOM_STEP, undefined, undefined, true); }
+            else if ((e.key === '-' || e.key === '_') && !typing && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setZoom(state.zoom / ZOOM_STEP, undefined, undefined, true); }
+            else if (e.key === '0' && !typing && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setZoom(1, undefined, undefined, true); }
             else if ((e.key === 'e' || e.key === 'E') && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { setEditing(!state.paint.editing); }
             else if (e.key === 'Escape' && !typing) {
                 if (state.hudOpen) { setHud(false); }
@@ -1421,8 +2105,8 @@
             }
         });
 
-        window.addEventListener('resize', function () { scheduleEdges(); });
-        if (window.ResizeObserver) { new ResizeObserver(function () { scheduleEdges(); }).observe($('columns')); }
+        window.addEventListener('resize', function () { syncSizer(); scheduleEdges(); });
+        if (window.ResizeObserver) { new ResizeObserver(function () { syncSizer(); scheduleEdges(); }).observe($('columns')); }
 
         window.addEventListener('message', function (event) {
             const m = event.data || {};
