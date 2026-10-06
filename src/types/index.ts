@@ -12,6 +12,7 @@ export interface ProjectGraphNode {
     access?: 'public' | 'private' | 'protected';
     isSDK?: boolean;
     returnType?: string; // For functions/methods
+    stateManager?: { family: 'bloc' | 'provider' | 'riverpod' | 'getx'; base: string }; // What state holder the class is
     complexity?: number; // Cyclomatic complexity of a method, constructor or function
     resolvedType?: string; // For fields/variables
     layer?: 'view' | 'state' | 'service' | 'model' | 'utility' | 'member';
@@ -37,7 +38,8 @@ export interface ProjectGraphEdge {
           'USES_AS_TYPE' |
           'READS_FROM' |        // A method READS the value of a field/variable.
           'WRITES_TO' |         // A method WRITES/assigns a value to a field/variable.
-          'PASSES_AS_ARGUMENT'; // A method PASSES a field/variable as argument to another function.
+          'PASSES_AS_ARGUMENT' | // A method PASSES a field/variable as argument to another function.
+          'OBSERVES';           // A method LISTENS to a state holder (BlocBuilder<X>, context.watch<X>()...).
 
   // Adding typeRef here so the object is complete
   typeRef?: TypeReference;

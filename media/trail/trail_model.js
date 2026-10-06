@@ -10,11 +10,11 @@
 
     const LAYERS = ['view', 'state', 'service', 'model', 'utility'];
     const LAYER_RANK = { view: 0, state: 1, service: 2, model: 3 };
-    const LABEL_PRIORITY = ['EXTENDS', 'IMPLEMENTS', 'CALLS', 'WRITES_TO', 'READS_FROM', 'PASSES_AS_ARGUMENT', 'INSTANCE_OF', 'USES_AS_TYPE'];
+    const LABEL_PRIORITY = ['EXTENDS', 'IMPLEMENTS', 'OBSERVES', 'CALLS', 'WRITES_TO', 'READS_FROM', 'PASSES_AS_ARGUMENT', 'INSTANCE_OF', 'USES_AS_TYPE'];
     const INHERITANCE = new Set(['EXTENDS', 'IMPLEMENTS']);
     // Which end of an edge provides the data. All edges are drawn from the method to the symbol it touches:
     // a read, a call or an argument handed on takes the value from the target; a write puts a value into it.
-    const FLOW_PROVIDER = { CALLS: 'target', READS_FROM: 'target', WRITES_TO: 'source', PASSES_AS_ARGUMENT: 'target' };
+    const FLOW_PROVIDER = { OBSERVES: 'target', CALLS: 'target', READS_FROM: 'target', WRITES_TO: 'source', PASSES_AS_ARGUMENT: 'target' };
 
     function stripDecor(label) {
         return String(label || '').replace(/^(?:\u{1F517}|⚙️?)\s*/u, '');
@@ -509,6 +509,36 @@
             return metric && metric !== 'risk' ? c.parts[metric] || 0 : c.risk;
         }
 
+        /** The state management an owner declares (Bloc, ChangeNotifier...), or null. */
+        function stateOf(id) {
+            const n = nodes.get(ownerOf(id));
+            return (n && n.data && n.data.stateManager) || null;
+        }
+
+        /**
+         * Which state management approaches the project uses and which classes belong to each, with how many
+         * classes listen to every one. Several families at once is the fragmentation worth knowing about.
+         */
+        function stateManagers() {
+            const observers = new Map();
+            edges.forEach(function (e) {
+                if (e.label !== 'OBSERVES') { return; }
+                if (!observers.has(e.to)) { observers.set(e.to, new Set()); }
+                observers.get(e.to).add(e.so);
+            });
+            const families = new Map();
+            owners.forEach(function (n) {
+                const sm = n.data && n.data.stateManager;
+                if (!sm || sourceTypeOf(n.id) !== 'project') { return; }
+                if (!families.has(sm.family)) { families.set(sm.family, []); }
+                families.get(sm.family).push({ id: n.id, label: stripDecor(n.label), base: sm.base, layer: layerOf(n.id), observers: (observers.get(n.id) || new Set()).size });
+            });
+            const list = Array.from(families.entries()).map(function (e) {
+                return { family: e[0], classes: e[1].sort(function (a, b) { return b.observers - a.observers || a.label.localeCompare(b.label); }) };
+            }).sort(function (a, b) { return b.classes.length - a.classes.length || a.family.localeCompare(b.family); });
+            return { families: list, fragmented: list.length > 1, total: list.reduce(function (n, f) { return n + f.classes.length; }, 0) };
+        }
+
         function membersOf(ownerId) {
             const members = [];
             for (const n of nodes.values()) {
@@ -713,7 +743,7 @@
         return {
             nodes, edges, internalCount,
             ownerOf, layerOf, nameOf, sourceTypeOf,
-            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders, dependenciesOf, libraries, isLibrary, audit, heatOf,
+            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders, dependenciesOf, libraries, isLibrary, audit, heatOf, stateOf, stateManagers,
             nodeRange: id => normalizeRange(nodes.get(id) && nodes.get(id).data && (nodes.get(id).data.range || nodes.get(id).data.selectionRange))
         };
     }

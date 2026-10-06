@@ -4,6 +4,7 @@ import { getSourceCodeForSymbol } from "../analysis/source_analyzer";
 import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges } from "../lsp/reference_analysis";
 import { methodBody } from "../analysis/signature";
 import { cyclomaticComplexity } from "../analysis/complexity";
+import { observedTypeNames } from "../analysis/observers";
 import { log } from "../utils/logger";
 
 /**
@@ -93,6 +94,12 @@ export async function createGraphEdgesFromSymbols(
             // Only the body can call something: the method's own name in its signature is not a call.
             const body = methodBody(cleanedSource);
             sourceNode.data.complexity = cyclomaticComplexity(body);
+
+            // A widget that listens to a state holder depends on it even if it never calls a method of it.
+            for (const holder of observedTypeNames(body)) {
+                const holderNode = classNodeIndex.get(holder);
+                if (holderNode && holderNode.id !== sourceNode.id) { createEdge(sourceNode.id, holderNode.id, 'OBSERVES'); }
+            }
             const mentionedNames: string[] = [];
             for (const [name, pattern] of symbolPatterns) {
                 if (pattern.test(body)) {

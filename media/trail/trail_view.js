@@ -43,13 +43,13 @@
     const EDGE_GROUPS = {
         calls: ['CALLS', 'PASSES_AS_ARGUMENT'],
         inherit: ['EXTENDS', 'IMPLEMENTS'],
-        data: ['READS_FROM', 'WRITES_TO'],
+        data: ['READS_FROM', 'WRITES_TO', 'OBSERVES'],
         types: ['USES_AS_TYPE', 'INSTANCE_OF']
     };
     const FLOW_ORDER = ['view', 'state', 'service', 'model'];
     const VERBS = {
         CALLS: 'calls', EXTENDS: 'extends', IMPLEMENTS: 'implements', READS_FROM: 'reads',
-        WRITES_TO: 'writes', USES_AS_TYPE: 'type', INSTANCE_OF: 'creates', PASSES_AS_ARGUMENT: 'passes', IMPORTS: 'imports'
+        WRITES_TO: 'writes', USES_AS_TYPE: 'type', INSTANCE_OF: 'creates', PASSES_AS_ARGUMENT: 'passes', OBSERVES: 'observes', IMPORTS: 'imports'
     };
     const KEYWORDS = new Set(['abstract', 'as', 'async', 'await', 'class', 'const', 'else', 'enum', 'extends', 'extension', 'factory', 'final',
         'for', 'get', 'if', 'implements', 'import', 'in', 'is', 'late', 'mixin', 'new', 'null', 'on', 'override', 'required', 'return', 'set',
@@ -768,6 +768,7 @@
                 const item = el('button', { class: 'overview-item layer-' + c.layer + (c.inDeg + c.outDeg === 0 ? ' idle' : ''), 'data-id': c.id, title: c.label + ' — ' + t('trail.tip.member') },
                     kindIcon(c.kind, 14),
                     el('span', { class: 'name', text: c.label }),
+                    stateBadge(c.id),
                     ioBadge(c.inDeg, c.outDeg, 'badge io'));
                 item.addEventListener('click', function () { navigate(c.id); });
                 col.appendChild(item);
@@ -813,6 +814,13 @@
         }
     }
 
+    /** Small tag with the state management of a class (Cubit, ChangeNotifier...), or nothing. */
+    function stateBadge(id) {
+        const sm = model.stateOf(id);
+        if (!sm) { return null; }
+        return el('span', { class: 'sm-badge sm-' + sm.family, title: t('trail.state.tip', sm.base, t('trail.state.' + sm.family)) }, ico('layer-state', 10), sm.base);
+    }
+
     function neighborCard(card, side) {
         const key = side + ':' + card.id;
         const traced = !!state.trace;
@@ -824,6 +832,7 @@
         const head = el('div', { class: 'card-head', title: (card.violation ? t('trail.violation') + '. ' : '') + t('trail.tip.card') },
             kindIcon(card.kind, 15),
             el('span', { class: 'name', text: card.label }),
+            stateBadge(card.id),
             countBadge(String(card.edgeCount), t('trail.tip.count'), 'count'));
         clickable(head, function () { navigate(card.id); });
         makeDraggable(head, node, key);
@@ -893,6 +902,25 @@
     }
     function reasonIcon(r) { return r.type === 'cycle' ? '↻' : r.type === 'violation' ? '⚠' : r.type === 'coupling' ? '⇄' : r.type === 'god' ? '⚖' : '▤'; }
 
+    /** Which state management approaches the project mixes, with the classes of each and how many listen to them. */
+    function stateColumn() {
+        const info = model.stateManagers();
+        const col = el('div', { class: 'audit-col' }, el('h4', null, t('trail.state.title'), el('span', { class: 'badge', text: String(info.total) })));
+        if (!info.total) { col.appendChild(el('div', { class: 'audit-empty', text: t('trail.state.none') })); return col; }
+        if (info.fragmented) { col.appendChild(el('div', { class: 'audit-row' }, el('span', { class: 'audit-flag', title: t('trail.state.fragmentedTip'), text: t('trail.state.fragmented', String(info.families.length)) }))); }
+        info.families.forEach(function (f) {
+            const row = el('div', { class: 'audit-row state-family' }, el('span', { class: 'sm-badge sm-' + f.family, text: t('trail.state.' + f.family) }), el('span', { class: 'audit-more', text: String(f.classes.length) }));
+            f.classes.slice(0, 4).forEach(function (c) {
+                const b = el('button', { class: 'audit-link layer-' + c.layer, title: t('trail.state.observedBy', String(c.observers)), text: c.label + (c.observers ? ' · ' + c.observers : '') });
+                b.addEventListener('click', function () { navigate(c.id); });
+                row.appendChild(b);
+            });
+            if (f.classes.length > 4) { row.appendChild(el('span', { class: 'audit-more', text: '+' + (f.classes.length - 4) })); }
+            col.appendChild(row);
+        });
+        return col;
+    }
+
     function renderAudit() {
         const panel = $('auditpanel');
         $('btn-audit').setAttribute('aria-pressed', String(state.audit.on));
@@ -946,7 +974,8 @@
         const body = el('div', { class: 'audit-body' },
             list(t('trail.audit.cycles'), a.cycles.length, cycleRows, t('trail.audit.noCycles')),
             list(t('trail.audit.violations'), a.violations.length, violationRows, t('trail.audit.noViolations')),
-            list(t('trail.audit.hotspots'), a.hotspots.length, hotRows, t('trail.audit.noHotspots')));
+            list(t('trail.audit.hotspots'), a.hotspots.length, hotRows, t('trail.audit.noHotspots')),
+            stateColumn());
         panel.appendChild(body);
         if (gods) { panel.appendChild(el('div', { class: 'audit-foot', text: t('trail.audit.godNote', String(gods)) })); }
     }
@@ -1032,6 +1061,7 @@
         const head = el('div', { class: 'card-head', title: t('trail.tip.card') },
             c.kind === 'package' ? ico(DEP_ICON[c.depKind] || 'package', 16) : kindIcon(c.kind, 16),
             el('span', { class: 'name', text: c.label }),
+            c.kind === 'package' ? null : stateBadge(c.id),
             c.kind === 'package'
                 ? el('span', { class: 'badge', title: t('trail.tip.deps.' + c.depKind) }, ico(DEP_ICON[c.depKind] || 'package', 11), t('trail.deps.' + c.depKind))
                 : el('span', { class: 'badge', title: t('hud.layer.' + c.layer) }, ico('layer-' + c.layer, 11), layerLabel(c.layer)));
@@ -1767,6 +1797,9 @@
         const auditHud = el('section', null, el('h3', { text: t('hud.audit') }), el('p', { class: 'hud-note', text: t('hud.audit.desc') }),
             hudRow(el('span', { class: 'heat-legend' }, el('span', { class: 'heat-bar' })), t('trail.audit.legendTip')));
         panel.appendChild(auditHud);
+        const stateHud = el('section', null, el('h3', { text: t('hud.state') }), el('p', { class: 'hud-note', text: t('hud.state.desc') }));
+        ['bloc', 'provider', 'riverpod', 'getx'].forEach(function (f) { stateHud.appendChild(hudRow(el('span', { class: 'sm-badge sm-' + f, text: t('trail.state.' + f) }), t('trail.state.tip', t('trail.state.' + f), t('trail.state.' + f)))); });
+        panel.appendChild(stateHud);
 
         const use = el('section', null, el('h3', { text: t('hud.use') }));
         [['pointer', 'hud.use.click'], ['trace', 'hud.use.right'], ['move', 'hud.use.drag'], ['search', 'hud.use.arrow'], ['edit', 'hud.use.edit']].forEach(function (pair) {

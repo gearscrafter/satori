@@ -2,6 +2,7 @@ import { SymbolKindToString, KIND_CLASS, KIND_ENUM } from "../core";
 import { EnrichedSymbol, ProjectGraphModel, ProjectGraphNode } from "../types/index";
 import { log } from "../utils/logger";
 import { getArchitecturalLayer } from "./layer_classifier";
+import { detectStateManager } from "../analysis/state_managers";
 
 /**
  * Creates graph nodes from enriched symbols by recursively processing
@@ -41,6 +42,8 @@ export function createGraphNodesFromSymbols(
 
         log.debug(`[DEBUG-RECURSIVE-PARENT] Processing: ${s.name}, parentClass: ${parentClass?.name ?? 'none'}`);
 
+        const stateManager = s.kind === KIND_CLASS ? detectStateManager(s.relations) : undefined;
+
         const node: ProjectGraphNode = {
           id: nodeId,
           label: s.name,
@@ -52,6 +55,7 @@ export function createGraphNodesFromSymbols(
             isSDK: !!s.isSDK,
             access: s.access,
             layer,
+            ...(stateManager ? { stateManager } : {}),
           },
           parent: parentId,
         };

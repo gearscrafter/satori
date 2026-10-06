@@ -828,6 +828,43 @@ var vscode15 = __toESM(require("vscode"));
 
 // src/graph/layer_classifier.ts
 var vscode9 = __toESM(require("vscode"));
+
+// src/analysis/state_managers.ts
+var BASES = {
+  bloc: "bloc",
+  cubit: "bloc",
+  hydratedbloc: "bloc",
+  hydratedcubit: "bloc",
+  replaybloc: "bloc",
+  replaycubit: "bloc",
+  changenotifier: "provider",
+  valuenotifier: "provider",
+  statenotifier: "riverpod",
+  notifier: "riverpod",
+  asyncnotifier: "riverpod",
+  autodisposenotifier: "riverpod",
+  autodisposeasyncnotifier: "riverpod",
+  getxcontroller: "getx",
+  getxservice: "getx",
+  rxcontroller: "getx"
+};
+function detectStateManager(relations) {
+  if (!relations) {
+    return void 0;
+  }
+  for (const list of [relations.extends, relations.with, relations.implements]) {
+    for (const rel of list ?? []) {
+      const written = (typeof rel === "string" ? rel : rel.name).split("<")[0].trim();
+      const family = BASES[written.toLowerCase()];
+      if (family) {
+        return { family, base: written };
+      }
+    }
+  }
+  return void 0;
+}
+
+// src/graph/layer_classifier.ts
 function getArchitecturalLayer(symbol, relations) {
   if (symbol.kind !== vscode9.SymbolKind.Class && symbol.kind !== vscode9.SymbolKind.Enum) {
     return "member";
@@ -859,6 +896,9 @@ function getArchitecturalLayer(symbol, relations) {
   }
   if (name.includes("page") || name.includes("screen") || name.includes("widget") || name.includes("dialog")) {
     return "view";
+  }
+  if (detectStateManager(relations)) {
+    return "state";
   }
   if (allRelations.includes("changenotifier") || allRelations.includes("statenotifier") || allRelations.includes("bloc") || allRelations.includes("cubit") || allRelations.includes("provider") || allRelations.includes("controller")) {
     return "state";
@@ -956,6 +996,7 @@ function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById,
         generatedNodeIds.add(nodeId);
         const layer = getArchitecturalLayer(s, s.relations);
         log.debug(`[DEBUG-RECURSIVE-PARENT] Processing: ${s.name}, parentClass: ${parentClass?.name ?? "none"}`);
+        const stateManager = s.kind === KIND_CLASS ? detectStateManager(s.relations) : void 0;
         const node = {
           id: nodeId,
           label: s.name,
@@ -966,7 +1007,8 @@ function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById,
             selectionRange: s.selectionRange,
             isSDK: !!s.isSDK,
             access: s.access,
-            layer
+            layer,
+            ...stateManager ? { stateManager } : {}
           },
           parent: parentId
         };
@@ -1354,6 +1396,27 @@ function cyclomaticComplexity(source) {
   return 1 + keywords + logical + coalesce + ternary;
 }
 
+// src/analysis/observers.ts
+var OBSERVER_PATTERNS = [
+  // Widgets that rebuild or react: the first type argument is the holder.
+  /\b(?:BlocBuilder|BlocListener|BlocConsumer|BlocSelector|Consumer|Selector|ValueListenableBuilder)\s*<\s*([A-Z]\w*)/g,
+  // context.read<T>() / context.watch<T>() / context.select<T, R>()
+  /\bcontext\s*\.\s*(?:read|watch|select)\s*<\s*([A-Z]\w*)/g,
+  // BlocProvider.of<T>(context), Provider.of<T>(context), RepositoryProvider.of<T>(context)
+  /\b(?:BlocProvider|RepositoryProvider|Provider)\s*\.\s*of\s*<\s*([A-Z]\w*)/g,
+  // GetX
+  /\bGet\s*\.\s*(?:find|put|lazyPut)\s*<\s*([A-Z]\w*)/g
+];
+function observedTypeNames(source) {
+  const found = /* @__PURE__ */ new Set();
+  for (const pattern of OBSERVER_PATTERNS) {
+    for (const match of source.matchAll(pattern)) {
+      found.add(match[1]);
+    }
+  }
+  return Array.from(found);
+}
+
 // src/graph/edge_creator.ts
 async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEdge, projectRoot, generatedNodeIds, cachedPackages) {
   log.debug(`[GraphBuilder] Creating edges...`);
@@ -1419,6 +1482,12 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
       }
       const body = methodBody(cleanedSource);
       sourceNode.data.complexity = cyclomaticComplexity(body);
+      for (const holder of observedTypeNames(body)) {
+        const holderNode = classNodeIndex.get(holder);
+        if (holderNode && holderNode.id !== sourceNode.id) {
+          createEdge(sourceNode.id, holderNode.id, "OBSERVES");
+        }
+      }
       const mentionedNames = [];
       for (const [name, pattern] of symbolPatterns) {
         if (pattern.test(body)) {

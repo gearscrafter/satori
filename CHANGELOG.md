@@ -1,5 +1,46 @@
 # Changelog
 
+## [2.1.0] - 10-06-2026
+
+### Added
+
+- **Audit mode** (flame button): a heat map from cool to red over every box, and a panel with the circular
+  dependencies, the layer violations and the hottest classes. Each hot class says why (a broken layer, a
+  circle, a God Class, its coupling or size) with the numbers behind it, in the panel, in a tooltip and under
+  the focused class. Folded containers take the heat of the hottest class inside.
+- **God Class by the Lanza and Marinescu rule** (WMC >= 47, ATFD > 5, TCC < 1/3), with the cyclomatic
+  complexity of every method computed by the extension. The three thresholds and the four risk weights are
+  settings (`satori.audit.*`); they are read when the analysis runs.
+- **State management map**: classes get a tag with their approach (Bloc / Cubit, ChangeNotifier, Riverpod
+  notifiers, GetX controllers), read from the base class they extend, and a new `OBSERVES` arrow goes from a
+  widget to the holder it listens to (`BlocBuilder<X>`, `context.read/watch/select<X>()`, `Provider.of<X>`,
+  `Get.find<X>`). A holder is always in the state layer. The audit panel has a state management column that
+  lists the approaches in use, how many classes listen to each holder and a warning when more than one
+  approach is mixed. Riverpod providers are not followed to their classes.
+- **Zoom as nested containers** (20%-200%, buttons, `Ctrl` + wheel, `+` / `-` / `0`): zooming out folds the
+  members of the neighbouring boxes, then each layer into a container that still lists the names it holds,
+  and finally regroups the boxes by project folder. What is drawn keeps a readable size instead of
+  shrinking into empty space. Zoomed out, the layer bar keeps only the layers that take part in the focused
+  class and the class shows the layer or folder that contains it. Tapping a folded container, or a name
+  inside it, brings the zoom back; the overview folds the same way.
+- **Dependency column**: Flutter, third-party packages and the Dart SDK stack vertically next to the
+  focused class, each library as its own node with its own arrow, built from the real `import` and
+  `export` lines (the project's own imports are left out). The SDK starts folded, like Sourcetrail's
+  "Non-indexed Symbols" bundle. Clicking an arrow lists the import lines and shows the exact one in the code.
+- **Navigable libraries**: a library is a node you can focus. It shows which classes import it, opens its
+  source file when it can be found (`.dart_tool/package_config.json` and the Dart SDK), and appears as a
+  foldable bundle in the overview. The classes inside a library are not analysed.
+- **Example project** (`e2e/dummy_app`) with more folders, the packages `path`, `collection`, `args` and
+  `async`, stand-ins for the four state management approaches, and deliberate smells for the audit: a
+  circular dependency, a model that reaches into a service and a God Class.
+
+### Changed
+
+- A class that extends a known state holder (`Cubit`, `Bloc`, `ChangeNotifier`, `StateNotifier`,
+  `GetxController`...) is always placed in the state layer, whatever its name.
+- The built-in legend (`?`) explains the audit, the state management tags and the zoom levels.
+
+
 ## [2.0.0] - 10-05-2026
 
 ### Added

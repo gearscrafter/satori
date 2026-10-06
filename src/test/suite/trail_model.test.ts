@@ -496,3 +496,67 @@ suite('Trail Audit Reasons Test Suite', () => {
         assert.deepStrictEqual(m.audit().classes.get('A').reasons, []);
     });
 });
+
+suite('Trail State Management Test Suite', () => {
+    const holder = (id: string, label: string, family: string, base: string) => {
+        const n: any = node(id, label, 'class', 'state');
+        n.data.stateManager = { family, base };
+        return n;
+    };
+    const stateGraph = {
+        nodes: [
+            holder('C', 'CounterCubit', 'bloc', 'Cubit'),
+            holder('S', 'SessionNotifier', 'provider', 'ChangeNotifier'),
+            holder('B', 'CartBloc', 'bloc', 'Bloc'),
+            node('W', 'CounterView', 'class', 'view'),
+            node('W.build', 'build', 'method', 'member', 'W'),
+            node('Z', 'Plain', 'class', 'service')
+        ],
+        edges: [
+            edge('o1', 'W.build', 'C', 'OBSERVES'),
+            edge('o2', 'W.build', 'S', 'OBSERVES'),
+            edge('o3', 'Z', 'C', 'CALLS')
+        ]
+    };
+
+    test('groups the state holders by approach and counts who listens to each', () => {
+        const info = TrailModel.createModel(stateGraph).stateManagers();
+        assert.strictEqual(info.total, 3);
+        assert.deepStrictEqual(info.families.map((f: any) => f.family), ['bloc', 'provider']);
+        const bloc = info.families[0].classes;
+        assert.deepStrictEqual(bloc.map((c: any) => [c.label, c.observers]), [['CounterCubit', 1], ['CartBloc', 0]]);
+    });
+
+    test('says when more than one approach is mixed', () => {
+        assert.strictEqual(TrailModel.createModel(stateGraph).stateManagers().fragmented, true);
+        const one = { nodes: [holder('C', 'CounterCubit', 'bloc', 'Cubit')], edges: [] };
+        assert.strictEqual(TrailModel.createModel(one).stateManagers().fragmented, false);
+    });
+
+    test('a project without state holders has an empty map', () => {
+        const info = TrailModel.createModel({ nodes: [node('Z', 'Plain', 'class', 'service')], edges: [] }).stateManagers();
+        assert.deepStrictEqual(info, { families: [], fragmented: false, total: 0 });
+    });
+
+    test('tells what a class declares for a member too', () => {
+        const m = TrailModel.createModel(stateGraph);
+        assert.deepStrictEqual(m.stateOf('C'), { family: 'bloc', base: 'Cubit' });
+        assert.strictEqual(m.stateOf('Z'), null);
+    });
+
+    test('an OBSERVES edge is a data flow from the holder to the widget', () => {
+        const m = TrailModel.createModel(stateGraph);
+        const trace = m.traceFlow('W');
+        const names = trace.nodes.map((n: any) => n.name);
+        assert.ok(names.includes('CounterCubit') && names.includes('SessionNotifier'), names.join(','));
+    });
+
+    test('works on the real graph of the example: four approaches, one widget listening to three holders', () => {
+        const real = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../e2e/fixtures/dummy_graph.json'), 'utf8'));
+        const info = TrailModel.createModel(real).stateManagers();
+        assert.deepStrictEqual(info.families.map((f: any) => f.family).sort(), ['bloc', 'getx', 'provider', 'riverpod']);
+        assert.strictEqual(info.fragmented, true);
+        const observed = info.families.flatMap((fam: any) => fam.classes).filter((c: any) => c.observers > 0).length;
+        assert.strictEqual(observed, 3);
+    });
+});

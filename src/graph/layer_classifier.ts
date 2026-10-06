@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { EnrichedSymbol, TypeReference } from '../types/index';
+import { detectStateManager } from '../analysis/state_managers';
 
 /**
  * Determines the architectural layer of a symbol based on hierarchical pattern
@@ -71,6 +72,10 @@ export function getArchitecturalLayer(
     // =================================================================
     // 🧠 STATE LAYER DETECTION (Hierarchical Priority) 
     // =================================================================
+
+    if (detectStateManager(relations)) {
+        return 'state';
+    }
 
     if (allRelations.includes('changenotifier') || 
         allRelations.includes('statenotifier') ||

@@ -108,6 +108,25 @@ The webview sends `getSnippet` (code for a reference), `openClass` (open a file 
 - **UI Layer**: `src/ui/` - Webview creation and user interactions
 - **Package Management**: `src/packages/` - External dependencies analysis
 
+## Try the features with the example project
+
+`e2e/dummy_app` is a small Dart project made to exercise Satori. Press `F5` and pick **Satori: run on dummy_app** (see `.vscode/launch.json`), then run the Satori command.
+
+| What to look at | Where in the example |
+|-----------------|----------------------|
+| Layers, arrows, trace data flow | `UserView` -> `UserController` -> `UserRepository` -> `User` |
+| Third-party packages (vertical column) | `CartView` (`args`), `Cart` (`collection`), `ApiClient` (`async`), `UserView` (`path`) |
+| Dart SDK bundle | `ApiClient` (`dart:async`, `dart:convert`, `dart:io`) |
+| Zoom levels and folders | Focus any class and zoom out to 20%; folders are `models`, `services`, `state`, `utils`, `views`, `widgets` |
+| Audit: circular dependency | `ApiClient`, `Cart` and `Product` |
+| Audit: layer violation | `OrderData` (a model) uses `ApiClient` (a service) |
+| Audit: God Class | `CheckoutManager` (WMC 48, ATFD 8, TCC 0) |
+| State management map | Open `CounterView`: it listens to `CounterCubit` (Bloc), `SessionNotifier` (Provider) and `ProfileController` (GetX). `WishlistStore` (Riverpod) is listened to by nobody. The audit panel warns that four approaches are mixed. The base classes are tiny stand-ins in `lib/state/shims.dart`, so the example needs no extra packages |
+
+The audit thresholds and weights live in the settings `satori.audit.*` (open `Ctrl+,` and search for `satori.audit`). They are read when the analysis runs, so run it again after changing them. Try `satori.audit.godClass.wmc` = `40` and see which classes change.
+
+To check your changes without opening VS Code: `npm test` runs the unit tests (the audit model and the complexity estimate are covered there), and `npm run test:e2e` runs the analysis on the example inside VS Code. To regenerate the graph the unit tests read, run the e2e with `SATORI_E2E_GRAPH_OUT=e2e/fixtures/dummy_graph.json`.
+
 ## Testing with Flutter projects
 
 The extension works best with:

@@ -15,7 +15,7 @@ suite('Path Utils Test Suite', () => {
 
     test('the project root package gets no container, local packages do', () => {
         const pkg = (name: string, p: string, type: ExternalPackageInfo['type']): ExternalPackageInfo => ({
-            name, version: '2.0.0', path: p, type, dartFiles: [], hasLibFolder: true, isFlutterPackage: false, description: ''
+            name, version: '2.1.0', path: p, type, dartFiles: [], hasLibFolder: true, isFlutterPackage: false, description: ''
         });
         const all = [pkg('my_app', '/work/my_app', 'custom'), pkg('shared', '/work/my_app/packages/shared', 'custom'), pkg('http', '/cache/http', 'third_party')];
         assert.deepStrictEqual(packagesNeedingContainers(all, '/work/my_app').map(p => p.name), ['shared', 'http']);
