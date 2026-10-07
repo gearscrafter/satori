@@ -2139,6 +2139,7 @@
         });
 
         window.addEventListener('resize', function () { syncSizer(); scheduleEdges(); });
+        if (window.ResizeObserver) { new ResizeObserver(function () { syncSizer(); }).observe($('canvas')); }
         if (window.ResizeObserver) { new ResizeObserver(function () { syncSizer(); scheduleEdges(); }).observe($('columns')); }
 
         window.addEventListener('message', function (event) {

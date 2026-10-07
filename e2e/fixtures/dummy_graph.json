@@ -1,6 +1,212 @@
 {
  "nodes": [
   {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
+   "label": "main",
+   "kind": "function",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart",
+    "range": [
+     {
+      "line": 9,
+      "character": 0
+     },
+     {
+      "line": 15,
+      "character": 1
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 9,
+      "character": 13
+     },
+     {
+      "line": 9,
+      "character": 17
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\main.dart"
+    }
+   },
+   "inDegree": 0,
+   "outDegree": 13
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
+   "label": "PriceBadge",
+   "kind": "class",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
+    "range": [
+     {
+      "line": 3,
+      "character": 0
+     },
+     {
+      "line": 9,
+      "character": 1
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 3,
+      "character": 6
+     },
+     {
+      "line": 3,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "model",
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\widgets\\badge.dart"
+    }
+   },
+   "inDegree": 0,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:prop#name:product",
+   "label": "product",
+   "kind": "field",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
+    "range": [
+     {
+      "line": 4,
+      "character": 16
+     },
+     {
+      "line": 4,
+      "character": 23
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 4,
+      "character": 16
+     },
+     {
+      "line": 4,
+      "character": 23
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\widgets\\badge.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
+   "inDegree": 2,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:field#name:_default_",
+   "label": "PriceBadge",
+   "kind": "constructor",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
+    "range": [
+     {
+      "line": 6,
+      "character": 2
+     },
+     {
+      "line": 6,
+      "character": 27
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 6,
+      "character": 2
+     },
+     {
+      "line": 6,
+      "character": 12
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\widgets\\badge.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
+   "inDegree": 0,
+   "outDegree": 1
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
+   "label": "label",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
+    "range": [
+     {
+      "line": 8,
+      "character": 2
+     },
+     {
+      "line": 8,
+      "character": 63
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 8,
+      "character": 9
+     },
+     {
+      "line": 8,
+      "character": 14
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\widgets\\badge.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
+   "inDegree": 0,
+   "outDegree": 3
+  },
+  {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#kind:k4#name:User",
    "label": "User",
    "kind": "class",
@@ -206,171 +412,6 @@
    "outDegree": 0
   },
   {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
-   "label": "PriceBadge",
-   "kind": "class",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
-    "range": [
-     {
-      "line": 3,
-      "character": 0
-     },
-     {
-      "line": 9,
-      "character": 1
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 3,
-      "character": 6
-     },
-     {
-      "line": 3,
-      "character": 16
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "model",
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\widgets\\badge.dart"
-    }
-   },
-   "inDegree": 0,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:prop#name:product",
-   "label": "product",
-   "kind": "field",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
-    "range": [
-     {
-      "line": 4,
-      "character": 16
-     },
-     {
-      "line": 4,
-      "character": 23
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 4,
-      "character": 16
-     },
-     {
-      "line": 4,
-      "character": 23
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\widgets\\badge.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
-   "inDegree": 2,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:field#name:_default_",
-   "label": "PriceBadge",
-   "kind": "constructor",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
-    "range": [
-     {
-      "line": 6,
-      "character": 2
-     },
-     {
-      "line": 6,
-      "character": 27
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 6,
-      "character": 2
-     },
-     {
-      "line": 6,
-      "character": 12
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\widgets\\badge.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
-   "inDegree": 0,
-   "outDegree": 1
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
-   "label": "label",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart",
-    "range": [
-     {
-      "line": 8,
-      "character": 2
-     },
-     {
-      "line": 8,
-      "character": 63
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 8,
-      "character": 9
-     },
-     {
-      "line": 8,
-      "character": 14
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\widgets\\badge.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#kind:k4#name:PriceBadge",
-   "inDegree": 0,
-   "outDegree": 3
-  },
-  {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#kind:k4#name:Product",
    "label": "Product",
    "kind": "class",
@@ -532,7 +573,7 @@
    },
    "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#kind:k4#name:Product",
    "inDegree": 2,
-   "outDegree": 3
+   "outDegree": 2
   },
   {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
@@ -1028,7 +1069,7 @@
     }
    },
    "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#kind:k4#name:Entity",
-   "inDegree": 8,
+   "inDegree": 7,
    "outDegree": 0
   },
   {
@@ -1359,88 +1400,6 @@
    "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#kind:k4#name:Cart",
    "inDegree": 0,
    "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
-   "label": "main",
-   "kind": "function",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart",
-    "range": [
-     {
-      "line": 9,
-      "character": 0
-     },
-     {
-      "line": 15,
-      "character": 1
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 9,
-      "character": 13
-     },
-     {
-      "line": 9,
-      "character": 17
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\main.dart"
-    }
-   },
-   "inDegree": 0,
-   "outDegree": 13
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/utils/formatters.dart#kind:k11#name:money",
-   "label": "money",
-   "kind": "function",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/utils/formatters.dart",
-    "range": [
-     {
-      "line": 2,
-      "character": 0
-     },
-     {
-      "line": 2,
-      "character": 77
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 2,
-      "character": 7
-     },
-     {
-      "line": 2,
-      "character": 12
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\utils\\formatters.dart"
-    }
-   },
-   "inDegree": 0,
-   "outDegree": 0
   },
   {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#kind:k4#name:UserView",
@@ -1895,6 +1854,47 @@
    "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#kind:k4#name:CartView",
    "inDegree": 1,
    "outDegree": 5
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/utils/formatters.dart#kind:k11#name:money",
+   "label": "money",
+   "kind": "function",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/utils/formatters.dart",
+    "range": [
+     {
+      "line": 2,
+      "character": 0
+     },
+     {
+      "line": 2,
+      "character": 77
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 2,
+      "character": 7
+     },
+     {
+      "line": 2,
+      "character": 12
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\utils\\formatters.dart"
+    }
+   },
+   "inDegree": 0,
+   "outDegree": 0
   },
   {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/audit_log.dart#kind:k4#name:AuditLog",
@@ -2515,6 +2515,468 @@
    "outDegree": 2
   },
   {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
+   "label": "CounterCubit",
+   "kind": "class",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart",
+    "range": [
+     {
+      "line": 2,
+      "character": 0
+     },
+     {
+      "line": 6,
+      "character": 1
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 2,
+      "character": 6
+     },
+     {
+      "line": 2,
+      "character": 18
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "state",
+    "stateManager": {
+     "family": "bloc",
+     "base": "Cubit"
+    },
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\counter_cubit.dart"
+    }
+   },
+   "inDegree": 1,
+   "outDegree": 1
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#parent:CounterCubit#kind:field#name:_default_",
+   "label": "CounterCubit",
+   "kind": "constructor",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart",
+    "range": [
+     {
+      "line": 3,
+      "character": 2
+     },
+     {
+      "line": 3,
+      "character": 28
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 3,
+      "character": 2
+     },
+     {
+      "line": 3,
+      "character": 14
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\counter_cubit.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
+   "inDegree": 0,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#parent:CounterCubit#kind:class#name:increment",
+   "label": "increment",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart",
+    "range": [
+     {
+      "line": 5,
+      "character": 2
+     },
+     {
+      "line": 5,
+      "character": 38
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 5,
+      "character": 7
+     },
+     {
+      "line": 5,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\counter_cubit.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
+   "inDegree": 0,
+   "outDegree": 2
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "label": "CheckoutManager",
+   "kind": "class",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 8,
+      "character": 0
+     },
+     {
+      "line": 98,
+      "character": 1
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 8,
+      "character": 6
+     },
+     {
+      "line": 8,
+      "character": 21
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "state",
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "inDegree": 0,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
+   "label": "describeBuyer",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 9,
+      "character": 2
+     },
+     {
+      "line": 18,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 9,
+      "character": 9
+     },
+     {
+      "line": 9,
+      "character": 22
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 7,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 3
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:priceOf",
+   "label": "priceOf",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 20,
+      "character": 2
+     },
+     {
+      "line": 33,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 20,
+      "character": 9
+     },
+     {
+      "line": 20,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 9,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 2
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:label",
+   "label": "label",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 35,
+      "character": 2
+     },
+     {
+      "line": 43,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 35,
+      "character": 9
+     },
+     {
+      "line": 35,
+      "character": 14
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 5,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 2
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:countItems",
+   "label": "countItems",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 45,
+      "character": 2
+     },
+     {
+      "line": 58,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 45,
+      "character": 6
+     },
+     {
+      "line": 45,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 7,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 3
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
+   "label": "canSubmit",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 60,
+      "character": 2
+     },
+     {
+      "line": 73,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 60,
+      "character": 7
+     },
+     {
+      "line": 60,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 9,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 5
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:summary",
+   "label": "summary",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 75,
+      "character": 2
+     },
+     {
+      "line": 86,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 75,
+      "character": 9
+     },
+     {
+      "line": 75,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 5,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 4
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
+   "label": "audit",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
+    "range": [
+     {
+      "line": 88,
+      "character": 2
+     },
+     {
+      "line": 97,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 88,
+      "character": 9
+     },
+     {
+      "line": 88,
+      "character": 14
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 6,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\checkout_manager.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
+   "inDegree": 0,
+   "outDegree": 4
+  },
+  {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#kind:k4#name:CartController",
    "label": "CartController",
    "kind": "class",
@@ -2761,465 +3223,6 @@
    "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#kind:k4#name:CartController",
    "inDegree": 1,
    "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
-   "label": "WishlistStore",
-   "kind": "class",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart",
-    "range": [
-     {
-      "line": 2,
-      "character": 0
-     },
-     {
-      "line": 6,
-      "character": 1
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 2,
-      "character": 6
-     },
-     {
-      "line": 2,
-      "character": 19
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "state",
-    "stateManager": {
-     "family": "riverpod",
-     "base": "StateNotifier"
-    },
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\wishlist_store.dart"
-    }
-   },
-   "inDegree": 0,
-   "outDegree": 1
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#parent:WishlistStore#kind:field#name:_default_",
-   "label": "WishlistStore",
-   "kind": "constructor",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart",
-    "range": [
-     {
-      "line": 3,
-      "character": 2
-     },
-     {
-      "line": 3,
-      "character": 36
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 3,
-      "character": 2
-     },
-     {
-      "line": 3,
-      "character": 15
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\wishlist_store.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
-   "inDegree": 0,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#parent:WishlistStore#kind:class#name:add",
-   "label": "add",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart",
-    "range": [
-     {
-      "line": 5,
-      "character": 2
-     },
-     {
-      "line": 5,
-      "character": 48
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 5,
-      "character": 7
-     },
-     {
-      "line": 5,
-      "character": 10
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\wishlist_store.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
-   "inDegree": 0,
-   "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "label": "UserController",
-   "kind": "class",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 3,
-      "character": 0
-     },
-     {
-      "line": 21,
-      "character": 1
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 3,
-      "character": 6
-     },
-     {
-      "line": 3,
-      "character": 20
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "state",
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "inDegree": 1,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
-   "label": "repository",
-   "kind": "field",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 4,
-      "character": 23
-     },
-     {
-      "line": 4,
-      "character": 33
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 4,
-      "character": 23
-     },
-     {
-      "line": 4,
-      "character": 33
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "inDegree": 3,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
-   "label": "current",
-   "kind": "field",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 5,
-      "character": 8
-     },
-     {
-      "line": 5,
-      "character": 15
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 5,
-      "character": 8
-     },
-     {
-      "line": 5,
-      "character": 15
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "inDegree": 3,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:field#name:_default_",
-   "label": "UserController",
-   "kind": "constructor",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 7,
-      "character": 2
-     },
-     {
-      "line": 7,
-      "character": 34
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 7,
-      "character": 2
-     },
-     {
-      "line": 7,
-      "character": 16
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "inDegree": 1,
-   "outDegree": 1
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
-   "label": "register",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 9,
-      "character": 2
-     },
-     {
-      "line": 13,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 9,
-      "character": 15
-     },
-     {
-      "line": 9,
-      "character": 23
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "inDegree": 1,
-   "outDegree": 6
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
-   "label": "isCurrentAdult",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 15,
-      "character": 2
-     },
-     {
-      "line": 18,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 15,
-      "character": 15
-     },
-     {
-      "line": 15,
-      "character": 29
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 3,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "inDegree": 1,
-   "outDegree": 5
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:describe",
-   "label": "describe",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 20,
-      "character": 2
-     },
-     {
-      "line": 20,
-      "character": 39
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 20,
-      "character": 9
-     },
-     {
-      "line": 20,
-      "character": 17
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 1,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
-   "inDegree": 0,
-   "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k11#name:format",
-   "label": "format",
-   "kind": "function",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
-    "range": [
-     {
-      "line": 23,
-      "character": 0
-     },
-     {
-      "line": 23,
-      "character": 52
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 23,
-      "character": 7
-     },
-     {
-      "line": 23,
-      "character": 13
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 2,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\user_controller.dart"
-    }
-   },
-   "inDegree": 1,
-   "outDegree": 1
   },
   {
    "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:Cubit",
@@ -4255,11 +4258,342 @@
    "outDegree": 1
   },
   {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
-   "label": "CounterCubit",
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "label": "UserController",
    "kind": "class",
    "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart",
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 3,
+      "character": 0
+     },
+     {
+      "line": 21,
+      "character": 1
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 3,
+      "character": 6
+     },
+     {
+      "line": 3,
+      "character": 20
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "state",
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "inDegree": 1,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
+   "label": "repository",
+   "kind": "field",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 4,
+      "character": 23
+     },
+     {
+      "line": 4,
+      "character": 33
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 4,
+      "character": 23
+     },
+     {
+      "line": 4,
+      "character": 33
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "inDegree": 3,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
+   "label": "current",
+   "kind": "field",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 5,
+      "character": 8
+     },
+     {
+      "line": 5,
+      "character": 15
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 5,
+      "character": 8
+     },
+     {
+      "line": 5,
+      "character": 15
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "inDegree": 3,
+   "outDegree": 0
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:field#name:_default_",
+   "label": "UserController",
+   "kind": "constructor",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 7,
+      "character": 2
+     },
+     {
+      "line": 7,
+      "character": 34
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 7,
+      "character": 2
+     },
+     {
+      "line": 7,
+      "character": 16
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "inDegree": 1,
+   "outDegree": 1
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
+   "label": "register",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 9,
+      "character": 2
+     },
+     {
+      "line": 13,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 9,
+      "character": 15
+     },
+     {
+      "line": 9,
+      "character": 23
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "inDegree": 1,
+   "outDegree": 6
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
+   "label": "isCurrentAdult",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 15,
+      "character": 2
+     },
+     {
+      "line": 18,
+      "character": 3
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 15,
+      "character": 15
+     },
+     {
+      "line": 15,
+      "character": 29
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 3,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "inDegree": 1,
+   "outDegree": 5
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:describe",
+   "label": "describe",
+   "kind": "method",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 20,
+      "character": 2
+     },
+     {
+      "line": 20,
+      "character": 39
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 20,
+      "character": 9
+     },
+     {
+      "line": 20,
+      "character": 17
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 1,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
+   "inDegree": 0,
+   "outDegree": 2
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k11#name:format",
+   "label": "format",
+   "kind": "function",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart",
+    "range": [
+     {
+      "line": 23,
+      "character": 0
+     },
+     {
+      "line": 23,
+      "character": 52
+     }
+    ],
+    "selectionRange": [
+     {
+      "line": 23,
+      "character": 7
+     },
+     {
+      "line": 23,
+      "character": 13
+     }
+    ],
+    "isSDK": false,
+    "access": "public",
+    "layer": "member",
+    "complexity": 2,
+    "source": {
+     "type": "project",
+     "packageName": "dummy_app",
+     "packageVersion": "unknown",
+     "packageType": "custom",
+     "relativePath": "lib\\state\\user_controller.dart"
+    }
+   },
+   "inDegree": 1,
+   "outDegree": 1
+  },
+  {
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
+   "label": "WishlistStore",
+   "kind": "class",
+   "data": {
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart",
     "range": [
      {
       "line": 2,
@@ -4277,33 +4611,33 @@
      },
      {
       "line": 2,
-      "character": 18
+      "character": 19
      }
     ],
     "isSDK": false,
     "access": "public",
     "layer": "state",
     "stateManager": {
-     "family": "bloc",
-     "base": "Cubit"
+     "family": "riverpod",
+     "base": "StateNotifier"
     },
     "source": {
      "type": "project",
      "packageName": "dummy_app",
      "packageVersion": "unknown",
      "packageType": "custom",
-     "relativePath": "lib\\state\\counter_cubit.dart"
+     "relativePath": "lib\\state\\wishlist_store.dart"
     }
    },
-   "inDegree": 1,
+   "inDegree": 0,
    "outDegree": 1
   },
   {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#parent:CounterCubit#kind:field#name:_default_",
-   "label": "CounterCubit",
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#parent:WishlistStore#kind:field#name:_default_",
+   "label": "WishlistStore",
    "kind": "constructor",
    "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart",
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart",
     "range": [
      {
       "line": 3,
@@ -4311,7 +4645,7 @@
      },
      {
       "line": 3,
-      "character": 28
+      "character": 36
      }
     ],
     "selectionRange": [
@@ -4321,7 +4655,7 @@
      },
      {
       "line": 3,
-      "character": 14
+      "character": 15
      }
     ],
     "isSDK": false,
@@ -4333,19 +4667,19 @@
      "packageName": "dummy_app",
      "packageVersion": "unknown",
      "packageType": "custom",
-     "relativePath": "lib\\state\\counter_cubit.dart"
+     "relativePath": "lib\\state\\wishlist_store.dart"
     }
    },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
    "inDegree": 0,
    "outDegree": 0
   },
   {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#parent:CounterCubit#kind:class#name:increment",
-   "label": "increment",
+   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#parent:WishlistStore#kind:class#name:add",
+   "label": "add",
    "kind": "method",
    "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart",
+    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart",
     "range": [
      {
       "line": 5,
@@ -4353,7 +4687,7 @@
      },
      {
       "line": 5,
-      "character": 38
+      "character": 48
      }
     ],
     "selectionRange": [
@@ -4363,7 +4697,7 @@
      },
      {
       "line": 5,
-      "character": 16
+      "character": 10
      }
     ],
     "isSDK": false,
@@ -4375,346 +4709,12 @@
      "packageName": "dummy_app",
      "packageVersion": "unknown",
      "packageType": "custom",
-     "relativePath": "lib\\state\\counter_cubit.dart"
+     "relativePath": "lib\\state\\wishlist_store.dart"
     }
    },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
+   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
    "inDegree": 0,
    "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "label": "CheckoutManager",
-   "kind": "class",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 8,
-      "character": 0
-     },
-     {
-      "line": 98,
-      "character": 1
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 8,
-      "character": 6
-     },
-     {
-      "line": 8,
-      "character": 21
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "state",
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "inDegree": 0,
-   "outDegree": 0
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
-   "label": "describeBuyer",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 9,
-      "character": 2
-     },
-     {
-      "line": 18,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 9,
-      "character": 9
-     },
-     {
-      "line": 9,
-      "character": 22
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 7,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 3
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:priceOf",
-   "label": "priceOf",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 20,
-      "character": 2
-     },
-     {
-      "line": 33,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 20,
-      "character": 9
-     },
-     {
-      "line": 20,
-      "character": 16
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 9,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:label",
-   "label": "label",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 35,
-      "character": 2
-     },
-     {
-      "line": 43,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 35,
-      "character": 9
-     },
-     {
-      "line": 35,
-      "character": 14
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 5,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 2
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:countItems",
-   "label": "countItems",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 45,
-      "character": 2
-     },
-     {
-      "line": 58,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 45,
-      "character": 6
-     },
-     {
-      "line": 45,
-      "character": 16
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 7,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 3
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
-   "label": "canSubmit",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 60,
-      "character": 2
-     },
-     {
-      "line": 73,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 60,
-      "character": 7
-     },
-     {
-      "line": 60,
-      "character": 16
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 9,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 5
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:summary",
-   "label": "summary",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 75,
-      "character": 2
-     },
-     {
-      "line": 86,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 75,
-      "character": 9
-     },
-     {
-      "line": 75,
-      "character": 16
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 5,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 4
-  },
-  {
-   "id": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
-   "label": "audit",
-   "kind": "method",
-   "data": {
-    "fileUri": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart",
-    "range": [
-     {
-      "line": 88,
-      "character": 2
-     },
-     {
-      "line": 97,
-      "character": 3
-     }
-    ],
-    "selectionRange": [
-     {
-      "line": 88,
-      "character": 9
-     },
-     {
-      "line": 88,
-      "character": 14
-     }
-    ],
-    "isSDK": false,
-    "access": "public",
-    "layer": "member",
-    "complexity": 6,
-    "source": {
-     "type": "project",
-     "packageName": "dummy_app",
-     "packageVersion": "unknown",
-     "packageType": "custom",
-     "relativePath": "lib\\state\\checkout_manager.dart"
-    }
-   },
-   "parent": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#kind:k4#name:CheckoutManager",
-   "inDegree": 0,
-   "outDegree": 4
   },
   {
    "id": "package_container:args",
@@ -4930,104 +4930,104 @@
  "edges": [
   {
    "id": "e0",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#kind:k4#name:User",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#kind:k4#name:Entity",
-   "label": "EXTENDS"
-  },
-  {
-   "id": "e1",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#kind:k4#name:Product",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#kind:k4#name:Entity",
-   "label": "EXTENDS"
-  },
-  {
-   "id": "e2",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#kind:k4#name:Product",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e3",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:field#name:_default_",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e4",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:refreshed",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
-   "label": "CALLS"
-  },
-  {
-   "id": "e5",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/order_data.dart#parent:OrderData#kind:class#name:submit",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
-   "label": "CALLS"
-  },
-  {
-   "id": "e6",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#kind:k4#name:UserView",
    "label": "READS_FROM"
   },
   {
-   "id": "e7",
+   "id": "e1",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#parent:UserView#kind:field#name:_default_",
    "label": "READS_FROM"
   },
   {
-   "id": "e8",
+   "id": "e2",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#kind:k4#name:CartView",
    "label": "READS_FROM"
   },
   {
-   "id": "e9",
+   "id": "e3",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:field#name:_default_",
    "label": "READS_FROM"
   },
   {
-   "id": "e10",
+   "id": "e4",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#kind:k4#name:ApiClient",
    "label": "READS_FROM"
   },
   {
-   "id": "e11",
+   "id": "e5",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/user_repository.dart#kind:k4#name:UserRepository",
    "label": "READS_FROM"
   },
   {
-   "id": "e12",
+   "id": "e6",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#kind:k4#name:CartController",
    "label": "READS_FROM"
   },
   {
-   "id": "e13",
+   "id": "e7",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:field#name:_default_",
    "label": "READS_FROM"
   },
   {
-   "id": "e14",
+   "id": "e8",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k4#name:UserController",
    "label": "READS_FROM"
   },
   {
-   "id": "e15",
+   "id": "e9",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:field#name:_default_",
    "label": "READS_FROM"
   },
   {
-   "id": "e16",
+   "id": "e10",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/main.dart#kind:k11#name:main",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
+   "label": "CALLS"
+  },
+  {
+   "id": "e11",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#kind:k4#name:User",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#kind:k4#name:Entity",
+   "label": "EXTENDS"
+  },
+  {
+   "id": "e12",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#kind:k4#name:Product",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#kind:k4#name:Entity",
+   "label": "EXTENDS"
+  },
+  {
+   "id": "e13",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#kind:k4#name:Product",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e14",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:field#name:_default_",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e15",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:refreshed",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
+   "label": "CALLS"
+  },
+  {
+   "id": "e16",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/order_data.dart#parent:OrderData#kind:class#name:submit",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
    "label": "CALLS"
   },
   {
@@ -5080,63 +5080,63 @@
   },
   {
    "id": "e25",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:class#name:load",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
-   "label": "CALLS"
-  },
-  {
-   "id": "e26",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:StateNotifier",
-   "label": "EXTENDS"
-  },
-  {
-   "id": "e27",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#kind:k4#name:User",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e28",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:field#name:_default_",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e29",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:describe",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k11#name:format",
-   "label": "CALLS"
-  },
-  {
-   "id": "e30",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#kind:k4#name:SessionNotifier",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:ChangeNotifier",
-   "label": "EXTENDS"
-  },
-  {
-   "id": "e31",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#parent:SessionNotifier#kind:class#name:login",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:ChangeNotifier#kind:class#name:notifyListeners",
-   "label": "CALLS"
-  },
-  {
-   "id": "e32",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/profile_controller.dart#kind:k4#name:ProfileController",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:GetxController",
-   "label": "EXTENDS"
-  },
-  {
-   "id": "e33",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#kind:k4#name:CounterCubit",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:Cubit",
    "label": "EXTENDS"
   },
   {
-   "id": "e34",
+   "id": "e26",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#parent:CounterCubit#kind:class#name:increment",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:class#name:emit",
    "label": "CALLS"
+  },
+  {
+   "id": "e27",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:class#name:load",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
+   "label": "CALLS"
+  },
+  {
+   "id": "e28",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#kind:k4#name:SessionNotifier",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:ChangeNotifier",
+   "label": "EXTENDS"
+  },
+  {
+   "id": "e29",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#parent:SessionNotifier#kind:class#name:login",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:ChangeNotifier#kind:class#name:notifyListeners",
+   "label": "CALLS"
+  },
+  {
+   "id": "e30",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/profile_controller.dart#kind:k4#name:ProfileController",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:GetxController",
+   "label": "EXTENDS"
+  },
+  {
+   "id": "e31",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#kind:k4#name:User",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e32",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:field#name:_default_",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e33",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:describe",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k11#name:format",
+   "label": "CALLS"
+  },
+  {
+   "id": "e34",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#kind:k4#name:WishlistStore",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#kind:k4#name:StateNotifier",
+   "label": "EXTENDS"
   },
   {
    "id": "e35",
@@ -5182,163 +5182,163 @@
   },
   {
    "id": "e42",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:field#name:_default_",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
-   "label": "WRITES_TO"
-  },
-  {
-   "id": "e43",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e44",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:summary",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e45",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k11#name:format",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e46",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:field#name:_default_",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
-   "label": "WRITES_TO"
-  },
-  {
-   "id": "e47",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e48",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e49",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e50",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:method#name:isAdult",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e51",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:prop#name:product",
    "label": "WRITES_TO"
   },
   {
-   "id": "e52",
+   "id": "e43",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:prop#name:product",
    "label": "READS_FROM"
   },
   {
+   "id": "e44",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:field#name:_default_",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
+   "label": "WRITES_TO"
+  },
+  {
+   "id": "e45",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e46",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:summary",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e47",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#kind:k11#name:format",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:name",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e48",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:field#name:_default_",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
+   "label": "WRITES_TO"
+  },
+  {
+   "id": "e49",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e50",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e51",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:prop#name:age",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e52",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/user.dart#parent:User#kind:method#name:isAdult",
+   "label": "READS_FROM"
+  },
+  {
    "id": "e53",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e54",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
    "label": "WRITES_TO"
   },
   {
-   "id": "e54",
+   "id": "e55",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
    "label": "PASSES_AS_ARGUMENT"
   },
   {
-   "id": "e55",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:priceOf",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
-   "label": "READS_FROM"
-  },
-  {
    "id": "e56",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:label",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:priceOf",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
    "label": "READS_FROM"
   },
   {
    "id": "e57",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:countItems",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:label",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
    "label": "READS_FROM"
   },
   {
    "id": "e58",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:countItems",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:title",
    "label": "READS_FROM"
   },
   {
    "id": "e59",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#parent:Cart#kind:class#name:cheapest",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
    "id": "e60",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/order_data.dart#parent:OrderData#kind:class#name:sum",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e61",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "WRITES_TO"
   },
   {
-   "id": "e62",
+   "id": "e61",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
+   "id": "e62",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/order_data.dart#parent:OrderData#kind:class#name:sum",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
+   "label": "READS_FROM"
+  },
+  {
    "id": "e63",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:priceOf",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#parent:Cart#kind:class#name:cheapest",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
    "id": "e64",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:label",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:priceOf",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
    "id": "e65",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:countItems",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:label",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
    "id": "e66",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:countItems",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
    "id": "e67",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
   {
    "id": "e68",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/widgets/badge.dart#parent:PriceBadge#kind:class#name:label",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:prop#name:price",
    "label": "READS_FROM"
   },
@@ -5398,50 +5398,50 @@
   },
   {
    "id": "e78",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:field#name:_default_",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
-   "label": "WRITES_TO"
-  },
-  {
-   "id": "e79",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:field#name:_default_",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e80",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:discounted",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
    "label": "PASSES_AS_ARGUMENT"
   },
   {
-   "id": "e81",
+   "id": "e79",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:refreshed",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
    "label": "READS_FROM"
   },
   {
-   "id": "e82",
+   "id": "e80",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:field#name:_default_",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
+   "label": "WRITES_TO"
+  },
+  {
+   "id": "e81",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/user_repository.dart#parent:UserRepository#kind:class#name:save",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
    "label": "READS_FROM"
   },
   {
-   "id": "e83",
+   "id": "e82",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:describeBuyer",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
    "label": "READS_FROM"
   },
   {
-   "id": "e84",
+   "id": "e83",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:canSubmit",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
    "label": "READS_FROM"
   },
   {
-   "id": "e85",
+   "id": "e84",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/checkout_manager.dart#parent:CheckoutManager#kind:class#name:audit",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/entity.dart#parent:Entity#kind:prop#name:id",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e85",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:fitsIn",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#parent:Cart#kind:prop#name:items",
    "label": "READS_FROM"
   },
   {
@@ -5458,7 +5458,7 @@
   },
   {
    "id": "e88",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/product.dart#parent:Product#kind:class#name:fitsIn",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:class#name:render",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#parent:Cart#kind:prop#name:items",
    "label": "READS_FROM"
   },
@@ -5476,80 +5476,80 @@
   },
   {
    "id": "e91",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:class#name:render",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#parent:Cart#kind:prop#name:items",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e92",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:class#name:summary",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/models/cart.dart#parent:Cart#kind:method#name:total",
    "label": "READS_FROM"
   },
   {
-   "id": "e93",
+   "id": "e92",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#parent:UserView#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#parent:UserView#kind:prop#name:controller",
    "label": "WRITES_TO"
   },
   {
-   "id": "e94",
+   "id": "e93",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#parent:UserView#kind:class#name:render",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/user_view.dart#parent:UserView#kind:prop#name:controller",
    "label": "READS_FROM"
   },
   {
-   "id": "e95",
+   "id": "e94",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:prop#name:controller",
    "label": "WRITES_TO"
   },
   {
-   "id": "e96",
+   "id": "e95",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:class#name:render",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:prop#name:controller",
    "label": "READS_FROM"
   },
   {
-   "id": "e97",
+   "id": "e96",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/audit_log.dart#parent:AuditLog#kind:class#name:save",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/audit_log.dart#parent:AuditLog#kind:prop#name:entries",
    "label": "READS_FROM"
   },
   {
-   "id": "e98",
+   "id": "e97",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:fetchProducts",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:prop#name:_cache",
    "label": "READS_FROM"
   },
   {
-   "id": "e99",
+   "id": "e98",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:class#name:close",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/api_client.dart#parent:ApiClient#kind:prop#name:_http",
    "label": "READS_FROM"
   },
   {
-   "id": "e100",
+   "id": "e99",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/user_repository.dart#parent:UserRepository#kind:class#name:findById",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/user_repository.dart#parent:UserRepository#kind:prop#name:_store",
    "label": "READS_FROM"
   },
   {
-   "id": "e101",
+   "id": "e100",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/user_repository.dart#parent:UserRepository#kind:class#name:save",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/services/user_repository.dart#parent:UserRepository#kind:prop#name:_store",
    "label": "READS_FROM"
   },
   {
-   "id": "e102",
+   "id": "e101",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:prop#name:api",
    "label": "WRITES_TO"
   },
   {
-   "id": "e103",
+   "id": "e102",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:class#name:load",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:prop#name:api",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e103",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:class#name:render",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:prop#name:cart",
    "label": "READS_FROM"
   },
   {
@@ -5566,123 +5566,117 @@
   },
   {
    "id": "e106",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/cart_view.dart#parent:CartView#kind:class#name:render",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/cart_controller.dart#parent:CartController#kind:prop#name:cart",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/counter_view.dart#parent:CounterView#kind:class#name:render",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:prop#name:state",
    "label": "READS_FROM"
   },
   {
    "id": "e107",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:field#name:_default_",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
-   "label": "WRITES_TO"
-  },
-  {
-   "id": "e108",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e109",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e110",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
-   "label": "WRITES_TO"
-  },
-  {
-   "id": "e111",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e112",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:describe",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
-   "label": "PASSES_AS_ARGUMENT"
-  },
-  {
-   "id": "e113",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/counter_cubit.dart#parent:CounterCubit#kind:class#name:increment",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:prop#name:state",
    "label": "READS_FROM"
   },
   {
-   "id": "e114",
+   "id": "e108",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:prop#name:state",
    "label": "WRITES_TO"
   },
   {
-   "id": "e115",
+   "id": "e109",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:class#name:emit",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:prop#name:state",
    "label": "WRITES_TO"
   },
   {
-   "id": "e116",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/counter_view.dart#parent:CounterView#kind:class#name:render",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:Cubit#kind:prop#name:state",
-   "label": "READS_FROM"
-  },
-  {
-   "id": "e117",
+   "id": "e110",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:StateNotifier#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:StateNotifier#kind:prop#name:state",
    "label": "WRITES_TO"
   },
   {
-   "id": "e118",
+   "id": "e111",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#parent:WishlistStore#kind:class#name:add",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:StateNotifier#kind:prop#name:state",
    "label": "READS_FROM"
   },
   {
-   "id": "e119",
+   "id": "e112",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/wishlist_store.dart#parent:WishlistStore#kind:class#name:add",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:StateNotifier#kind:prop#name:state",
    "label": "WRITES_TO"
   },
   {
-   "id": "e120",
+   "id": "e113",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/counter_view.dart#parent:CounterView#kind:class#name:render",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:BlocBuilder#kind:prop#name:builder",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e114",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:BlocBuilder#kind:field#name:_default_",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:BlocBuilder#kind:prop#name:builder",
    "label": "WRITES_TO"
   },
   {
-   "id": "e121",
+   "id": "e115",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/counter_view.dart#parent:CounterView#kind:class#name:render",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/shims.dart#parent:BlocBuilder#kind:prop#name:builder",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#parent:SessionNotifier#kind:prop#name:user",
    "label": "READS_FROM"
   },
   {
-   "id": "e122",
+   "id": "e116",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#parent:SessionNotifier#kind:class#name:login",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#parent:SessionNotifier#kind:prop#name:user",
    "label": "WRITES_TO"
   },
   {
-   "id": "e123",
+   "id": "e117",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/counter_view.dart#parent:CounterView#kind:class#name:render",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/session_notifier.dart#parent:SessionNotifier#kind:prop#name:user",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/profile_controller.dart#parent:ProfileController#kind:prop#name:name",
    "label": "READS_FROM"
   },
   {
-   "id": "e124",
+   "id": "e118",
    "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/profile_controller.dart#parent:ProfileController#kind:class#name:rename",
    "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/profile_controller.dart#parent:ProfileController#kind:prop#name:name",
    "label": "WRITES_TO"
   },
   {
-   "id": "e125",
-   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/views/counter_view.dart#parent:CounterView#kind:class#name:render",
-   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/profile_controller.dart#parent:ProfileController#kind:prop#name:name",
+   "id": "e119",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:field#name:_default_",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
+   "label": "WRITES_TO"
+  },
+  {
+   "id": "e120",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
    "label": "READS_FROM"
+  },
+  {
+   "id": "e121",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:repository",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e122",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:register",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
+   "label": "WRITES_TO"
+  },
+  {
+   "id": "e123",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:isCurrentAdult",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
+   "label": "READS_FROM"
+  },
+  {
+   "id": "e124",
+   "source": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:class#name:describe",
+   "target": "file:///c%3A/Users/victo/Documents/satori/e2e/dummy_app/lib/state/user_controller.dart#parent:UserController#kind:prop#name:current",
+   "label": "PASSES_AS_ARGUMENT"
   }
  ]
 }

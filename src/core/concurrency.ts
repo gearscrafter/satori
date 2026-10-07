@@ -32,15 +32,19 @@ export async function retryUntil<T>(
 export async function mapLimited<T, R>(
     items: T[],
     limit: number,
-    fn: (item: T, index: number) => Promise<R>
+    fn: (item: T, index: number) => Promise<R>,
+    onProgress?: (done: number, total: number) => void
 ): Promise<R[]> {
     const results = new Array<R>(items.length);
     let next = 0;
+    let done = 0;
 
     async function worker(): Promise<void> {
         while (next < items.length) {
             const index = next++;
             results[index] = await fn(items[index], index);
+            done++;
+            onProgress?.(done, items.length);
         }
     }
 

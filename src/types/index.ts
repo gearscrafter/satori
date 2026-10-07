@@ -149,6 +149,7 @@ export interface EnrichmentDependencies {
     projectClassRelations: Map<string, { extends?: string[]; with: string[], implements?: string[] }>; 
     fileContent: string; 
     allProjectFilesData: Array<{ file: string; fileUri: string; symbols: EnrichedSymbol[] }>;
+    fileLines?: string[];
 }
 
 export type PackageType = 'sdk' | 'flutter_official' | 'third_party' | 'ui_library' | 'state_management' | 'custom' |  'dev_tools';

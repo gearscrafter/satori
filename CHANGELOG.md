@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.1.1] - 10-07-2026
+
+### Fixed
+
+- **A big project could take over an hour to open.** Where each field and method is used was asked to the
+  language server one symbol at a time, thousands of requests on a big project. It is now read from Dart's
+  analysis server, one request per file. A generated project of 600 files went from 60 s to 7 s, and 3,000 files
+  take about two minutes, mostly waiting for the Dart extension's own server. If the analysis server cannot be
+  started the language server is used as before.
+- **The progress notification showed raw text and a bar that did not mean anything.** The file counter read
+  "Analyzing {0} ({1}/{2})..." and the increments added up to more than 100. The notification at the bottom right
+  now shows the step that is running with its counter, the real overall percentage and the elapsed time, which
+  keeps counting every second so a long step does not look frozen. English and Spanish.
+- The scrollable area of the diagram follows the canvas when it changes height by itself, instead of staying at
+  the size it had before a fold finished.
+
+
 ## [2.1.0] - 10-06-2026
 
 ### Added

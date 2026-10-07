@@ -27,7 +27,7 @@ export function enrichWithSourceRegexTypes(
 
     log.debug(`${logPrefix}DEBUG_F: Starting regex fallback for '${enrichedSym.name}'`);
 
-    const lines = fileContent.split('\n');
+    const lines = (dependencies.fileLines ??= fileContent.split('\n'));
     const startLine = Math.max(0, enrichedSym.selectionRange.start.line - 5);
     const endLine = Math.min(lines.length, enrichedSym.selectionRange.start.line + 1); 
     const codeSnippet = lines.slice(startLine, endLine).join('\n');
@@ -56,6 +56,8 @@ export function enrichWithSourceRegexTypes(
             if (potentialReturn.toLowerCase() !== 'void') {
                 enrichedSym.returnType = potentialReturn;
                 log.debug(`${logPrefix}  ↳ Regex SUCCESS (Method): Method '${enrichedSym.name}' returns: ${enrichedSym.returnType}`);
+            } else {
+                enrichedSym.hoverChecked = true;
             }
         }
     }

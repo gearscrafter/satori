@@ -83,7 +83,7 @@ suite('Analysis Functions Test Suite', () => {
         const packages: ExternalPackageInfo[] = [
             {
                 name: 'http',
-                version: '2.1.0',
+                version: '2.1.1',
                 path: '/packages/http',
                 type: 'third_party',
                 dartFiles: [],
@@ -97,7 +97,7 @@ suite('Analysis Functions Test Suite', () => {
         
         assert.strictEqual(result.type, 'external_package', 'Should identify as external package');
         assert.strictEqual(result.packageName, 'http', 'Should identify package name');
-        assert.strictEqual(result.packageVersion, '2.1.0', 'Should identify package version');
+        assert.strictEqual(result.packageVersion, '2.1.1', 'Should identify package version');
     });
 
     test('determineFileSource should handle invalid URI', () => {
@@ -110,7 +110,7 @@ suite('Analysis Functions Test Suite', () => {
         const packages: ExternalPackageInfo[] = [
             {
                 name: 'my_package',
-                version: '2.1.0',
+                version: '2.1.1',
                 path: '/project/packages/my_package',
                 type: 'custom',
                 dartFiles: [],

@@ -125,6 +125,14 @@ The webview sends `getSnippet` (code for a reference), `openClass` (open a file 
 
 The audit thresholds and weights live in the settings `satori.audit.*` (open `Ctrl+,` and search for `satori.audit`). They are read when the analysis runs, so run it again after changing them. Try `satori.audit.godClass.wmc` = `40` and see which classes change.
 
+To time the analysis on a bigger project, point the end-to-end launcher at it and read the timings the extension writes to the "satori" output channel:
+
+```
+SATORI_E2E_PROJECT=/path/to/a/project SATORI_E2E_SUITE=/path/to/your_suite.js node e2e/run.js
+```
+
+`SATORI_E2E_ENGINE=languageServer node e2e/run.js` runs the example with the slow, symbol-by-symbol engine, to check the fallback.
+
 To check your changes without opening VS Code: `npm test` runs the unit tests (the audit model and the complexity estimate are covered there), and `npm run test:e2e` runs the analysis on the example inside VS Code. To regenerate the graph the unit tests read, run the e2e with `SATORI_E2E_GRAPH_OUT=e2e/fixtures/dummy_graph.json`.
 
 ## Testing with Flutter projects

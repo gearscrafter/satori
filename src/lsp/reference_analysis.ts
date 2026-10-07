@@ -5,6 +5,8 @@ import { isPathInside } from "../filesystem/path_utils";
 import { ProjectGraphModel, ProjectGraphNode, EnrichedSymbol, ProjectGraphEdge } from "../types/index";
 import * as vscode from 'vscode';
 import { log } from "../utils/logger";
+import { NavigationIndex } from "../analysis/navigation_index";
+import { OverrideIndex } from "../analysis/hierarchy";
 
 
 let nodesByFileCache: Map<string, ProjectGraphNode[]> | null = null;
@@ -38,6 +40,55 @@ export function clearNodesByFileCache(): void {
 
 const referencesCache = new Map<string, vscode.Location[] | null>();
 
+/**
+ * When set, "where is this symbol used" is answered from it instead of asking the language server about each symbol.
+ * It comes from the analysis server's navigation of every file (see navigation_runner).
+ */
+let navigationIndex: NavigationIndex | null = null;
+const uriParseCache = new Map<string, vscode.Uri>();
+
+let overrides: OverrideIndex<EnrichedSymbol> | null = null;
+
+/** Told how far the passes that ask the language server symbol by symbol have got (only used without the analysis server). */
+let onPassProgress: ((pass: 'fields' | 'calls', done: number, total: number) => void) | null = null;
+export function setPassProgress(fn: typeof onPassProgress): void { onPassProgress = fn; }
+
+export function setNavigationIndex(index: NavigationIndex | null): void {
+    navigationIndex = index;
+    uriParseCache.clear();
+    if (!index) { overrides = null; }
+}
+
+/** Needed once the symbols are known: lets the uses of an interface method include those of its implementations. */
+export function setNavigationHierarchy(classes: EnrichedSymbol[]): void {
+    overrides = navigationIndex ? new OverrideIndex(classes) : null;
+}
+
+function usagesOf(symbol: EnrichedSymbol) {
+    const at = (s: EnrichedSymbol) => s.selectionRange && s.fileUri
+        ? navigationIndex!.referencesTo(vscode.Uri.parse(s.fileUri).fsPath, s.selectionRange.start.line, s.selectionRange.start.character)
+        : [];
+    const usages = [...at(symbol)];
+    // The language server counts a call through an interface as a use of what implements it, and a constructor call as a use of its class.
+    for (const other of overrides?.overridersOf(symbol) ?? []) { usages.push(...at(other)); }
+    if (symbol.kind === vscode.SymbolKind.Class) {
+        for (const child of symbol.children ?? []) {
+            if (child.kind === vscode.SymbolKind.Constructor) { usages.push(...at(child)); }
+        }
+    }
+    return usages;
+}
+
+function locationsFromIndex(symbol: EnrichedSymbol): vscode.Location[] | null {
+    const usages = usagesOf(symbol);
+    if (usages.length === 0) { return null; }
+    return usages.map(u => {
+        let uri = uriParseCache.get(u.uri);
+        if (!uri) { uri = vscode.Uri.parse(u.uri); uriParseCache.set(u.uri, uri); }
+        return new vscode.Location(uri, new vscode.Range(u.line, u.character, u.endLine, u.endCharacter));
+    });
+}
+
 const EMPTY_ANSWER_RETRY_DELAYS_MS = [250, 750, 1500];
 const MAX_EMPTY_STREAK = 8;
 /** Symbols in a row that stayed empty after every retry; past the limit retries stop so a server that cannot answer does not slow the analysis. */
@@ -45,6 +96,7 @@ let emptyAnswerStreak = 0;
 
 
 async function getReferencesForSymbol(symbol: EnrichedSymbol): Promise<vscode.Location[] | null> {
+    if (navigationIndex) { return locationsFromIndex(symbol); }
     const { line, character } = symbol.selectionRange!.start;
     const cacheKey = `${symbol.fileUri}:${line}:${character}`;
  
@@ -201,7 +253,7 @@ export async function addFieldAccessEdges(
             kindsByContainer.set(container.id, set);
         }
         return kindsByContainer;
-    });
+    }, (done, total) => onPassProgress?.('fields', done, total));
 
     let created = 0;
     candidates.forEach((field, i) => {
@@ -248,7 +300,7 @@ export async function addAmbiguousCallEdges(
             }
         }
         return found;
-    });
+    }, (done, total) => onPassProgress?.('calls', done, total));
 
     let created = 0;
     list.forEach((symbol, i) => {

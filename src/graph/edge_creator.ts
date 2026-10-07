@@ -1,11 +1,12 @@
 import { stripCommentsAndStrings, escapeRegExp } from "../core";
 import { ProjectGraphModel, EnrichedSymbol, ProjectGraphEdge, ProjectGraphNode, ExternalPackageInfo } from "../types/index";
 import { getSourceCodeForSymbol } from "../analysis/source_analyzer";
-import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges } from "../lsp/reference_analysis";
+import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges, setNavigationHierarchy } from "../lsp/reference_analysis";
 import { methodBody } from "../analysis/signature";
 import { cyclomaticComplexity } from "../analysis/complexity";
 import { observedTypeNames } from "../analysis/observers";
 import { log } from "../utils/logger";
+import * as vscode from 'vscode';
 
 /**
  * Creates graph edges by analyzing symbols and their relationships. It processes
@@ -29,6 +30,8 @@ export async function createGraphEdgesFromSymbols(
 ): Promise<void> {
     log.debug(`[GraphBuilder] Creating edges...`);
  
+    setNavigationHierarchy(Array.from(symbolMapById.values()).filter(s => s.kind === vscode.SymbolKind.Class));
+
     const classNodeIndex = new Map<string, ProjectGraphNode>();
     for (const node of projectGraph.nodes) {
         if (node.kind === 'class' && !classNodeIndex.has(node.label)) {

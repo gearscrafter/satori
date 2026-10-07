@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { log } from '../utils/logger';
+import { firstExistingPath } from './dart_executable';
 
 /**
  * Finds the Dart SDK executable path
@@ -38,9 +39,10 @@ export function findDartSdk(): string | undefined {
 
   try {
     const cmd = process.platform === 'win32' ? 'where dart' : 'which dart';
-    const dartPath = execSync(cmd, { encoding: 'utf-8' }).toString().trim();
+    // "where" lists every match (dart and dart.bat for a Flutter install): the first one that exists is used.
+    const dartPath = firstExistingPath(execSync(cmd, { encoding: 'utf-8' }).toString(), fs.existsSync);
 
-    if (dartPath && fs.existsSync(dartPath)) {
+    if (dartPath) {
       log.info(`✅ Found Dart SDK in system PATH: ${dartPath}`);
       return dartPath;
     }

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import { EnrichedSymbol, EnrichmentDependencies, ProjectGraphModel } from '../types/index';
 import path from 'path';
 import { validateEnrichedData } from '../analysis/validation';
-import { calculateNodeDegrees, sanitizeObjectStrings } from '../core';
+import { calculateNodeDegrees, sanitizeObjectStrings, mapLimited } from '../core';
 import { buildGraphModel } from '../graph/graph_builder';
 import { resolvedTypesCache } from '../utils/caches';
 import { log } from '../utils/logger';
@@ -17,6 +17,12 @@ import { findDartSdk } from '../lsp/dart_sdk';
 import { buildTypeIndex, clearTypeIndex } from '../analysis/enrichment/type-resolver';
 import { clearHoverCache } from '../lsp/hover_enrichment';
 import { readAuditConfig } from '../analysis/audit_config';
+import { NavigationOutcome } from '../analysis/navigation_runner';
+import { setNavigationIndex, setPassProgress } from '../lsp/reference_analysis';
+import { LoadingReporter, silentReporter } from './loading_state';
+import { t } from '../utils/localization';
+
+const ENRICH_FILE_CONCURRENCY = 4;
 
 /** Name of the package the analysed folder belongs to, from the closest pubspec.yaml. Empty when there is none. */
 function readOwnPackageName(projectRoot: string): string {
@@ -104,9 +110,19 @@ export function findClassFieldSymbol(classSymbol: EnrichedSymbol, fieldName: str
  */
 export async function createWebview(
   context: vscode.ExtensionContext,
-  data: { projectRoot: string; files: Array<{ file: string; fileUri: string; symbols: any[] }> },
-): Promise<{ panel: vscode.WebviewPanel; graph: ProjectGraphModel; timings: { enrichMs: number; graphMs: number; finishMs: number } }> {
+  data: {
+    projectRoot: string;
+    files: Array<{ file: string; fileUri: string; symbols: any[] }>;
+    /** A finished analysis of the same files: the language server is not asked again. */
+    cached?: { graph: ProjectGraphModel; fileImports: Record<string, ImportRef[]> };
+    /** Started earlier, in parallel with the symbols: where every symbol is used, from Dart's analysis server. */
+    navigation?: Promise<NavigationOutcome | null>;
+    /** Where the notification is told how the analysis is going. */
+    reporter?: LoadingReporter;
+  },
+): Promise<{ panel: vscode.WebviewPanel; graph: ProjectGraphModel; fileImports: Record<string, ImportRef[]>; timings: { enrichMs: number; graphMs: number; finishMs: number; engine: string } }> {
   const startedAt = Date.now();
+  const reporter = data.reporter ?? silentReporter;
 
   function getLanguage(): string {
     const config = vscode.workspace.getConfiguration('satori');
@@ -133,6 +149,18 @@ export async function createWebview(
     `img-src data: ${panel.webview.cspSource}`
   ].join('; ');
 
+  const fileImports: Record<string, ImportRef[]> = {};
+  let projectGraph: ProjectGraphModel;
+  let enrichedAt: number;
+  let graphBuiltAt: number;
+  let engine = "saved analysis";
+
+  if (data.cached) {
+    projectGraph = data.cached.graph;
+    Object.assign(fileImports, data.cached.fileImports);
+    enrichedAt = graphBuiltAt = Date.now();
+    log.info(`Using the saved analysis: ${projectGraph.nodes.length} nodes, ${projectGraph.edges.length} edges.`);
+  } else {
   log.debug('Starting data enrichment for webview..');
   resolvedTypesCache.clear();
   clearHoverCache();
@@ -143,9 +171,17 @@ export async function createWebview(
   buildTypeIndex(data.files);
   log.debug('[TypeIndex] Type index built — starting enrichment.');
 
-  const fileImports: Record<string, ImportRef[]> = {};
+  // Built once: copying every file record for each file made this step quadratic in the number of files.
+  const allProjectFilesData = data.files.map(df => ({
+    ...df,
+    fileUri: (typeof df.fileUri === 'string' && df.fileUri.startsWith('file:'))
+      ? df.fileUri
+      : vscode.Uri.file(df.file).toString()
+  }));
 
-  const processedFilesPromises = data.files.map(async (f_item) => {
+  // Every file at once flooded the language server with thousands of hover requests; a few at a time keeps it answering.
+  reporter.start('types');
+  const processedFiles = await mapLimited(data.files, ENRICH_FILE_CONCURRENCY, async (f_item) => {
     const fileContent = fs.readFileSync(f_item.file, 'utf8');
     const fileUriString = (typeof f_item.fileUri === 'string' && f_item.fileUri.startsWith('file:'))
       ? f_item.fileUri
@@ -156,12 +192,7 @@ export async function createWebview(
     const enrichmentDeps: EnrichmentDependencies = {
       projectClassRelations,
       fileContent,
-      allProjectFilesData: data.files.map(df => ({
-        ...df,
-        fileUri: (typeof df.fileUri === 'string' && df.fileUri.startsWith('file:'))
-          ? df.fileUri
-          : vscode.Uri.file(df.file).toString()
-      }))
+      allProjectFilesData
     };
 
     const processedSymbols = f_item.symbols
@@ -171,18 +202,33 @@ export async function createWebview(
       : [];
 
     return { ...f_item, fileUri: fileUriString, symbols: processedSymbols };
-  });
+  }, (done, total) => reporter.progress('types', done, total));
+  reporter.finish('types');
 
-  data.files = await Promise.all(processedFilesPromises);
-  const enrichedAt = Date.now();
+  data.files = processedFiles;
+  enrichedAt = Date.now();
   log.debug('✅ Deep enrichment of all files completed.');
 
   clearTypeIndex();
   log.debug('✅ Type index cleared.');
 
   log.debug('Phase 2: Building project graph model...');
-  const projectGraph = await buildGraphModel(data.files, data.projectRoot);
-  const graphBuiltAt = Date.now();
+  reporter.start('graph');
+  const navigation = data.navigation ? await data.navigation : null;
+  if (navigation) {
+    log.info(`Relationships read from the analysis server: ${navigation.files} files (start ${navigation.startMs}ms, analysis ${navigation.analyzeMs}ms, navigation ${navigation.navigationMs}ms).`);
+  }
+  engine = navigation ? "analysis server" : "language server";
+  setNavigationIndex(navigation ? navigation.index : null);
+  setPassProgress((pass, done, total) => reporter.progress('graph', done, total, t(`loading.graph.${pass}`)));
+  try {
+    projectGraph = await buildGraphModel(data.files, data.projectRoot);
+  } finally {
+    setNavigationIndex(null);
+    setPassProgress(null);
+  }
+  reporter.finish('graph');
+  graphBuiltAt = Date.now();
   log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
 
   log.debug('Calculating coupling degrees (in/out degree) of nodes...');
@@ -291,6 +337,7 @@ export async function createWebview(
   data.files.forEach(fileData => validateParentIds(fileData.symbols));
 
   log.debug('[✓] Resolution of this.fieldName fields in constructors completed.');
+  }
 
   const ownPackage = readOwnPackageName(data.projectRoot);
   const dataForWebview = {
@@ -316,7 +363,7 @@ export async function createWebview(
 
   log.debug(`[DEBUG_JSON] Total length of astJson: ${astJson.length}`);
 
-  validateEnrichedData(data.files);
+  if (!data.cached) { validateEnrichedData(data.files); }
 
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
@@ -336,6 +383,7 @@ export async function createWebview(
     .replace(/__AST_JSON_PLACEHOLDER__/g, () => astJson)
     .replace(/__TRANSLATIONS__/g, () => JSON.stringify(translations).replace(/</g, '\\u003c'));
 
+  reporter.start('draw');
   panel.webview.html = html;
 
 
@@ -343,7 +391,8 @@ export async function createWebview(
   return {
     panel,
     graph: projectGraph,
-    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt }
+    fileImports,
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt, engine }
   };
 }
 

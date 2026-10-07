@@ -69,23 +69,24 @@ export async function processSymbolRecursiveLSP(
         enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies);
 
         try {
-            await Promise.all([
-                enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies),
-                (async () => {
-                    if (!enrichedSym.hoverChecked) {
-                        await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
-                        enrichedSym.hoverChecked = true;
-                    }
-                })()
-            ]);
+            await enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies);
         } catch (e) {
-            log.debug(`${logPrefix}⚠️ Error in async enrich: ${e instanceof Error ? e.message : e}`);
+            log.debug(`${logPrefix}⚠️ Error in detail enrich: ${e instanceof Error ? e.message : e}`);
         }
 
         try {
             enrichWithSourceRegexTypes(enrichedSym, logPrefix, dependencies);
         } catch (e) {
             log.debug(`${logPrefix}⚠️ Error in enrichWithSourceRegexTypes: ${e instanceof Error ? e.message : e}`);
+        }
+
+        try {
+            if (!enrichedSym.hoverChecked) {
+                await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
+                enrichedSym.hoverChecked = true;
+            }
+        } catch (e) {
+            log.debug(`${logPrefix}⚠️ Error in hover enrich: ${e instanceof Error ? e.message : e}`);
         }
 
         if (enrichedSym.children && enrichedSym.children.length > 0) {

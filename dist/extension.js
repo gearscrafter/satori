@@ -35,9 +35,9 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ui/extension_lifecycle.ts
-var vscode26 = __toESM(require("vscode"));
+var vscode28 = __toESM(require("vscode"));
 var import_path8 = __toESM(require("path"));
-var fs14 = __toESM(require("fs"));
+var fs16 = __toESM(require("fs"));
 
 // src/ui/providers/details_provider.ts
 var vscode3 = __toESM(require("vscode"));
@@ -619,7 +619,7 @@ function extractPackageImportsFromFile(fileUri) {
 }
 
 // src/ui/webview_creator.ts
-var vscode23 = __toESM(require("vscode"));
+var vscode24 = __toESM(require("vscode"));
 var fs12 = __toESM(require("fs"));
 var import_path7 = __toESM(require("path"));
 
@@ -796,7 +796,7 @@ function calculateNodeDegrees(graph) {
 }
 
 // src/core/concurrency.ts
-var defaultSleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+var defaultSleep = (ms) => new Promise((resolve3) => setTimeout(resolve3, ms));
 async function retryUntil(operation, isDone, delaysMs, sleep = defaultSleep) {
   let result = await operation();
   let attempts = 1;
@@ -810,13 +810,16 @@ async function retryUntil(operation, isDone, delaysMs, sleep = defaultSleep) {
   }
   return { result, attempts, exhausted: !isDone(result) };
 }
-async function mapLimited(items, limit, fn) {
+async function mapLimited(items, limit, fn, onProgress) {
   const results = new Array(items.length);
   let next = 0;
+  let done = 0;
   async function worker() {
     while (next < items.length) {
       const index = next++;
       results[index] = await fn(items[index], index);
+      done++;
+      onProgress?.(done, items.length);
     }
   }
   await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
@@ -824,7 +827,7 @@ async function mapLimited(items, limit, fn) {
 }
 
 // src/graph/graph_builder.ts
-var vscode15 = __toESM(require("vscode"));
+var vscode16 = __toESM(require("vscode"));
 
 // src/graph/layer_classifier.ts
 var vscode9 = __toESM(require("vscode"));
@@ -1171,6 +1174,62 @@ function isPathInside(child, parent) {
 
 // src/lsp/reference_analysis.ts
 var vscode11 = __toESM(require("vscode"));
+
+// src/analysis/hierarchy.ts
+function parentNames(symbol) {
+  const relations = symbol.relations;
+  if (!relations) {
+    return [];
+  }
+  return [...relations.extends ?? [], ...relations.implements ?? [], ...relations.with ?? []].map((r) => (typeof r === "string" ? r : r.name).split("<")[0].trim()).filter((n) => n !== "");
+}
+var OverrideIndex = class {
+  ownerOfMember = /* @__PURE__ */ new Map();
+  subclassesOf = /* @__PURE__ */ new Map();
+  constructor(classes) {
+    for (const cls of classes) {
+      for (const child of cls.children ?? []) {
+        this.ownerOfMember.set(child, cls);
+      }
+      for (const parent of parentNames(cls)) {
+        const list = this.subclassesOf.get(parent);
+        if (list) {
+          list.push(cls);
+        } else {
+          this.subclassesOf.set(parent, [cls]);
+        }
+      }
+    }
+  }
+  /** Members with the same name and kind in every class that comes, directly or not, from the member's class. */
+  overridersOf(member) {
+    const owner = this.ownerOfMember.get(member);
+    if (!owner) {
+      return [];
+    }
+    const found = [];
+    const seen = /* @__PURE__ */ new Set([owner]);
+    const queue = [owner];
+    while (queue.length) {
+      const current = queue.shift();
+      for (const sub of this.subclassesOf.get(current.name) ?? []) {
+        if (seen.has(sub)) {
+          continue;
+        }
+        seen.add(sub);
+        queue.push(sub);
+        for (const child of sub.children ?? []) {
+          if (child.name === member.name && child.kind === member.kind) {
+            found.push(child);
+          }
+        }
+      }
+    }
+    return found;
+  }
+};
+
+// src/lsp/reference_analysis.ts
 var nodesByFileCache = null;
 function getNodesByFile(nodes) {
   if (nodesByFileCache) {
@@ -1194,10 +1253,59 @@ function clearNodesByFileCache() {
   log.debug(`[RefAnalysis] nodesByFile + references cache cleared.`);
 }
 var referencesCache = /* @__PURE__ */ new Map();
+var navigationIndex = null;
+var uriParseCache = /* @__PURE__ */ new Map();
+var overrides = null;
+var onPassProgress = null;
+function setPassProgress(fn) {
+  onPassProgress = fn;
+}
+function setNavigationIndex(index) {
+  navigationIndex = index;
+  uriParseCache.clear();
+  if (!index) {
+    overrides = null;
+  }
+}
+function setNavigationHierarchy(classes) {
+  overrides = navigationIndex ? new OverrideIndex(classes) : null;
+}
+function usagesOf(symbol) {
+  const at = (s) => s.selectionRange && s.fileUri ? navigationIndex.referencesTo(vscode11.Uri.parse(s.fileUri).fsPath, s.selectionRange.start.line, s.selectionRange.start.character) : [];
+  const usages = [...at(symbol)];
+  for (const other of overrides?.overridersOf(symbol) ?? []) {
+    usages.push(...at(other));
+  }
+  if (symbol.kind === vscode11.SymbolKind.Class) {
+    for (const child of symbol.children ?? []) {
+      if (child.kind === vscode11.SymbolKind.Constructor) {
+        usages.push(...at(child));
+      }
+    }
+  }
+  return usages;
+}
+function locationsFromIndex(symbol) {
+  const usages = usagesOf(symbol);
+  if (usages.length === 0) {
+    return null;
+  }
+  return usages.map((u) => {
+    let uri = uriParseCache.get(u.uri);
+    if (!uri) {
+      uri = vscode11.Uri.parse(u.uri);
+      uriParseCache.set(u.uri, uri);
+    }
+    return new vscode11.Location(uri, new vscode11.Range(u.line, u.character, u.endLine, u.endCharacter));
+  });
+}
 var EMPTY_ANSWER_RETRY_DELAYS_MS = [250, 750, 1500];
 var MAX_EMPTY_STREAK = 8;
 var emptyAnswerStreak = 0;
 async function getReferencesForSymbol(symbol) {
+  if (navigationIndex) {
+    return locationsFromIndex(symbol);
+  }
   const { line, character } = symbol.selectionRange.start;
   const cacheKey = `${symbol.fileUri}:${line}:${character}`;
   if (referencesCache.has(cacheKey)) {
@@ -1303,7 +1411,7 @@ async function addFieldAccessEdges(projectGraph, symbolMapById, usedIdentifiers,
       kindsByContainer.set(container.id, set);
     }
     return kindsByContainer;
-  });
+  }, (done, total) => onPassProgress?.("fields", done, total));
   let created = 0;
   candidates.forEach((field, i) => {
     found[i].forEach((kinds, containerId) => {
@@ -1340,7 +1448,7 @@ async function addAmbiguousCallEdges(projectGraph, symbolMapById, candidates, cr
       }
     }
     return found;
-  });
+  }, (done, total) => onPassProgress?.("calls", done, total));
   let created = 0;
   list.forEach((symbol, i) => {
     callers[i].forEach((callerId) => {
@@ -1418,8 +1526,10 @@ function observedTypeNames(source) {
 }
 
 // src/graph/edge_creator.ts
+var vscode12 = __toESM(require("vscode"));
 async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEdge, projectRoot, generatedNodeIds, cachedPackages) {
   log.debug(`[GraphBuilder] Creating edges...`);
+  setNavigationHierarchy(Array.from(symbolMapById.values()).filter((s) => s.kind === vscode12.SymbolKind.Class));
   const classNodeIndex = /* @__PURE__ */ new Map();
   for (const node of projectGraph.nodes) {
     if (node.kind === "class" && !classNodeIndex.has(node.label)) {
@@ -1531,7 +1641,7 @@ async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEd
 
 // src/packages/package_discovery.ts
 var import_path4 = __toESM(require("path"));
-var vscode12 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 var fs8 = __toESM(require("fs"));
 
 // src/packages/package_analyzer.ts
@@ -1661,7 +1771,7 @@ function findAllPackages(searchStartPath) {
         log.debug(`   original URI: ${pkg.rootUri}`);
         let packagePath;
         if (pkg.rootUri.startsWith("file://")) {
-          packagePath = vscode12.Uri.parse(pkg.rootUri).fsPath;
+          packagePath = vscode13.Uri.parse(pkg.rootUri).fsPath;
         } else {
           const dartToolDir = import_path4.default.dirname(packageConfigPath);
           packagePath = import_path4.default.resolve(dartToolDir, pkg.rootUri);
@@ -1690,7 +1800,7 @@ function findAllPackages(searchStartPath) {
 }
 
 // src/packages/graph_integration/container_nodes.ts
-var vscode13 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 function packagesNeedingContainers(packages, projectRootPath) {
   if (!projectRootPath) {
     return packages;
@@ -1703,9 +1813,9 @@ function createPackageContainerNodes(externalPackages, projectGraph, generatedNo
     const containerNodeId = `package_container:${pkg.name}`;
     if (!generatedNodeIds.has(containerNodeId)) {
       generatedNodeIds.add(containerNodeId);
-      const fakeRange = new vscode13.Range(
-        new vscode13.Position(0, 0),
-        new vscode13.Position(0, pkg.name.length)
+      const fakeRange = new vscode14.Range(
+        new vscode14.Position(0, 0),
+        new vscode14.Position(0, pkg.name.length)
       );
       const containerNode = {
         id: containerNodeId,
@@ -1780,13 +1890,13 @@ function createInterPackageDependencyEdges(projectGraph, externalPackages, creat
 
 // src/packages/source_detector.ts
 var import_path5 = __toESM(require("path"));
-var vscode14 = __toESM(require("vscode"));
+var vscode15 = __toESM(require("vscode"));
 function determineFileSource(fileUri, allPackages) {
   try {
     if (!fileUri) {
       return { type: "project" };
     }
-    const filePath = vscode14.Uri.parse(fileUri).fsPath;
+    const filePath = vscode15.Uri.parse(fileUri).fsPath;
     const posixFilePath = filePath.replace(/\\/g, "/");
     if (posixFilePath.includes("dart-sdk/lib") || posixFilePath.includes("flutter/bin/cache/dart-sdk")) {
       return { type: "sdk", packageType: "sdk" };
@@ -1955,8 +2065,8 @@ async function extractSymbolsFromExternalPackages(projectRoot, allPackages) {
     }).slice(0, 1);
     for (const dartFile of mainFiles) {
       try {
-        const fileUri = vscode15.Uri.file(dartFile);
-        const symbols = await vscode15.commands.executeCommand(
+        const fileUri = vscode16.Uri.file(dartFile);
+        const symbols = await vscode16.commands.executeCommand(
           "vscode.executeDocumentSymbolProvider",
           fileUri
         );
@@ -1972,10 +2082,10 @@ async function extractSymbolsFromExternalPackages(projectRoot, allPackages) {
 var resolvedTypesCache = /* @__PURE__ */ new Map();
 
 // src/analysis/symbol_processor.ts
-var vscode20 = __toESM(require("vscode"));
+var vscode21 = __toESM(require("vscode"));
 
 // src/analysis/enrichment/basic_enrichment.ts
-var vscode16 = __toESM(require("vscode"));
+var vscode17 = __toESM(require("vscode"));
 function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies) {
   log.debug(`${logPrefix}  [Basic Info] Enriching  '${enrichedSym.name}'...`);
   enrichedSym.fileUri = enrichedSym.fileUri || currentFileUri;
@@ -1986,7 +2096,7 @@ function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencie
   if (enrichedSym.parentId) {
     log.debug(`${logPrefix}   \u21B3 parentId: ${enrichedSym.parentId}`);
   }
-  if (enrichedSym.kind === vscode16.SymbolKind.Class) {
+  if (enrichedSym.kind === vscode17.SymbolKind.Class) {
     const classKey = `${enrichedSym.fileUri}#${enrichedSym.name.split("<")[0].trim()}`;
     log.debug(`${logPrefix}    \u21B3 It's a class. Searching relationships with key:  "${classKey}"`);
     const relations = dependencies.projectClassRelations.get(classKey);
@@ -2010,16 +2120,16 @@ function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencie
 }
 
 // src/analysis/enrichment/detail_enrichment.ts
-var vscode18 = __toESM(require("vscode"));
+var vscode19 = __toESM(require("vscode"));
 
 // src/analysis/enrichment/type-resolver.ts
-var vscode17 = __toESM(require("vscode"));
+var vscode18 = __toESM(require("vscode"));
 var _typeIndex = null;
 function buildTypeIndex(allProjectFilesData) {
   _typeIndex = /* @__PURE__ */ new Map();
   for (const file of allProjectFilesData) {
     for (const symbol of file.symbols) {
-      if (symbol.kind === vscode17.SymbolKind.Class || symbol.kind === vscode17.SymbolKind.Enum || symbol.kind === 22) {
+      if (symbol.kind === vscode18.SymbolKind.Class || symbol.kind === vscode18.SymbolKind.Enum || symbol.kind === 22) {
         if (!_typeIndex.has(symbol.name)) {
           _typeIndex.set(symbol.name, symbol);
         }
@@ -2049,7 +2159,7 @@ async function resolveTypeByName(typeName, dependencies) {
     log.debug(`\u26A0\uFE0F [TypeIndex] Index not built, falling back to linear search for '${baseTypeName}'`);
     for (const file of dependencies.allProjectFilesData) {
       for (const symbol of file.symbols) {
-        if ((symbol.kind === vscode17.SymbolKind.Class || symbol.kind === vscode17.SymbolKind.Enum || symbol.kind === 22) && symbol.name === baseTypeName) {
+        if ((symbol.kind === vscode18.SymbolKind.Class || symbol.kind === vscode18.SymbolKind.Enum || symbol.kind === 22) && symbol.name === baseTypeName) {
           foundSymbol = symbol;
           break;
         }
@@ -2088,7 +2198,7 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
   log.debug(`[DEBUG-ENRICH-DETAIL] Enriching ${symbol.name}, detail: ${symbol.detail}`);
   log.debug(`${logPrefix}  [DEBUG] symbol.kind: ${symbol.kind}, symbol.detail: ${symbol.detail}`);
   log.debug(`${logPrefix}  [Type Detail] Analyzing detail: "${symbol.detail}"`);
-  if ((symbol.kind === vscode18.SymbolKind.Field || symbol.kind === vscode18.SymbolKind.Property) && !enrichedSym.resolvedType) {
+  if ((symbol.kind === vscode19.SymbolKind.Field || symbol.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType) {
     const fieldTypeMatch = symbol.detail.match(
       /^\s*(?:(?:@[\w.]+\s*)*(?:late|final|const|static|required|covariant)\s+)*([\w<>\[\]\{\},?().\s]+?)\s+[\w$]+\s*(?:=.*)?$/
     );
@@ -2254,7 +2364,7 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
       }
       log.debug(`${logPrefix}  \u21B3 Detail: Resolved types for ${enrichedSym.parameters.length} parameters in '${symbol.name}'.`);
     }
-    if (symbol.kind !== vscode18.SymbolKind.Constructor && !enrichedSym.returnType) {
+    if (symbol.kind !== vscode19.SymbolKind.Constructor && !enrichedSym.returnType) {
       const normalizedDetail = symbol.detail.replace(/@[\w.]+\s*/g, "").replace(/\b(static|external|async|sync|factory|late|final|const|required)\b\s*/g, "").trim();
       const escapedName = symbol.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const returnTypeRegex = new RegExp(
@@ -2273,7 +2383,7 @@ async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
       }
     }
   }
-  if (symbol.kind === vscode18.SymbolKind.Constructor && enrichedSym.parameters?.length === 0 && /^\s*\(\s*\{\s*this\.[\w$]+/.test(symbol.detail)) {
+  if (symbol.kind === vscode19.SymbolKind.Constructor && enrichedSym.parameters?.length === 0 && /^\s*\(\s*\{\s*this\.[\w$]+/.test(symbol.detail)) {
     const fallbackThisRegex = /this\.([\w$]+)/g;
     const fallbackParams = [];
     let match;
@@ -2308,7 +2418,7 @@ function enrichWithSourceRegexTypes(enrichedSym, logPrefix, dependencies) {
     return;
   }
   log.debug(`${logPrefix}DEBUG_F: Starting regex fallback for '${enrichedSym.name}'`);
-  const lines = fileContent.split("\n");
+  const lines = dependencies.fileLines ??= fileContent.split("\n");
   const startLine = Math.max(0, enrichedSym.selectionRange.start.line - 5);
   const endLine = Math.min(lines.length, enrichedSym.selectionRange.start.line + 1);
   const codeSnippet = lines.slice(startLine, endLine).join("\n");
@@ -2335,6 +2445,8 @@ ${codeSnippet}`);
       if (potentialReturn.toLowerCase() !== "void") {
         enrichedSym.returnType = potentialReturn;
         log.debug(`${logPrefix}  \u21B3 Regex SUCCESS (Method): Method '${enrichedSym.name}' returns: ${enrichedSym.returnType}`);
+      } else {
+        enrichedSym.hoverChecked = true;
       }
     }
   }
@@ -2344,14 +2456,14 @@ ${codeSnippet}`);
 }
 
 // src/lsp/hover_enrichment.ts
-var vscode19 = __toESM(require("vscode"));
+var vscode20 = __toESM(require("vscode"));
 var hoverCache = /* @__PURE__ */ new Map();
 function clearHoverCache() {
   hoverCache.clear();
   log.debug(`[HoverCache] Cache cleared.`);
 }
 async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
-  const needsTypeInfo = (enrichedSym.kind === vscode19.SymbolKind.Field || enrichedSym.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType || (enrichedSym.kind === vscode19.SymbolKind.Method || enrichedSym.kind === vscode19.SymbolKind.Function) && !enrichedSym.returnType || enrichedSym.kind === vscode19.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0);
+  const needsTypeInfo = (enrichedSym.kind === vscode20.SymbolKind.Field || enrichedSym.kind === vscode20.SymbolKind.Property) && !enrichedSym.resolvedType || (enrichedSym.kind === vscode20.SymbolKind.Method || enrichedSym.kind === vscode20.SymbolKind.Function) && !enrichedSym.returnType || enrichedSym.kind === vscode20.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0);
   if (!enrichedSym.fileUri || !enrichedSym.selectionRange || !needsTypeInfo) {
     log.debug(`${logPrefix}  \u26A0\uFE0F Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) -> needsTypeInfo: ${needsTypeInfo}`);
     return;
@@ -2368,9 +2480,9 @@ async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
     log.debug(`${logPrefix}  [HoverCache HIT] ${positionKey}`);
   } else {
     try {
-      const hoverResultArray = await vscode19.commands.executeCommand(
+      const hoverResultArray = await vscode20.commands.executeCommand(
         "vscode.executeHoverProvider",
-        vscode19.Uri.parse(enrichedSym.fileUri),
+        vscode20.Uri.parse(enrichedSym.fileUri),
         enrichedSym.selectionRange.start
       );
       const hoverResult = hoverResultArray && hoverResultArray.length > 0 ? hoverResultArray[0] : null;
@@ -2393,14 +2505,14 @@ async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
     return;
   }
   const escapedSymName = escapeRegExp(enrichedSym.name);
-  if ((enrichedSym.kind === vscode19.SymbolKind.Field || enrichedSym.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType) {
+  if ((enrichedSym.kind === vscode20.SymbolKind.Field || enrichedSym.kind === vscode20.SymbolKind.Property) && !enrichedSym.resolvedType) {
     const fieldRegex = new RegExp("```dart\\s*(?:[\\w\\s]+\\s)?(.+?)\\s+" + escapedSymName);
     const match = contentString.match(fieldRegex);
     if (match?.[1]) {
       enrichedSym.resolvedType = match[1].trim();
       log.debug(`${logPrefix}  \u21B3 Hover: Field '${enrichedSym.name}' resolved type: ${enrichedSym.resolvedType}`);
     }
-  } else if ((enrichedSym.kind === vscode19.SymbolKind.Method || enrichedSym.kind === vscode19.SymbolKind.Function) && !enrichedSym.returnType) {
+  } else if ((enrichedSym.kind === vscode20.SymbolKind.Method || enrichedSym.kind === vscode20.SymbolKind.Function) && !enrichedSym.returnType) {
     const methodRegex = new RegExp("```dart\\s*(?:static\\s+)?(.+?)\\s+(?:get\\s+)?[\"'`]?" + escapedSymName + "[\"'`]?\\s*\\(");
     const match = contentString.match(methodRegex);
     if (match?.[1]) {
@@ -2410,7 +2522,7 @@ async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
         log.debug(`${logPrefix}  \u21B3 Hover: Method '${enrichedSym.name}' return type: ${enrichedSym.returnType}`);
       }
     }
-  } else if (enrichedSym.kind === vscode19.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0)) {
+  } else if (enrichedSym.kind === vscode20.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0)) {
     log.debug(`${logPrefix}  [DEBUG-CONSTRUCTOR] Constructor found: ${enrichedSym.name}`);
     const paramRegex = /this\.(\w+)/g;
     const matches = [...contentString.matchAll(paramRegex)];
@@ -2456,25 +2568,25 @@ async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, depend
   };
   enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies);
   try {
-    await Promise.all([
-      enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies),
-      (async () => {
-        if (!enrichedSym.hoverChecked) {
-          await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
-          enrichedSym.hoverChecked = true;
-        }
-      })()
-    ]);
+    await enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies);
   } catch (e) {
-    log.debug(`${logPrefix}\u26A0\uFE0F Error in async enrich: ${e instanceof Error ? e.message : e}`);
+    log.debug(`${logPrefix}\u26A0\uFE0F Error in detail enrich: ${e instanceof Error ? e.message : e}`);
   }
   try {
     enrichWithSourceRegexTypes(enrichedSym, logPrefix, dependencies);
   } catch (e) {
     log.debug(`${logPrefix}\u26A0\uFE0F Error in enrichWithSourceRegexTypes: ${e instanceof Error ? e.message : e}`);
   }
+  try {
+    if (!enrichedSym.hoverChecked) {
+      await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
+      enrichedSym.hoverChecked = true;
+    }
+  } catch (e) {
+    log.debug(`${logPrefix}\u26A0\uFE0F Error in hover enrich: ${e instanceof Error ? e.message : e}`);
+  }
   if (enrichedSym.children && enrichedSym.children.length > 0) {
-    const parentForNextRecursion = enrichedSym.kind === vscode20.SymbolKind.Class ? enrichedSym : parentEnrichedSymbol;
+    const parentForNextRecursion = enrichedSym.kind === vscode21.SymbolKind.Class ? enrichedSym : parentEnrichedSymbol;
     const tasks = enrichedSym.children.map(
       (child) => () => processSymbolRecursiveLSP(
         child,
@@ -2491,7 +2603,7 @@ async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, depend
 }
 
 // src/analysis/class_relations.ts
-var vscode21 = __toESM(require("vscode"));
+var vscode22 = __toESM(require("vscode"));
 var fs9 = __toESM(require("fs"));
 var CLAUSE_KEYWORDS = /* @__PURE__ */ new Set(["extends", "with", "implements"]);
 function parseInheritanceClauses(header) {
@@ -2575,7 +2687,7 @@ function buildClassRelationsFromSymbols(filesData) {
     };
     const visit = (symbols) => {
       for (const symbol of symbols ?? []) {
-        if (symbol.kind === vscode21.SymbolKind.Class) {
+        if (symbol.kind === vscode22.SymbolKind.Class) {
           const header = symbol.detail || (symbol.range ? extractClassHeader(readContent(), symbol.range) : "");
           if (header) {
             relations.set(`${fileData.fileUri}#${symbol.name}`, parseInheritanceClauses(header));
@@ -2663,17 +2775,35 @@ function resolveImportFile(uri, libDirs, sdkLibDir, exists = fs10.existsSync) {
 }
 
 // src/lsp/dart_sdk.ts
-var vscode22 = __toESM(require("vscode"));
-var path12 = __toESM(require("path"));
+var vscode23 = __toESM(require("vscode"));
+var path13 = __toESM(require("path"));
 var fs11 = __toESM(require("fs"));
 var import_child_process = require("child_process");
+
+// src/lsp/dart_executable.ts
+var path12 = __toESM(require("path"));
+function realDartExecutable(found, exists, platform = process.platform) {
+  const exe = platform === "win32" ? "dart.exe" : "dart";
+  const base = path12.basename(found).toLowerCase();
+  const isLauncher = /\.(bat|cmd|sh)$/.test(base) || path12.basename(path12.dirname(found)).toLowerCase() === "bin" && base === "dart" && exists(path12.join(path12.dirname(found), "cache", "dart-sdk", "bin", exe));
+  if (!isLauncher) {
+    return found;
+  }
+  const fromFlutter = path12.join(path12.dirname(found), "cache", "dart-sdk", "bin", exe);
+  return exists(fromFlutter) ? fromFlutter : found;
+}
+function firstExistingPath(output, exists) {
+  return output.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "").find(exists);
+}
+
+// src/lsp/dart_sdk.ts
 function findDartSdk() {
-  const cfg = vscode22.workspace.getConfiguration("satori");
+  const cfg = vscode23.workspace.getConfiguration("satori");
   const userPath = cfg.get("dartSdkPath")?.trim();
   if (userPath) {
     log.debug(`Checking user configured path: ${userPath}`);
     if (fs11.existsSync(userPath) && fs11.statSync(userPath).isDirectory()) {
-      const dartExecutable = path12.join(userPath, "bin", "dart");
+      const dartExecutable = path13.join(userPath, "bin", "dart");
       if (fs11.existsSync(dartExecutable)) {
         log.info(`\u2705 Found Dart SDK at configured path: ${userPath}`);
         return dartExecutable;
@@ -2687,8 +2817,8 @@ function findDartSdk() {
   }
   try {
     const cmd = process.platform === "win32" ? "where dart" : "which dart";
-    const dartPath = (0, import_child_process.execSync)(cmd, { encoding: "utf-8" }).toString().trim();
-    if (dartPath && fs11.existsSync(dartPath)) {
+    const dartPath = firstExistingPath((0, import_child_process.execSync)(cmd, { encoding: "utf-8" }).toString(), fs11.existsSync);
+    if (dartPath) {
       log.info(`\u2705 Found Dart SDK in system PATH: ${dartPath}`);
       return dartPath;
     }
@@ -2724,7 +2854,87 @@ function readAuditConfig(get) {
   };
 }
 
+// src/ui/loading_state.ts
+var PHASE_ORDER = ["files", "symbols", "relations", "types", "graph", "draw"];
+var WEIGHT = { files: 0.03, symbols: 0.3, relations: 0.3, types: 0.12, graph: 0.2, draw: 0.05 };
+var silentReporter = { start: () => void 0, progress: () => void 0, finish: () => void 0 };
+var LoadingState = class {
+  phases = /* @__PURE__ */ new Map();
+  constructor(labels) {
+    for (const id of PHASE_ORDER) {
+      this.phases.set(id, { id, label: labels[id], status: "pending", done: 0, total: 0, detail: "" });
+    }
+  }
+  start(id, detail = "") {
+    const phase = this.phases.get(id);
+    if (phase.status === "done") {
+      return;
+    }
+    phase.status = "active";
+    phase.detail = detail;
+  }
+  progress(id, done, total, detail) {
+    const phase = this.phases.get(id);
+    if (phase.status === "done") {
+      return;
+    }
+    phase.status = "active";
+    phase.done = Math.max(0, Math.min(done, total));
+    phase.total = Math.max(0, total);
+    if (detail !== void 0) {
+      phase.detail = detail;
+    }
+  }
+  finish(id) {
+    const phase = this.phases.get(id);
+    phase.status = "done";
+    phase.done = phase.total;
+    phase.detail = "";
+  }
+  snapshot() {
+    const phases = PHASE_ORDER.map((id) => ({ ...this.phases.get(id) }));
+    let overall = 0;
+    for (const phase of phases) {
+      const fraction2 = phase.status === "done" ? 1 : phase.status === "active" && phase.total > 0 ? phase.done / phase.total : 0;
+      overall += WEIGHT[phase.id] * fraction2;
+    }
+    return { phases, overall: Math.min(1, overall) };
+  }
+};
+var Throttle = class {
+  constructor(send, minGapMs = 150, now = Date.now) {
+    this.send = send;
+    this.minGapMs = minGapMs;
+    this.now = now;
+  }
+  last = 0;
+  timer;
+  request() {
+    const wait = this.last + this.minGapMs - this.now();
+    if (wait <= 0) {
+      this.flush();
+    } else if (!this.timer) {
+      this.timer = setTimeout(() => this.flush(), wait);
+    }
+  }
+  flush() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = void 0;
+    }
+    this.last = this.now();
+    this.send();
+  }
+  cancel() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = void 0;
+    }
+  }
+};
+
 // src/ui/webview_creator.ts
+var ENRICH_FILE_CONCURRENCY = 4;
 function readOwnPackageName(projectRoot) {
   try {
     const root = findProjectRootWithPubspec(projectRoot);
@@ -2748,7 +2958,7 @@ function resolveImportTargets(projectRoot, fileImports, ownPackage) {
       libDirs = readPackageLibDirs(json, import_path7.default.dirname(configPath));
       const flutterRoot = JSON.parse(json).flutterRoot;
       if (flutterRoot) {
-        candidates.push(import_path7.default.join(vscode23.Uri.parse(flutterRoot).fsPath, "bin", "cache", "dart-sdk"));
+        candidates.push(import_path7.default.join(vscode24.Uri.parse(flutterRoot).fsPath, "bin", "cache", "dart-sdk"));
       }
     }
     const dart = findDartSdk();
@@ -2765,7 +2975,7 @@ function resolveImportTargets(projectRoot, fileImports, ownPackage) {
     wanted.forEach((uri) => {
       const file = resolveImportFile(uri, libDirs, sdkLib);
       if (file) {
-        targets[uri] = vscode23.Uri.file(file).toString();
+        targets[uri] = vscode24.Uri.file(file).toString();
       }
     });
   } catch (error) {
@@ -2784,23 +2994,24 @@ function saveAnnotations(memento, projectRoot, data) {
 }
 function findClassFieldSymbol(classSymbol, fieldName) {
   return classSymbol.children?.find(
-    (f) => f.name === fieldName && (f.kind === vscode23.SymbolKind.Field || f.kind === vscode23.SymbolKind.Property)
+    (f) => f.name === fieldName && (f.kind === vscode24.SymbolKind.Field || f.kind === vscode24.SymbolKind.Property)
   );
 }
 async function createWebview(context, data) {
   const startedAt = Date.now();
+  const reporter = data.reporter ?? silentReporter;
   function getLanguage() {
-    const config = vscode23.workspace.getConfiguration("satori");
+    const config = vscode24.workspace.getConfiguration("satori");
     return config.get("language", "en");
   }
-  const panel = vscode23.window.createWebviewPanel(
+  const panel = vscode24.window.createWebviewPanel(
     "astDiagram",
     "AST Diagram",
-    vscode23.ViewColumn.Beside,
+    vscode24.ViewColumn.Beside,
     {
       enableScripts: true,
       localResourceRoots: [
-        vscode23.Uri.joinPath(context.extensionUri, "media")
+        vscode24.Uri.joinPath(context.extensionUri, "media")
       ]
     }
   );
@@ -2811,148 +3022,177 @@ async function createWebview(context, data) {
     `script-src 'nonce-${nonce}' ${panel.webview.cspSource}`,
     `img-src data: ${panel.webview.cspSource}`
   ].join("; ");
-  log.debug("Starting data enrichment for webview..");
-  resolvedTypesCache.clear();
-  clearHoverCache();
-  const projectClassRelations = buildClassRelationsFromSymbols(data.files);
-  log.debug(`AST relations detected: ${projectClassRelations.size} classes.`);
-  buildTypeIndex(data.files);
-  log.debug("[TypeIndex] Type index built \u2014 starting enrichment.");
   const fileImports = {};
-  const processedFilesPromises = data.files.map(async (f_item) => {
-    const fileContent = fs12.readFileSync(f_item.file, "utf8");
-    const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode23.Uri.file(f_item.file).toString();
-    const imports = parseImports(fileContent);
-    if (imports.length) {
-      fileImports[fileUriString] = imports;
-    }
-    const enrichmentDeps = {
-      projectClassRelations,
-      fileContent,
-      allProjectFilesData: data.files.map((df) => ({
-        ...df,
-        fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode23.Uri.file(df.file).toString()
-      }))
+  let projectGraph;
+  let enrichedAt;
+  let graphBuiltAt;
+  let engine = "saved analysis";
+  if (data.cached) {
+    projectGraph = data.cached.graph;
+    Object.assign(fileImports, data.cached.fileImports);
+    enrichedAt = graphBuiltAt = Date.now();
+    log.info(`Using the saved analysis: ${projectGraph.nodes.length} nodes, ${projectGraph.edges.length} edges.`);
+  } else {
+    let validateParentIds2 = function(symbols) {
+      if (!symbols) {
+        return;
+      }
+      for (const sym of symbols) {
+        if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
+          log.debug(`\u274C Inconsistency detected: parentId '${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
+        }
+        if (sym.children) {
+          validateParentIds2(sym.children);
+        }
+      }
     };
-    const processedSymbols = f_item.symbols ? await Promise.all(f_item.symbols.map(
-      (sym) => processSymbolRecursiveLSP(sym, fileUriString, enrichmentDeps, 0, void 0)
-    )) : [];
-    return { ...f_item, fileUri: fileUriString, symbols: processedSymbols };
-  });
-  data.files = await Promise.all(processedFilesPromises);
-  const enrichedAt = Date.now();
-  log.debug("\u2705 Deep enrichment of all files completed.");
-  clearTypeIndex();
-  log.debug("\u2705 Type index cleared.");
-  log.debug("Phase 2: Building project graph model...");
-  const projectGraph = await buildGraphModel(data.files, data.projectRoot);
-  const graphBuiltAt = Date.now();
-  log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
-  log.debug("Calculating coupling degrees (in/out degree) of nodes...");
-  calculateNodeDegrees(projectGraph);
-  log.debug("\u2705 Coupling degrees calculated.");
-  log.debug("Phase 3: Starting resolution of this.fieldName in constructors...");
-  const existingUniqueIds = /* @__PURE__ */ new Set();
-  data.files.forEach((fileData) => {
-    function collectUniqueIds(symbols) {
-      if (!symbols) {
-        return;
+    var validateParentIds = validateParentIds2;
+    log.debug("Starting data enrichment for webview..");
+    resolvedTypesCache.clear();
+    clearHoverCache();
+    const projectClassRelations = buildClassRelationsFromSymbols(data.files);
+    log.debug(`AST relations detected: ${projectClassRelations.size} classes.`);
+    buildTypeIndex(data.files);
+    log.debug("[TypeIndex] Type index built \u2014 starting enrichment.");
+    const allProjectFilesData = data.files.map((df) => ({
+      ...df,
+      fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode24.Uri.file(df.file).toString()
+    }));
+    reporter.start("types");
+    const processedFiles = await mapLimited(data.files, ENRICH_FILE_CONCURRENCY, async (f_item) => {
+      const fileContent = fs12.readFileSync(f_item.file, "utf8");
+      const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode24.Uri.file(f_item.file).toString();
+      const imports = parseImports(fileContent);
+      if (imports.length) {
+        fileImports[fileUriString] = imports;
       }
-      for (const s of symbols) {
-        if (s.uniqueId) {
-          existingUniqueIds.add(s.uniqueId);
-        }
-        if (s.children) {
-          collectUniqueIds(s.children);
-        }
-      }
+      const enrichmentDeps = {
+        projectClassRelations,
+        fileContent,
+        allProjectFilesData
+      };
+      const processedSymbols = f_item.symbols ? await Promise.all(f_item.symbols.map(
+        (sym) => processSymbolRecursiveLSP(sym, fileUriString, enrichmentDeps, 0, void 0)
+      )) : [];
+      return { ...f_item, fileUri: fileUriString, symbols: processedSymbols };
+    }, (done, total) => reporter.progress("types", done, total));
+    reporter.finish("types");
+    data.files = processedFiles;
+    enrichedAt = Date.now();
+    log.debug("\u2705 Deep enrichment of all files completed.");
+    clearTypeIndex();
+    log.debug("\u2705 Type index cleared.");
+    log.debug("Phase 2: Building project graph model...");
+    reporter.start("graph");
+    const navigation = data.navigation ? await data.navigation : null;
+    if (navigation) {
+      log.info(`Relationships read from the analysis server: ${navigation.files} files (start ${navigation.startMs}ms, analysis ${navigation.analyzeMs}ms, navigation ${navigation.navigationMs}ms).`);
     }
-    collectUniqueIds(fileData.symbols);
-  });
-  data.files.forEach((fileData) => {
-    function findClassAndResolveThisFieldsRecursive(symbols) {
-      if (!symbols) {
-        return;
+    engine = navigation ? "analysis server" : "language server";
+    setNavigationIndex(navigation ? navigation.index : null);
+    setPassProgress((pass, done, total) => reporter.progress("graph", done, total, t(`loading.graph.${pass}`)));
+    try {
+      projectGraph = await buildGraphModel(data.files, data.projectRoot);
+    } finally {
+      setNavigationIndex(null);
+      setPassProgress(null);
+    }
+    reporter.finish("graph");
+    graphBuiltAt = Date.now();
+    log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
+    log.debug("Calculating coupling degrees (in/out degree) of nodes...");
+    calculateNodeDegrees(projectGraph);
+    log.debug("\u2705 Coupling degrees calculated.");
+    log.debug("Phase 3: Starting resolution of this.fieldName in constructors...");
+    const existingUniqueIds = /* @__PURE__ */ new Set();
+    data.files.forEach((fileData) => {
+      function collectUniqueIds(symbols) {
+        if (!symbols) {
+          return;
+        }
+        for (const s of symbols) {
+          if (s.uniqueId) {
+            existingUniqueIds.add(s.uniqueId);
+          }
+          if (s.children) {
+            collectUniqueIds(s.children);
+          }
+        }
       }
-      for (const s of symbols) {
-        log.debug(`[DEBUG-KIND-CHECK] Symbol: ${s.name}, kind: ${s.kind}, children: ${s.children?.length ?? 0}`);
-        if (s.kind === vscode23.SymbolKind.Class && s.children) {
-          const classSymbol = s;
-          log.debug(`[DEBUG-CLASS] Class detected: ${classSymbol.name}`);
-          classSymbol.children?.forEach((member) => {
-            log.debug(`[DEBUG-MEMBER] ${classSymbol.name}.${member.name || "(anon)"} - kind: ${member.kind}, params: ${member.parameters?.length ?? 0}`);
-            if (member.kind === vscode23.SymbolKind.Constructor) {
-              log.debug(`[DEBUG-CONSTRUCTOR] Constructor found: ${member.name}`);
-              if (!member.parameters || member.parameters.length === 0) {
-                if (member.detail?.includes("this.")) {
-                  log.debug(`  Constructor '${member.name}' without relevant parameters (self_field)`);
-                } else {
-                  log.debug(`  \u26A0\uFE0F Constructor '${member.name}' has no parameters. Missing enrichment?`);
+      collectUniqueIds(fileData.symbols);
+    });
+    data.files.forEach((fileData) => {
+      function findClassAndResolveThisFieldsRecursive(symbols) {
+        if (!symbols) {
+          return;
+        }
+        for (const s of symbols) {
+          log.debug(`[DEBUG-KIND-CHECK] Symbol: ${s.name}, kind: ${s.kind}, children: ${s.children?.length ?? 0}`);
+          if (s.kind === vscode24.SymbolKind.Class && s.children) {
+            const classSymbol = s;
+            log.debug(`[DEBUG-CLASS] Class detected: ${classSymbol.name}`);
+            classSymbol.children?.forEach((member) => {
+              log.debug(`[DEBUG-MEMBER] ${classSymbol.name}.${member.name || "(anon)"} - kind: ${member.kind}, params: ${member.parameters?.length ?? 0}`);
+              if (member.kind === vscode24.SymbolKind.Constructor) {
+                log.debug(`[DEBUG-CONSTRUCTOR] Constructor found: ${member.name}`);
+                if (!member.parameters || member.parameters.length === 0) {
+                  if (member.detail?.includes("this.")) {
+                    log.debug(`  Constructor '${member.name}' without relevant parameters (self_field)`);
+                  } else {
+                    log.debug(`  \u26A0\uFE0F Constructor '${member.name}' has no parameters. Missing enrichment?`);
+                  }
                 }
-              }
-              if (member.parameters && member.parameters.length > 0) {
-                if (!member.parentId && classSymbol.uniqueId) {
-                  member.parentId = classSymbol.uniqueId;
-                  log.debug(`[DEBUG-RELATIONSHIP] Established parent of constructor ${member.name || "(default)"} -> ${classSymbol.uniqueId}`);
-                }
-                log.debug(`  [ResolveThisField] Processing constructor ${classSymbol.name}.${member.name || "(default)"}`);
-                member.parameters.forEach((param) => {
-                  if (param.type?.startsWith("self_field:")) {
-                    const fieldName = param.type.substring("self_field:".length);
-                    const fieldSymbol = findClassFieldSymbol(classSymbol, fieldName);
-                    if (fieldSymbol) {
-                      if (fieldSymbol.resolvedType) {
-                        log.debug(`    \u21B3 Param '${param.name || fieldName}' (this.${fieldName}): type updated from '${param.type}' to '${fieldSymbol.resolvedType}'. Linked def: ${!!fieldSymbol.resolvedTypeRef?.definition}`);
-                        param.type = fieldSymbol.resolvedType;
-                        param.typeRef = fieldSymbol.resolvedTypeRef ? { ...fieldSymbol.resolvedTypeRef } : { name: fieldSymbol.resolvedType };
+                if (member.parameters && member.parameters.length > 0) {
+                  if (!member.parentId && classSymbol.uniqueId) {
+                    member.parentId = classSymbol.uniqueId;
+                    log.debug(`[DEBUG-RELATIONSHIP] Established parent of constructor ${member.name || "(default)"} -> ${classSymbol.uniqueId}`);
+                  }
+                  log.debug(`  [ResolveThisField] Processing constructor ${classSymbol.name}.${member.name || "(default)"}`);
+                  member.parameters.forEach((param) => {
+                    if (param.type?.startsWith("self_field:")) {
+                      const fieldName = param.type.substring("self_field:".length);
+                      const fieldSymbol = findClassFieldSymbol(classSymbol, fieldName);
+                      if (fieldSymbol) {
+                        if (fieldSymbol.resolvedType) {
+                          log.debug(`    \u21B3 Param '${param.name || fieldName}' (this.${fieldName}): type updated from '${param.type}' to '${fieldSymbol.resolvedType}'. Linked def: ${!!fieldSymbol.resolvedTypeRef?.definition}`);
+                          param.type = fieldSymbol.resolvedType;
+                          param.typeRef = fieldSymbol.resolvedTypeRef ? { ...fieldSymbol.resolvedTypeRef } : { name: fieldSymbol.resolvedType };
+                        } else {
+                          log.debug(`    \u26A0\uFE0F Param '${param.name || fieldName}' (this.${fieldName}): field found but no resolvedType in ${classSymbol.name}`);
+                          param.typeRef = { name: param.type };
+                        }
                       } else {
-                        log.debug(`    \u26A0\uFE0F Param '${param.name || fieldName}' (this.${fieldName}): field found but no resolvedType in ${classSymbol.name}`);
+                        log.debug(`    \u274C Param '${param.name || fieldName}': field '${fieldName}' NOT found in ${classSymbol.name}`);
                         param.typeRef = { name: param.type };
                       }
-                    } else {
-                      log.debug(`    \u274C Param '${param.name || fieldName}': field '${fieldName}' NOT found in ${classSymbol.name}`);
-                      param.typeRef = { name: param.type };
                     }
-                  }
-                });
+                  });
+                }
               }
-            }
-          });
+            });
+          }
+          if (s.children) {
+            findClassAndResolveThisFieldsRecursive(s.children);
+          }
         }
-        if (s.children) {
-          findClassAndResolveThisFieldsRecursive(s.children);
-        }
       }
-    }
-    if (fileData.symbols) {
-      findClassAndResolveThisFieldsRecursive(fileData.symbols);
-    } else {
-      log.debug(`[DEBUG] \u26A0\uFE0F fileData.symbols is empty for: ${fileData.fileUri}`);
-    }
-  });
-  log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId...`);
-  function validateParentIds(symbols) {
-    if (!symbols) {
-      return;
-    }
-    for (const sym of symbols) {
-      if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
-        log.debug(`\u274C Inconsistency detected: parentId '${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
+      if (fileData.symbols) {
+        findClassAndResolveThisFieldsRecursive(fileData.symbols);
+      } else {
+        log.debug(`[DEBUG] \u26A0\uFE0F fileData.symbols is empty for: ${fileData.fileUri}`);
       }
-      if (sym.children) {
-        validateParentIds(sym.children);
-      }
-    }
+    });
+    log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId...`);
+    data.files.forEach((fileData) => validateParentIds2(fileData.symbols));
+    log.debug("[\u2713] Resolution of this.fieldName fields in constructors completed.");
   }
-  data.files.forEach((fileData) => validateParentIds(fileData.symbols));
-  log.debug("[\u2713] Resolution of this.fieldName fields in constructors completed.");
   const ownPackage = readOwnPackageName(data.projectRoot);
   const dataForWebview = {
     projectRoot: data.projectRoot,
     graph: projectGraph,
     fileImports,
     ownPackage,
-    auditConfig: readAuditConfig((key) => vscode23.workspace.getConfiguration("satori").get(key)),
+    auditConfig: readAuditConfig((key) => vscode24.workspace.getConfiguration("satori").get(key)),
     importTargets: resolveImportTargets(data.projectRoot, fileImports, ownPackage)
   };
   log.debug("[Sanitize] Starting string sanitization for JSON...");
@@ -2966,22 +3206,26 @@ async function createWebview(context, data) {
     return value;
   }).replace(/</g, "\\u003c");
   log.debug(`[DEBUG_JSON] Total length of astJson: ${astJson.length}`);
-  validateEnrichedData(data.files);
+  if (!data.cached) {
+    validateEnrichedData(data.files);
+  }
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
   const translations = Localization.getInstance().getByPrefix("trail.", "hud.", "layer.");
-  const mediaUri = panel.webview.asWebviewUri(vscode23.Uri.joinPath(context.extensionUri, "media")).toString();
+  const mediaUri = panel.webview.asWebviewUri(vscode24.Uri.joinPath(context.extensionUri, "media")).toString();
   let html = fs12.readFileSync(
     import_path7.default.join(context.extensionUri.fsPath, "media", "webviewContent.html"),
     "utf8"
   );
   html = html.replace(/__CSP__/, () => csp).replace(/__MEDIA__/g, () => mediaUri).replace(/__NONCE__/g, () => nonce).replace(/__AST_JSON_PLACEHOLDER__/g, () => astJson).replace(/__TRANSLATIONS__/g, () => JSON.stringify(translations).replace(/</g, "\\u003c"));
+  reporter.start("draw");
   panel.webview.html = html;
   const finishedAt = Date.now();
   return {
     panel,
     graph: projectGraph,
-    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt }
+    fileImports,
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt, engine }
   };
 }
 function getNonce() {
@@ -2993,15 +3237,415 @@ function getNonce() {
   return text;
 }
 
+// src/analysis/graph_cache.ts
+var fs13 = __toESM(require("fs"));
+var path15 = __toESM(require("path"));
+var crypto = __toESM(require("crypto"));
+var CACHE_LAYOUT = 1;
+function fingerprintOf(stamps) {
+  const hash = crypto.createHash("sha1");
+  stamps.map((s) => `${s.path}|${s.size}|${Math.round(s.mtimeMs)}`).sort().forEach((line) => hash.update(line + "\n"));
+  return hash.digest("hex");
+}
+function stampFiles(files) {
+  const stamps = [];
+  for (const file of files) {
+    try {
+      const st = fs13.statSync(file);
+      stamps.push({ path: file, size: st.size, mtimeMs: st.mtimeMs });
+    } catch {
+    }
+  }
+  return stamps;
+}
+function cacheFileFor(storageDir, projectRoot) {
+  const key = crypto.createHash("sha1").update(projectRoot.toLowerCase()).digest("hex").slice(0, 16);
+  return path15.join(storageDir, `analysis-${key}.json`);
+}
+function readCachedAnalysis(file, fingerprint, extensionVersion) {
+  try {
+    if (!fs13.existsSync(file)) {
+      return null;
+    }
+    const cached = JSON.parse(fs13.readFileSync(file, "utf8"));
+    if (cached.layout !== CACHE_LAYOUT || cached.extensionVersion !== extensionVersion || cached.fingerprint !== fingerprint) {
+      return null;
+    }
+    return cached;
+  } catch {
+    return null;
+  }
+}
+function writeCachedAnalysis(file, fingerprint, extensionVersion, graph, fileImports) {
+  const entry = { layout: CACHE_LAYOUT, extensionVersion, fingerprint, savedAt: Date.now(), graph, fileImports };
+  fs13.mkdirSync(path15.dirname(file), { recursive: true });
+  const temp = `${file}.${process.pid}.tmp`;
+  fs13.writeFileSync(temp, JSON.stringify(entry));
+  fs13.renameSync(temp, file);
+}
+
+// src/filesystem/exclusions.ts
+var DEFAULT_EXCLUDES = [
+  "**/*.g.dart",
+  "**/*.freezed.dart",
+  "**/*.gr.dart",
+  "**/*.mocks.dart",
+  "**/*.config.dart",
+  "**/*.chopper.dart",
+  "**/*.reflectable.dart",
+  "**/generated/**",
+  "**/.dart_tool/**"
+];
+function globToRegExp(glob) {
+  let out = "";
+  for (let i = 0; i < glob.length; i++) {
+    const ch = glob[i];
+    if (ch === "*") {
+      if (glob[i + 1] === "*") {
+        if (glob[i + 2] === "/") {
+          out += "(?:.*/)?";
+          i += 2;
+        } else {
+          out += ".*";
+          i += 1;
+        }
+      } else {
+        out += "[^/]*";
+      }
+    } else if (ch === "?") {
+      out += "[^/]";
+    } else {
+      out += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`^${out}$`, "i");
+}
+function makeExcluder(patterns) {
+  const regexes = patterns.filter((p) => p.trim() !== "").map(globToRegExp);
+  return (relativePath) => {
+    const normalized = relativePath.replace(/\\/g, "/");
+    return regexes.some((r) => r.test(normalized));
+  };
+}
+
+// src/analysis/navigation_runner.ts
+var fs14 = __toESM(require("fs"));
+var path16 = __toESM(require("path"));
+var vscode25 = __toESM(require("vscode"));
+
+// src/lsp/analysis_server.ts
+var cp = __toESM(require("child_process"));
+var DartAnalysisClient = class {
+  constructor(executable, args = ["language-server", "--protocol=analyzer"], spawnFn = cp.spawn) {
+    this.executable = executable;
+    this.args = args;
+    this.spawnFn = spawnFn;
+  }
+  child;
+  buffer = "";
+  nextId = 1;
+  pending = /* @__PURE__ */ new Map();
+  analysisFinished;
+  analysisFailed;
+  closed = false;
+  /** Starts the server and checks that it answers. */
+  async start() {
+    const needsShell = process.platform === "win32" && /\.(bat|cmd)$/i.test(this.executable);
+    this.child = this.spawnFn(this.executable, this.args, { stdio: ["pipe", "pipe", "ignore"], shell: needsShell });
+    this.child.on("error", (err) => this.failAll(err));
+    this.child.on("exit", () => {
+      this.closed = true;
+      this.failAll(new Error("the analysis server stopped"));
+    });
+    this.child.stdout?.on("data", (chunk) => this.onData(chunk.toString()));
+    const reply = await this.request("server.getVersion", {});
+    return String(reply.result?.version ?? "");
+  }
+  /** Points the server at a project and waits until it has finished analysing it. */
+  async analyze(root, timeoutMs) {
+    let timer;
+    const finished = new Promise((resolve3, reject) => {
+      this.analysisFinished = resolve3;
+      this.analysisFailed = reject;
+      timer = setTimeout(() => reject(new Error("the analysis server did not finish in " + Math.round(timeoutMs / 1e3) + "s")), timeoutMs);
+    });
+    try {
+      await this.request("server.setSubscriptions", { subscriptions: ["STATUS"] });
+      await this.request("analysis.setAnalysisRoots", { included: [root], excluded: [] });
+      await finished;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      this.analysisFinished = void 0;
+      this.analysisFailed = void 0;
+    }
+  }
+  /** Where every identifier of `file` points to. */
+  async getNavigation(file, length) {
+    const reply = await this.request("analysis.getNavigation", { file, offset: 0, length });
+    const result = reply.result;
+    return { files: result?.files ?? [], targets: result?.targets ?? [], regions: result?.regions ?? [] };
+  }
+  dispose() {
+    this.closed = true;
+    try {
+      this.child?.kill();
+    } catch {
+    }
+    this.failAll(new Error("the analysis client was closed"));
+  }
+  request(method, params) {
+    if (this.closed || !this.child?.stdin) {
+      return Promise.reject(new Error("the analysis server is not running"));
+    }
+    const id = String(this.nextId++);
+    return new Promise((resolve3, reject) => {
+      this.pending.set(id, {
+        resolve: (message) => message.error ? reject(new Error(`${message.error.code}: ${message.error.message}`)) : resolve3(message),
+        reject
+      });
+      this.child.stdin.write(JSON.stringify({ id, method, params }) + "\n");
+    });
+  }
+  onData(text) {
+    this.buffer += text;
+    let newline;
+    while ((newline = this.buffer.indexOf("\n")) >= 0) {
+      const line = this.buffer.slice(0, newline).trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      if (!line) {
+        continue;
+      }
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (message.id !== void 0 && this.pending.has(String(message.id))) {
+        const pending = this.pending.get(String(message.id));
+        this.pending.delete(String(message.id));
+        pending.resolve(message);
+      } else if (message.event === "server.status" && message.params?.analysis && message.params.analysis.isAnalyzing === false) {
+        this.analysisFinished?.();
+      }
+    }
+  }
+  failAll(error) {
+    this.analysisFailed?.(error);
+    this.pending.forEach((p) => p.reject(error));
+    this.pending.clear();
+  }
+};
+
+// src/analysis/navigation_index.ts
+function normalizePath(p) {
+  const slashes = p.replace(/\\/g, "/");
+  return /^[a-zA-Z]:/.test(slashes) ? slashes[0].toLowerCase() + slashes.slice(1) : slashes;
+}
+function lineStarts(text) {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
+}
+function positionAt(starts, offset) {
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = low + high + 1 >> 1;
+    if (starts[mid] <= offset) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return { line: low, character: offset - starts[low] };
+}
+var NavigationIndex = class _NavigationIndex {
+  byTarget = /* @__PURE__ */ new Map();
+  static key(path18, line, character) {
+    return `${normalizePath(path18)}:${line}:${character}`;
+  }
+  /** The uses of the symbol declared at this position (0-based) of this file, or an empty list. */
+  referencesTo(path18, line, character) {
+    return this.byTarget.get(_NavigationIndex.key(path18, line, character)) ?? [];
+  }
+  get size() {
+    return this.byTarget.size;
+  }
+  /**
+   * Adds what one file says about its identifiers.
+   * @param usageUri URI of the file the navigation belongs to
+   * @param text the file's contents, to turn offsets into lines and columns
+   * @param keepTarget decides which declarations are worth remembering (the project's own files)
+   * @param selfPath path of the file the navigation belongs to, to tell a declaration from a use of it
+   */
+  addFile(result, usageUri, text, keepTarget, selfPath) {
+    const starts = lineStarts(text);
+    const keep = result.targets.map((t2) => keepTarget(result.files[t2.fileIndex] ?? ""));
+    for (const region of result.regions) {
+      const word = text.substr(region.offset, region.length);
+      if (word === "this" || word === "super") {
+        continue;
+      }
+      let usage;
+      for (const index of region.targets) {
+        const target = result.targets[index];
+        if (!target || !keep[index]) {
+          continue;
+        }
+        if (region.offset === target.offset && result.files[target.fileIndex] !== void 0 && normalizePath(result.files[target.fileIndex]) === normalizePath(selfPath)) {
+          continue;
+        }
+        if (!usage) {
+          const start = positionAt(starts, region.offset);
+          const end = positionAt(starts, region.offset + region.length);
+          usage = { uri: usageUri, line: start.line, character: start.character, endLine: end.line, endCharacter: end.character };
+        }
+        const key = _NavigationIndex.key(result.files[target.fileIndex], target.startLine - 1, target.startColumn - 1);
+        const list = this.byTarget.get(key);
+        if (list) {
+          list.push(usage);
+        } else {
+          this.byTarget.set(key, [usage]);
+        }
+      }
+    }
+  }
+};
+
+// src/analysis/navigation_runner.ts
+var REQUESTS_IN_FLIGHT = 8;
+var ANALYSIS_TIMEOUT_MS = 20 * 60 * 1e3;
+async function buildNavigationIndex(projectRoot, files, reporter = silentReporter) {
+  const engine = vscode25.workspace.getConfiguration("satori").get("analysis.engine", "auto");
+  if (engine === "languageServer") {
+    log.info("Relationships are asked one by one to the language server (satori.analysis.engine).");
+    reporter.finish("relations");
+    return null;
+  }
+  const found = findDartSdk();
+  if (!found) {
+    reporter.finish("relations");
+    return null;
+  }
+  const dart = realDartExecutable(found, fs14.existsSync);
+  const client = new DartAnalysisClient(dart);
+  try {
+    reporter.start("relations", t("loading.relations.starting"));
+    const t0 = Date.now();
+    const version = await client.start();
+    log.debug(`[Navigation] analysis server ${version} started with ${dart}`);
+    const t1 = Date.now();
+    reporter.start("relations", t("loading.relations.analyzing"));
+    await client.analyze(path16.resolve(projectRoot), ANALYSIS_TIMEOUT_MS);
+    const t2 = Date.now();
+    const projectFiles = new Set(files.map((u) => normalizePath(u.fsPath)));
+    const index = new NavigationIndex();
+    await mapLimited(files, REQUESTS_IN_FLIGHT, async (uri) => {
+      const text = fs14.readFileSync(uri.fsPath, "utf8");
+      const result = await client.getNavigation(uri.fsPath, text.length);
+      index.addFile(result, uri.toString(), text, (p) => projectFiles.has(normalizePath(p)), uri.fsPath);
+    }, (done, total) => reporter.progress("relations", done, total, t("loading.relations.reading")));
+    reporter.finish("relations");
+    const t3 = Date.now();
+    return { index, files: files.length, startMs: t1 - t0, analyzeMs: t2 - t1, navigationMs: t3 - t2 };
+  } catch (error) {
+    log.info(`The analysis server could not be used (${error.message}); asking the language server instead.`);
+    reporter.finish("relations");
+    return null;
+  } finally {
+    client.dispose();
+  }
+}
+
+// src/ui/progress_reporter.ts
+function formatElapsed(ms) {
+  const seconds = Math.floor(ms / 1e3);
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
+}
+var NotificationReporter = class {
+  constructor(sink, texts, now = Date.now, tickMs = 1e3) {
+    this.sink = sink;
+    this.texts = texts;
+    this.now = now;
+    this.state = new LoadingState(texts.labels);
+    this.startedAt = now();
+    this.throttle = new Throttle(() => this.emit(), 200, now);
+    this.ticker = setInterval(() => this.emit(), tickMs);
+    this.emit();
+  }
+  state;
+  throttle;
+  startedAt;
+  lastOverall = 0;
+  ticker;
+  start(id, detail = "") {
+    this.state.start(id, detail);
+    this.throttle.request();
+  }
+  progress(id, done, total, detail) {
+    this.state.progress(id, done, total, detail);
+    this.throttle.request();
+  }
+  finish(id) {
+    this.state.finish(id);
+    this.throttle.request();
+  }
+  /** Stops the clock; call it when the analysis ends, however it ends. */
+  release() {
+    this.throttle.cancel();
+    if (this.ticker) {
+      clearInterval(this.ticker);
+      this.ticker = void 0;
+    }
+  }
+  /** The message for the current state. */
+  message() {
+    const snapshot = this.state.snapshot();
+    const active = snapshot.phases.filter((p) => p.status === "active");
+    const slowest = active.sort((a, b) => fraction(a) - fraction(b))[0];
+    const current = slowest ?? snapshot.phases.find((p) => p.status === "pending");
+    const percent = `${Math.round(snapshot.overall * 100)}%`;
+    const parts = [percent];
+    if (current) {
+      let text = current.label;
+      if (current.total > 0) {
+        text += ` (${current.done}/${current.total})`;
+      } else if (current.detail) {
+        text += ` - ${current.detail}`;
+      }
+      parts.push(text);
+    }
+    parts.push(`${this.texts.elapsed} ${formatElapsed(this.now() - this.startedAt)}`);
+    return parts.join(" \xB7 ");
+  }
+  emit() {
+    const overall = this.state.snapshot().overall;
+    const increment = Math.max(0, (overall - this.lastOverall) * 100);
+    this.lastOverall = Math.max(this.lastOverall, overall);
+    this.sink.report({ increment, message: this.message() });
+  }
+};
+function fraction(p) {
+  return p.total > 0 ? p.done / p.total : 0;
+}
+
 // src/ui/command_registry.ts
-var vscode24 = __toESM(require("vscode"));
+var vscode26 = __toESM(require("vscode"));
 function registerDebugCommands(context) {
-  const toggleDebugCommand = vscode24.commands.registerCommand(
+  const toggleDebugCommand = vscode26.commands.registerCommand(
     "satori.toggleDebugLogs",
     () => {
       const currentState = log.isDebug();
       log.setDebug(!currentState);
-      vscode24.window.showInformationMessage(
+      vscode26.window.showInformationMessage(
         `Debug logs ${!currentState ? "enabled" : "disabled"}`
       );
     }
@@ -3033,8 +3677,8 @@ function transformLspSymbols(lspSymbols, parentId, fileUri) {
 }
 
 // src/analysis/snippet.ts
-var fs13 = __toESM(require("fs"));
-var vscode25 = __toESM(require("vscode"));
+var fs15 = __toESM(require("fs"));
+var vscode27 = __toESM(require("vscode"));
 var MAX_LINES = 60;
 var CONTEXT = 3;
 function stripDecor(label) {
@@ -3058,7 +3702,7 @@ function escapeRegExp2(text) {
 function buildLineSnippet(fileUri, line, column, length) {
   let fileLines;
   try {
-    fileLines = fs13.readFileSync(vscode25.Uri.parse(fileUri).fsPath, "utf8").split(/\r?\n/);
+    fileLines = fs15.readFileSync(vscode27.Uri.parse(fileUri).fsPath, "utf8").split(/\r?\n/);
   } catch {
     return null;
   }
@@ -3091,7 +3735,7 @@ function buildSnippet(graph, request) {
   }
   let content;
   try {
-    content = fs13.readFileSync(vscode25.Uri.parse(primary.data.fileUri).fsPath, "utf8");
+    content = fs15.readFileSync(vscode27.Uri.parse(primary.data.fileUri).fsPath, "utf8");
   } catch {
     return null;
   }
@@ -3197,14 +3841,14 @@ var ExtensionState = class {
   }
 };
 async function findFlutterProjectRoot() {
-  const workspaceFolders = vscode26.workspace.workspaceFolders;
+  const workspaceFolders = vscode28.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode26.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
+    vscode28.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
     return void 0;
   }
   for (const folder of workspaceFolders) {
-    const pubspecFiles = await vscode26.workspace.findFiles(
-      new vscode26.RelativePattern(folder, "pubspec.yaml"),
+    const pubspecFiles = await vscode28.workspace.findFiles(
+      new vscode28.RelativePattern(folder, "pubspec.yaml"),
       "**/.*",
       1
     );
@@ -3214,16 +3858,16 @@ async function findFlutterProjectRoot() {
       return folder.uri;
     }
   }
-  vscode26.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
+  vscode28.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
   return void 0;
 }
-async function discoverDartFiles(rootUri, isProjectRoot, progress) {
+async function discoverDartFiles(rootUri, isProjectRoot) {
   const root = rootUri.fsPath;
   const uris = [];
   const pattern = isProjectRoot ? "lib/**/*.dart" : "**/*.dart";
   try {
-    const files = await vscode26.workspace.findFiles(
-      new vscode26.RelativePattern(rootUri, pattern),
+    const files = await vscode28.workspace.findFiles(
+      new vscode28.RelativePattern(rootUri, pattern),
       "**/.dart_tool/**"
     );
     uris.push(...files);
@@ -3231,7 +3875,6 @@ async function discoverDartFiles(rootUri, isProjectRoot, progress) {
   } catch (error) {
     log.error(`  \u274C Error searching pattern '${pattern}': ${error.message}`);
   }
-  progress.report({ increment: 20, message: t("progress.searchingCustomDirs") });
   if (isProjectRoot) {
     let customDirectories = [];
     try {
@@ -3242,8 +3885,8 @@ async function discoverDartFiles(rootUri, isProjectRoot, progress) {
     }
     for (const customDir of customDirectories) {
       try {
-        const customFiles = await vscode26.workspace.findFiles(
-          new vscode26.RelativePattern(customDir, "**/*.dart"),
+        const customFiles = await vscode28.workspace.findFiles(
+          new vscode28.RelativePattern(customDir, "**/*.dart"),
           "**/.*"
         );
         uris.push(...customFiles);
@@ -3255,20 +3898,27 @@ async function discoverDartFiles(rootUri, isProjectRoot, progress) {
   } else {
     log.debug(`\u{1F4CA} Skipping custom directory search (not in project root)`);
   }
-  const uniqueUris = Array.from(new Set(uris.map((u) => u.toString()))).map((s) => vscode26.Uri.parse(s));
+  const found = Array.from(new Set(uris.map((u) => u.toString()))).map((s) => vscode28.Uri.parse(s));
+  const patterns = vscode28.workspace.getConfiguration("satori").get("analysis.exclude", DEFAULT_EXCLUDES);
+  const isExcluded = makeExcluder(patterns);
+  const uniqueUris = found.filter((u) => !isExcluded(import_path8.default.relative(root, u.fsPath)));
+  if (uniqueUris.length < found.length) {
+    log.info(`Left out ${found.length - uniqueUris.length} of ${found.length} Dart files that match satori.analysis.exclude (generated code by default).`);
+  }
   log.debug(`\u{1F4C4} Total unique files found: ${uniqueUris.length}`);
   return uniqueUris;
 }
-async function extractFileSymbols(uris, progress) {
+async function extractFileSymbols(uris, reporter = silentReporter) {
   let analyzedCount = 0;
   let errorCount = 0;
   let emptyCount = 0;
   let emptyStreak = 0;
   const hasSymbols = (r) => Array.isArray(r) && r.length > 0;
+  reporter.start("symbols");
   const filesData = await mapLimited(uris, SYMBOL_REQUEST_CONCURRENCY, async (u) => {
     let syms = [];
     try {
-      const ask = async () => await vscode26.commands.executeCommand(
+      const ask = async () => await vscode28.commands.executeCommand(
         "vscode.executeDocumentSymbolProvider",
         u
       );
@@ -3293,9 +3943,9 @@ async function extractFileSymbols(uris, progress) {
       log.error(`\u26A0\uFE0F Error getting symbols for ${import_path8.default.basename(u.fsPath)}: ${e.message}`);
       errorCount++;
     }
-    progress.report({ increment: 40 / uris.length, message: t("progress.analyzingFile") });
-    return { file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms };
-  });
+    return { file: normalizePath2(u.fsPath), fileUri: u.toString(), symbols: syms };
+  }, (done, total) => reporter.progress("symbols", done, total));
+  reporter.finish("symbols");
   log.debug(`\u{1F4CA} Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
   return filesData;
 }
@@ -3307,37 +3957,82 @@ async function analyzeProject(rootUri, context, progress) {
   log.debug(`\u{1F50D} Analyzing project at: ${root}`);
   log.debug(`\u{1F4CA} Root URI - scheme: ${rootUri.scheme}, fsPath: ${rootUri.fsPath}`);
   log.debug(`\u{1F4CA} Root URI - toString: ${rootUri.toString()}`);
-  const isProjectRoot = fs14.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  const isProjectRoot = fs16.existsSync(import_path8.default.join(root, "pubspec.yaml"));
   log.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${isProjectRoot}`);
   const analysisStart = Date.now();
-  progress.report({ increment: 10, message: t("progress.searchingFiles") });
-  const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot, progress);
+  const loading = new NotificationReporter(progress, {
+    labels: {
+      files: t("loading.phase.files"),
+      symbols: t("loading.phase.symbols"),
+      relations: t("loading.phase.relations"),
+      types: t("loading.phase.types"),
+      graph: t("loading.phase.graph"),
+      draw: t("loading.phase.draw")
+    },
+    elapsed: t("loading.elapsed")
+  });
+  try {
+    return await analyzeFiles(rootUri, context, loading);
+  } finally {
+    loading.release();
+  }
+}
+async function analyzeFiles(rootUri, context, loading) {
+  const root = rootUri.fsPath;
+  const isProjectRoot = fs16.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  const analysisStart = Date.now();
+  loading.start("files");
+  const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot);
   const discoveredAt = Date.now();
+  loading.finish("files");
   if (uniqueUris.length === 0) {
     log.info("\u274C No Dart files found in the project.");
-    vscode26.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
+    vscode28.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
     return null;
   }
   log.debug(`\u{1F4C4} Sample of found files (first 5):`);
   uniqueUris.slice(0, 5).forEach((uri, idx) => {
     log.debug(`  ${idx + 1}. ${uri.fsPath}`);
   });
-  progress.report({ increment: 30, message: t("progress.analyzingFiles", uniqueUris.length.toString()) });
-  const filesDataArray = await extractFileSymbols(uniqueUris, progress);
+  const useCache = vscode28.workspace.getConfiguration("satori").get("cache.enabled", true);
+  const extensionVersion = String(context.extension.packageJSON.version);
+  const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath2(root));
+  const fingerprint = fingerprintOf(stampFiles(uniqueUris.map((u) => u.fsPath)));
+  const cached = useCache ? readCachedAnalysis(cacheFile, fingerprint, extensionVersion) : null;
+  if (cached) {
+    const result = await createWebview(context, {
+      projectRoot: normalizePath2(root),
+      files: [],
+      cached: { graph: cached.graph, fileImports: cached.fileImports },
+      reporter: loading
+    });
+    const timings = {
+      files: uniqueUris.length,
+      discoverMs: discoveredAt - analysisStart,
+      symbolsMs: 0,
+      ...result.timings,
+      totalMs: Date.now() - analysisStart
+    };
+    log.info("\u23F1 Opened " + timings.files + " files from the saved analysis in " + (timings.totalMs / 1e3).toFixed(1) + "s (saved " + new Date(cached.savedAt).toLocaleString() + "; turn off with satori.cache.enabled)");
+    return { panel: result.panel, graph: result.graph, timings };
+  }
+  const navigation = buildNavigationIndex(root, uniqueUris, loading);
+  const filesDataArray = await extractFileSymbols(uniqueUris, loading);
   const symbolsAt = Date.now();
   if (filesDataArray.every((f) => f.symbols.length === 0) && filesDataArray.length > 0) {
     log.info("\u26A0\uFE0F No classes/symbols found in any project Dart files.");
-    vscode26.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
+    vscode28.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.");
   }
-  progress.report({ increment: 80, message: t("progress.buildingGraph") });
   log.debug(`\u{1F4E6} Preparing to create webview...`);
   log.debug(`\u{1F4E6} Project root for webview: ${root}`);
   log.debug(`\u{1F4E6} Total files for webview: ${filesDataArray.length}`);
   try {
     log.debug(`\u{1F680} Calling createWebview function...`);
     const result = await createWebview(context, {
-      projectRoot: normalizePath(root),
-      files: filesDataArray
+      projectRoot: normalizePath2(root),
+      files: filesDataArray,
+      navigation,
+      reporter: loading
     });
     const { panel, graph } = result;
     const timings = {
@@ -3348,44 +4043,53 @@ async function analyzeProject(rootUri, context, progress) {
       totalMs: Date.now() - analysisStart
     };
     log.info(`\u23F1 Analysis of ${timings.files} files took ${(timings.totalMs / 1e3).toFixed(1)}s (find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
+    if (useCache && graph.nodes && graph.nodes.length > 0) {
+      setTimeout(() => {
+        try {
+          writeCachedAnalysis(cacheFile, fingerprint, extensionVersion, graph, result.fileImports);
+          log.info(`\u{1F4BE} Analysis saved for the next time (${cacheFile})`);
+        } catch (e) {
+          log.error(`Could not save the analysis: ${e.message}`);
+        }
+      }, 0);
+    }
     log.debug(`\u2705 Webview created successfully!`);
     log.debug(`\u{1F4CA} Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
     if (!graph.nodes || graph.nodes.length === 0) {
       log.error(`\u26A0\uFE0F WARNING: Graph has no nodes!`);
-      vscode26.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
+      vscode28.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.");
     }
-    progress.report({ increment: 95, message: t("progress.configuringInterface") });
     return { panel, graph, timings };
   } catch (error) {
     log.error(`\u274C CRITICAL ERROR creating webview:`);
     log.error(`   Message: ${error.message}`);
     log.error(`   Stack: ${error.stack}`);
-    vscode26.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
+    vscode28.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
     return null;
   }
 }
 async function revealInEditor(file, start, end, preserveFocus = false) {
   try {
-    const uri = vscode26.Uri.parse(file);
-    const startPos = new vscode26.Position(start.line, start.character);
-    const endPos = new vscode26.Position(end.line, end.character);
-    const range = new vscode26.Range(startPos, endPos);
-    const existingEditor = vscode26.window.visibleTextEditors.find(
-      (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode26.ViewColumn.Two
+    const uri = vscode28.Uri.parse(file);
+    const startPos = new vscode28.Position(start.line, start.character);
+    const endPos = new vscode28.Position(end.line, end.character);
+    const range = new vscode28.Range(startPos, endPos);
+    const existingEditor = vscode28.window.visibleTextEditors.find(
+      (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode28.ViewColumn.Two
     );
     if (existingEditor) {
-      existingEditor.selection = new vscode26.Selection(startPos, endPos);
-      existingEditor.revealRange(range, vscode26.TextEditorRevealType.InCenter);
+      existingEditor.selection = new vscode28.Selection(startPos, endPos);
+      existingEditor.revealRange(range, vscode28.TextEditorRevealType.InCenter);
       return;
     }
-    const doc = await vscode26.workspace.openTextDocument(uri);
-    const editor = await vscode26.window.showTextDocument(doc, {
-      viewColumn: vscode26.ViewColumn.Two,
+    const doc = await vscode28.workspace.openTextDocument(uri);
+    const editor = await vscode28.window.showTextDocument(doc, {
+      viewColumn: vscode28.ViewColumn.Two,
       preview: true,
       preserveFocus,
       selection: range
     });
-    editor.revealRange(range, vscode26.TextEditorRevealType.InCenter);
+    editor.revealRange(range, vscode28.TextEditorRevealType.InCenter);
   } catch (e) {
     log.error(`Could not open or read file: ${file} (${e instanceof Error ? e.message : String(e)})`);
   }
@@ -3489,15 +4193,15 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
 }
 async function activate(context) {
   function getLanguage() {
-    const config = vscode26.workspace.getConfiguration("satori");
+    const config = vscode28.workspace.getConfiguration("satori");
     return config.get("language", "en");
   }
   log.debug("\u{1F680} Satori: starting\u2026");
   const language = getLanguage();
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
-  const dartExtension = vscode26.extensions.getExtension("Dart-Code.dart-code");
+  const dartExtension = vscode28.extensions.getExtension("Dart-Code.dart-code");
   if (!dartExtension || !dartExtension.isActive) {
-    vscode26.window.showErrorMessage(
+    vscode28.window.showErrorMessage(
       "Dart extension is required for Satori to work properly."
     );
     return;
@@ -3507,10 +4211,10 @@ async function activate(context) {
   const state = new ExtensionState();
   const detailsProvider = new DetailsViewProvider(context.extensionUri);
   context.subscriptions.push(
-    vscode26.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
+    vscode28.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
   );
-  const runAnalysis = (rootUri) => vscode26.window.withProgress({
-    location: vscode26.ProgressLocation.Notification,
+  const runAnalysis = (rootUri) => vscode28.window.withProgress({
+    location: vscode28.ProgressLocation.Notification,
     title: "Satori",
     cancellable: false
   }, async (progress) => {
@@ -3518,7 +4222,7 @@ async function activate(context) {
     const result = await analyzeProject(rootUri, context, progress);
     if (!result) {
       log.debug("Analysis returned NULL - ABORTING");
-      vscode26.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
+      vscode28.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
       return;
     }
     state.setGraph(result.panel, result.graph);
@@ -3527,7 +4231,7 @@ async function activate(context) {
     progress.report({ increment: 100, message: t("progress.completed") });
     log.debug("Analysis completed successfully");
   });
-  const analyzeCurrentProjectCommand = vscode26.commands.registerCommand(
+  const analyzeCurrentProjectCommand = vscode28.commands.registerCommand(
     "satori.analyzeProject",
     async () => {
       const rootUri = await findFlutterProjectRoot();
@@ -3540,10 +4244,10 @@ async function activate(context) {
   );
   log.info("Command satori.analyzeProject registered");
   context.subscriptions.push(analyzeCurrentProjectCommand);
-  const showProjectDiagramCommand = vscode26.commands.registerCommand(
+  const showProjectDiagramCommand = vscode28.commands.registerCommand(
     "extension.showProjectDiagram",
     async () => {
-      const pick = await vscode26.window.showOpenDialog({
+      const pick = await vscode28.window.showOpenDialog({
         canSelectFolders: true,
         canSelectMany: false,
         openLabel: "Select project folder"
@@ -3599,17 +4303,17 @@ async function activate(context) {
             return;
           }
           try {
-            const uri = vscode26.Uri.parse(node.data.fileUri);
-            const doc = await vscode26.workspace.openTextDocument(uri);
-            await vscode26.window.showTextDocument(doc, {
-              viewColumn: vscode26.ViewColumn.Two,
+            const uri = vscode28.Uri.parse(node.data.fileUri);
+            const doc = await vscode28.workspace.openTextDocument(uri);
+            await vscode28.window.showTextDocument(doc, {
+              viewColumn: vscode28.ViewColumn.Two,
               preview: false,
               preserveFocus: false
             });
             log.debug(`Successfully opened file: ${node.data.fileUri}`);
           } catch (error) {
             log.error(`Error opening file ${node.data.fileUri}: ${error}`);
-            vscode26.window.showErrorMessage(`Could not open file: ${node.label}`);
+            vscode28.window.showErrorMessage(`Could not open file: ${node.label}`);
           }
           return;
         }
@@ -3623,7 +4327,7 @@ async function activate(context) {
     focusNode: (nodeId) => state.getPanel()?.webview.postMessage({ command: "setFocusInGraph", nodeId })
   };
 }
-function normalizePath(p) {
+function normalizePath2(p) {
   return p.replace(/\\/g, "/");
 }
 // Annotate the CommonJS export names for ESM import in node:

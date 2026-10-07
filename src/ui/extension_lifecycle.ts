@@ -3,10 +3,16 @@ import * as vscode from 'vscode';
 import path from 'path';
 import * as fs from 'fs';
 import { ProjectGraphModel } from '../types/index';
+import { ImportRef } from '../analysis/imports';
 import { DetailsViewProvider } from './providers/details_provider';
 import { findCustomDartDirectories } from '../filesystem/directory_scanner';
 import { extractPackageImportsFromFile } from '../packages/package_files';
 import { createWebview, saveAnnotations } from './webview_creator';
+import { cacheFileFor, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis } from '../analysis/graph_cache';
+import { DEFAULT_EXCLUDES, makeExcluder } from '../filesystem/exclusions';
+import { buildNavigationIndex } from '../analysis/navigation_runner';
+import { LoadingReporter, silentReporter } from './loading_state';
+import { NotificationReporter } from './progress_reporter';
 import { log } from '../utils/logger';
 import { registerDebugCommands } from './command_registry';
 import { transformLspSymbols } from '../analysis/symbol_transformer';
@@ -24,7 +30,7 @@ class ExtensionState {
     mainGraphPanel: vscode.WebviewPanel | undefined;
     projectGraph: ProjectGraphModel | undefined;
     stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
-    timings: Record<string, number> | undefined;
+    timings: Record<string, number | string> | undefined;
 
     /**
      * Sets the webview panel and project graph in the global state.
@@ -111,8 +117,7 @@ type FileData = { file: string; fileUri: string; symbols: any[] };
  */
 async function discoverDartFiles(
     rootUri: vscode.Uri,
-    isProjectRoot: boolean,
-    progress: vscode.Progress<{ increment: number; message: string }>
+    isProjectRoot: boolean
 ): Promise<vscode.Uri[]> {
     const root = rootUri.fsPath;
     const uris: vscode.Uri[] = [];
@@ -129,7 +134,6 @@ async function discoverDartFiles(
         log.error(`  ❌ Error searching pattern '${pattern}': ${error.message}`);
     }
 
-    progress.report({ increment: 20, message: t('progress.searchingCustomDirs') });
 
     if (isProjectRoot) {
         let customDirectories: vscode.Uri[] = [];
@@ -156,7 +160,13 @@ async function discoverDartFiles(
         log.debug(`📊 Skipping custom directory search (not in project root)`);
     }
 
-    const uniqueUris = Array.from(new Set(uris.map(u => u.toString()))).map(s => vscode.Uri.parse(s));
+    const found = Array.from(new Set(uris.map(u => u.toString()))).map(s => vscode.Uri.parse(s));
+    const patterns = vscode.workspace.getConfiguration('satori').get<string[]>('analysis.exclude', DEFAULT_EXCLUDES);
+    const isExcluded = makeExcluder(patterns);
+    const uniqueUris = found.filter(u => !isExcluded(path.relative(root, u.fsPath)));
+    if (uniqueUris.length < found.length) {
+        log.info(`Left out ${found.length - uniqueUris.length} of ${found.length} Dart files that match satori.analysis.exclude (generated code by default).`);
+    }
     log.debug(`📄 Total unique files found: ${uniqueUris.length}`);
     return uniqueUris;
 }
@@ -171,7 +181,7 @@ async function discoverDartFiles(
  */
 async function extractFileSymbols(
     uris: vscode.Uri[],
-    progress: vscode.Progress<{ increment: number; message: string }>
+    reporter: LoadingReporter = silentReporter
 ): Promise<FileData[]> {
     let analyzedCount = 0;
     let errorCount = 0;
@@ -179,6 +189,7 @@ async function extractFileSymbols(
     let emptyStreak = 0;
     const hasSymbols = (r: vscode.DocumentSymbol[] | null | undefined) => Array.isArray(r) && r.length > 0;
 
+    reporter.start('symbols');
     const filesData = await mapLimited(uris, SYMBOL_REQUEST_CONCURRENCY, async (u): Promise<FileData> => {
         let syms: any[] = [];
         try {
@@ -207,9 +218,9 @@ async function extractFileSymbols(
             errorCount++;
         }
 
-        progress.report({ increment: 40 / uris.length, message: t('progress.analyzingFile') });
         return { file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms };
-    });
+    }, (done, total) => reporter.progress('symbols', done, total));
+    reporter.finish('symbols');
 
     log.debug(`📊 Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
     return filesData;
@@ -249,9 +260,33 @@ async function analyzeProject(
     log.debug(`📊 Is project root (has pubspec.yaml): ${isProjectRoot}`);
 
     const analysisStart = Date.now();
-    progress.report({ increment: 10, message: t('progress.searchingFiles') });
-    const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot, progress);
+    // The notification at the bottom right shows each step, its counter, the percentage and the elapsed time.
+    const loading = new NotificationReporter(progress, {
+        labels: {
+            files: t('loading.phase.files'),
+            symbols: t('loading.phase.symbols'),
+            relations: t('loading.phase.relations'),
+            types: t('loading.phase.types'),
+            graph: t('loading.phase.graph'),
+            draw: t('loading.phase.draw')
+        },
+        elapsed: t('loading.elapsed')
+    });
+    try {
+        return await analyzeFiles(rootUri, context, loading);
+    } finally {
+        loading.release();
+    }
+}
+
+async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContext, loading: LoadingReporter) {
+    const root = rootUri.fsPath;
+    const isProjectRoot = fs.existsSync(path.join(root, 'pubspec.yaml'));
+    const analysisStart = Date.now();
+    loading.start('files');
+    const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot);
     const discoveredAt = Date.now();
+    loading.finish('files');
 
     if (uniqueUris.length === 0) {
         log.info('❌ No Dart files found in the project.');
@@ -264,9 +299,35 @@ async function analyzeProject(
         log.debug(`  ${idx + 1}. ${uri.fsPath}`);
     });
 
-    progress.report({ increment: 30, message: t('progress.analyzingFiles', uniqueUris.length.toString()) });
+    // The same files give the same graph: when nothing changed since the last analysis the saved one is used.
+    const useCache = vscode.workspace.getConfiguration('satori').get<boolean>('cache.enabled', true);
+    const extensionVersion = String(context.extension.packageJSON.version);
+    const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath(root));
+    const fingerprint = fingerprintOf(stampFiles(uniqueUris.map(u => u.fsPath)));
+    const cached = useCache ? readCachedAnalysis<ProjectGraphModel, Record<string, ImportRef[]>>(cacheFile, fingerprint, extensionVersion) : null;
 
-    const filesDataArray = await extractFileSymbols(uniqueUris, progress);
+    if (cached) {
+        const result = await createWebview(context, {
+            projectRoot: normalizePath(root),
+            files: [],
+            cached: { graph: cached.graph, fileImports: cached.fileImports },
+            reporter: loading
+        });
+        const timings = {
+            files: uniqueUris.length,
+            discoverMs: discoveredAt - analysisStart,
+            symbolsMs: 0,
+            ...result.timings,
+            totalMs: Date.now() - analysisStart
+        };
+        log.info('⏱ Opened ' + timings.files + ' files from the saved analysis in ' + (timings.totalMs / 1000).toFixed(1) + 's (saved ' + new Date(cached.savedAt).toLocaleString() + '; turn off with satori.cache.enabled)');
+        return { panel: result.panel, graph: result.graph, timings };
+    }
+
+
+    const navigation = buildNavigationIndex(root, uniqueUris, loading);
+
+    const filesDataArray = await extractFileSymbols(uniqueUris, loading);
     const symbolsAt = Date.now();
 
     if (filesDataArray.every(f => f.symbols.length === 0) && filesDataArray.length > 0) {
@@ -274,7 +335,6 @@ async function analyzeProject(
         vscode.window.showWarningMessage('No classes or symbols found in the project. The diagram may be empty.');
     }
 
-    progress.report({ increment: 80, message: t('progress.buildingGraph') });
 
     log.debug(`📦 Preparing to create webview...`);
     log.debug(`📦 Project root for webview: ${root}`);
@@ -285,7 +345,9 @@ async function analyzeProject(
         
         const result = await createWebview(context, { 
             projectRoot: normalizePath(root),
-            files: filesDataArray 
+            files: filesDataArray,
+            navigation,
+            reporter: loading
         });
 
         const { panel, graph } = result;
@@ -300,6 +362,18 @@ async function analyzeProject(
             `(find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, ` +
             `graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
 
+        if (useCache && graph.nodes && graph.nodes.length > 0) {
+            // After the page is on screen: serialising a big graph takes a moment and nobody waits for it.
+            setTimeout(() => {
+                try {
+                    writeCachedAnalysis(cacheFile, fingerprint, extensionVersion, graph, result.fileImports);
+                    log.info(`💾 Analysis saved for the next time (${cacheFile})`);
+                } catch (e: any) {
+                    log.error(`Could not save the analysis: ${e.message}`);
+                }
+            }, 0);
+        }
+
         log.debug(`✅ Webview created successfully!`);
         log.debug(`📊 Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
         
@@ -308,7 +382,6 @@ async function analyzeProject(
             vscode.window.showWarningMessage('The graph was created but contains no nodes. Check the logs for details.');
         }
 
-        progress.report({ increment: 95, message: t('progress.configuringInterface') });
         
         return { panel, graph, timings };
 

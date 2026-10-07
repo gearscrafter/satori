@@ -123,6 +123,9 @@ Press `?` (or the help button) for a legend that explains the layer colours and 
 | `satori.language` | `en` | Interface language (`en` or `es`) |
 | `satori.enableDebugLogs` | `false` | Detailed logs in the "satori" output channel (may slow down processing) |
 | `satori.dartSdkPath` | `""` | Path to the Dart SDK, if it cannot be found automatically |
+| `satori.analysis.engine` | `auto` | How Satori finds where each field and method is used: `auto` asks Dart's analysis server for the whole project, one request per file, and falls back to the language server if that is not possible; `languageServer` always asks it symbol by symbol (slow on big projects) |
+| `satori.analysis.exclude` | generated code | Globs of Dart files left out of the analysis. By default `*.g.dart`, `*.freezed.dart`, `*.gr.dart`, `*.mocks.dart`, `*.config.dart`, `generated/` folders... An empty list analyses everything |
+| `satori.cache.enabled` | `true` | Saves the finished analysis and reuses it while no Dart file changes |
 | `satori.audit.godClass.wmc` | `47` | Audit: complexity (WMC) from which a class can be a God Class |
 | `satori.audit.godClass.atfd` | `5` | Audit: a God Class must use MORE than this many attributes of other classes (ATFD) |
 | `satori.audit.godClass.tcc` | `0.33` | Audit: a God Class must have a cohesion (TCC) BELOW this value |
@@ -130,6 +133,18 @@ Press `?` (or the help button) for a legend that explains the layer colours and 
 | `satori.audit.weights.size` | `0.15` | Audit: weight of size in the risk score |
 | `satori.audit.weights.cycles` | `0.25` | Audit: weight of circular dependencies in the risk score |
 | `satori.audit.weights.violations` | `0.3` | Audit: weight of layer violations in the risk score |
+
+### Opening big projects
+
+How long the analysis takes depends mostly on how many questions are asked to a language server. Satori keeps them few:
+
+- **One request per file, not per symbol.** Dart's analysis server (`dart language-server --protocol=analyzer`) tells where every identifier of a file points to. Satori starts it next to the language server, reads that for every file and answers "where is this field or method used?" from it. The number of requests grows with the number of files, not with the number of members. In a generated project of 600 files the analysis went from 60 s to 7 s, and 3,000 files took about two minutes, most of it waiting for the Dart extension's own server. The language server is used instead if the analysis server cannot be started (`satori.analysis.engine`).
+- **Saved analysis.** Opening the same project again, with no Dart file changed, takes about a second. Any change (a file added, removed, resized or saved) analyses everything again.
+- **Generated code is skipped** (`satori.analysis.exclude`).
+- **A progress notification that shows it is alive.** The notification at the bottom right names the step that is running (finding files, reading classes, finding where everything is used, resolving types, building the graph, drawing), its counter (for example 430/601), the overall percentage and the elapsed time, which keeps counting every second even while a step reports nothing. The diagram's tab does not open until the diagram is ready.
+- **Wait for the Dart extension.** The status bar of VS Code shows when the Dart analysis has finished; running Satori before that makes it wait for the language server.
+
+The analysis server is a second Dart process while Satori runs, so memory use goes up for the time of the analysis.
 
 ### How the audit decides
 
@@ -248,6 +263,7 @@ The expected direction is **View -> State -> Service -> Model**. References that
 - **Semantic analysis**: Internal responsibilities and decisions are in development
 - **External packages and the SDK**: Satori shows which packages a file imports (the dependency strip), not the classes inside those packages or inside the Dart SDK. You can navigate to each library and open its file, but the library node does not list its classes. The strip is built from the `import` lines, so it does not say which classes of a package are used
 - **State management**: a state holder is recognised only by the base class it extends. Plain classes registered in a service locator, and Riverpod providers written as functions, are not tagged; Riverpod is not followed from `ref.watch(...)` to the class behind the provider, so a widget that only uses `ref.watch` shows no "observes" arrow. `BlocProvider(create: ...)` is not drawn: only who listens is
+- **Navigation by analysis server**: a parameter that forwards to the parent constructor (`Product(super.id)`) is not drawn as a read of the parent's field, which the language server did report
 - **Dart extension dependency**: Requires the official Dart extension to be installed and active
 - **Symbol analysis**: Depends on the Dart extension's language server for symbol information
 - **Data flow trace**: it follows calls and field accesses. Values that travel through local variables, return values or callbacks are not followed, so a trace can be shorter than the real flow

@@ -317,5 +317,17 @@
   "trail.state.fragmentedTip": "The project manages state in more than one way. Teams usually pick one to keep onboarding and testing simple.",
   "trail.state.observedBy": "Listened to by {0} classes",
   "hud.state": "State management",
-  "hud.state.desc": "A tag next to a class names the state management it uses (Bloc, Cubit, ChangeNotifier, Notifier, GetX), read from what it extends. A pink arrow \"observes\" goes from a widget to the holder it listens to (BlocBuilder<X>, context.watch<X>(), Provider.of<X>, Get.find<X>); Riverpod providers are not followed. The audit panel lists the approaches in use and warns when more than one is mixed."
+  "hud.state.desc": "A tag next to a class names the state management it uses (Bloc, Cubit, ChangeNotifier, Notifier, GetX), read from what it extends. A pink arrow \"observes\" goes from a widget to the holder it listens to (BlocBuilder<X>, context.watch<X>(), Provider.of<X>, Get.find<X>); Riverpod providers are not followed. The audit panel lists the approaches in use and warns when more than one is mixed.",
+  "loading.elapsed": "Elapsed",
+  "loading.phase.files": "Finding Dart files",
+  "loading.phase.symbols": "Reading classes and members",
+  "loading.phase.relations": "Finding where everything is used",
+  "loading.phase.types": "Resolving types",
+  "loading.phase.graph": "Building the graph",
+  "loading.phase.draw": "Drawing the diagram",
+  "loading.relations.starting": "Starting the Dart analysis server",
+  "loading.relations.analyzing": "Dart is analysing the project",
+  "loading.relations.reading": "Reading what each file points to",
+  "loading.graph.fields": "Asking the language server about fields",
+  "loading.graph.calls": "Asking the language server about calls"
 }

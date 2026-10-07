@@ -39,6 +39,9 @@ exports.run = async function run() {
     assert.ok(dart, 'Dart-Code should be installed in the test instance');
     await dart.activate();
     const api = await satori.activate();
+    // SATORI_E2E_ENGINE=languageServer checks the path used when Dart's analysis server cannot be started.
+    // The setting is written every time (and cleared when the variable is absent) because the test instance remembers it.
+    await vscode.workspace.getConfiguration('satori').update('analysis.engine', process.env.SATORI_E2E_ENGINE || undefined, vscode.ConfigurationTarget.Global);
 
     const userUri = vscode.Uri.file(path.join(projectRoot, 'lib', 'models', 'user.dart'));
     console.log('Waiting for the Dart analysis server to serve symbols...');
@@ -57,8 +60,8 @@ exports.run = async function run() {
     await vscode.commands.executeCommand('satori.analyzeProject');
 
     await check('graph webview tab is open', async () => {
-        const labels = vscode.window.tabGroups.all.flatMap(g => g.tabs.map(t => t.label));
-        assert.ok(labels.includes('AST Diagram'), `tabs: ${JSON.stringify(labels)}`);
+        // A saved analysis opens so fast that the tab can show up a moment after the command returns.
+        await waitFor('the diagram tab', () => vscode.window.tabGroups.all.some(g => g.tabs.some(t => t.label === 'AST Diagram')), 10000);
     });
 
     const graph = api && api.getGraph();
@@ -75,7 +78,7 @@ exports.run = async function run() {
         const label = id => (byId.get(id) || {}).label || id;
         const classes = graph.nodes.filter(n => n.kind === 'class').map(n => n.label);
         const edges = graph.edges.map(e => `${label(e.source)} -${e.label}-> ${label(e.target)}`);
-        console.log(`Graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+        console.log(`Graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges (read with the ${(api.getStats().timings || {}).engine || "?"})`);
         console.log(`Classes: ${classes.join(', ')}`);
         console.log(`Edges:\n  ${edges.join('\n  ')}`);
 
