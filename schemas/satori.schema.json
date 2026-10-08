@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Satori project settings",
+  "description": "Settings of Satori that belong to the project and are shared through the repository.",
+  "type": "object",
+  "properties": {
+    "architecture": {
+      "description": "The layers of the architecture, how a class is placed in one, and which dependencies between layers are allowed. Without it Satori uses View, State, Service and Model.",
+      "type": "object",
+      "anyOf": [{ "required": ["layers"] }, { "required": ["preset"] }],
+      "properties": {
+        "preset": {
+          "description": "A ready-made architecture to start from. The layers and rules below are merged into it: a layer with the same id adds its folders, names and extends and replaces its label and colour; a layer with a new id is added.",
+          "type": "string",
+          "enum": ["default", "clean", "mvvm", "folders"],
+          "enumDescriptions": [
+            "View, State, Service and Model, placed by Satori's own guess.",
+            "Clean Architecture: presentation and data depend on the domain, the domain on nothing.",
+            "MVVM: views use view models, view models use the model.",
+            "One layer per folder of lib/ (or lib/src/), read from the project. No rule is applied until \"rules\" asks for one."
+          ]
+        },
+        "layers": {
+          "description": "The layers, in the order of the flow (the first one uses the following ones).",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": {
+                "description": "Lowercase letters, digits, - or _, starting with a letter.",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+              },
+              "label": { "description": "The name shown in the diagram.", "type": "string" },
+              "description": { "description": "A sentence for the legend and the tooltips.", "type": "string" },
+              "color": { "description": "The colour of the layer, as #rrggbb. A colour of the palette is used without it.", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+              "icon": {
+                "description": "The icon of the layer.",
+                "type": "string",
+                "enum": ["layer-view", "layer-state", "layer-service", "layer-model", "layer-utility", "layer-generic"]
+              },
+              "folders": {
+                "description": "Classes in these folders belong to the layer. Globs relative to the project: ** crosses folders, * stays in one.",
+                "type": "array",
+                "items": { "type": "string" },
+                "examples": [["lib/presentation/**"]]
+              },
+              "extends": {
+                "description": "Classes that extend, implement or mix in one of these belong to the layer.",
+                "type": "array",
+                "items": { "type": "string" },
+                "examples": [["StatelessWidget", "StatefulWidget"]]
+              },
+              "names": {
+                "description": "Classes whose name matches belong to the layer: *Page (ends with), Base* (starts with), *Repo* (contains).",
+                "type": "array",
+                "items": { "type": "string" },
+                "examples": [["*Page", "*Screen"]]
+              },
+              "neutral": {
+                "description": "A layer that takes no part in the rules (shared code, utilities). Libraries and whatever matches nothing go here. Only one layer can be neutral; one called \"other\" is added when none is.",
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "rules": {
+          "description": "Which dependencies between layers are allowed.",
+          "type": "object",
+          "properties": {
+            "mode": {
+              "description": "\"order\": a layer may use the ones after it in the list, and using one before it is a violation. \"allow\": only the pairs in \"allow\" are permitted. \"none\": no rule, the layers only group the classes.",
+              "type": "string",
+              "enum": ["order", "allow", "none"],
+              "default": "order"
+            },
+            "allow": {
+              "description": "Pairs [from, to] that are permitted. In \"order\" mode they are exceptions to the order.",
+              "type": "array",
+              "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 },
+              "examples": [[["presentation", "domain"], ["data", "domain"]]]
+            },
+            "forbid": {
+              "description": "Pairs [from, to] that are always a violation.",
+              "type": "array",
+              "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 }
+            }
+          }
+        },
+        "overrides": {
+          "description": "Classes placed by hand: the name of the class and the id of its layer.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "heuristic": {
+          "description": "What to do with Satori's own guess (view, state, service, model, utility) for classes that no rule places. false switches it off; an object maps each guess to a layer of this architecture.",
+          "oneOf": [
+            { "type": "boolean", "enum": [false] },
+            {
+              "type": "object",
+              "properties": {
+                "view": { "type": "string" },
+                "state": { "type": "string" },
+                "service": { "type": "string" },
+                "model": { "type": "string" },
+                "utility": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    }
+  }
+}

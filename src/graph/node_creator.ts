@@ -1,7 +1,7 @@
 import { SymbolKindToString, KIND_CLASS, KIND_ENUM } from "../core";
 import { EnrichedSymbol, ProjectGraphModel, ProjectGraphNode } from "../types/index";
 import { log } from "../utils/logger";
-import { getArchitecturalLayer } from "./layer_classifier";
+import { classifyLayer } from "./layer_classifier";
 import { detectStateManager } from "../analysis/state_managers";
 
 /**
@@ -38,7 +38,7 @@ export function createGraphNodesFromSymbols(
       if (!generatedNodeIds.has(nodeId)) {
         generatedNodeIds.add(nodeId);
 
-        const layer: ProjectGraphNode['data']['layer'] = getArchitecturalLayer(s, s.relations);
+        const layer: ProjectGraphNode['data']['layer'] = classifyLayer(s, s.relations);
 
         log.debug(`[DEBUG-RECURSIVE-PARENT] Processing: ${s.name}, parentClass: ${parentClass?.name ?? 'none'}`);
 

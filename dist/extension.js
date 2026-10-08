@@ -37,7 +37,7 @@ module.exports = __toCommonJS(extension_exports);
 // src/ui/extension_lifecycle.ts
 var vscode28 = __toESM(require("vscode"));
 var import_path8 = __toESM(require("path"));
-var fs16 = __toESM(require("fs"));
+var fs17 = __toESM(require("fs"));
 
 // src/ui/providers/details_provider.ts
 var vscode3 = __toESM(require("vscode"));
@@ -620,7 +620,7 @@ function extractPackageImportsFromFile(fileUri) {
 
 // src/ui/webview_creator.ts
 var vscode24 = __toESM(require("vscode"));
-var fs12 = __toESM(require("fs"));
+var fs13 = __toESM(require("fs"));
 var import_path7 = __toESM(require("path"));
 
 // src/analysis/validation.ts
@@ -796,7 +796,7 @@ function calculateNodeDegrees(graph) {
 }
 
 // src/core/concurrency.ts
-var defaultSleep = (ms) => new Promise((resolve3) => setTimeout(resolve3, ms));
+var defaultSleep = (ms) => new Promise((resolve4) => setTimeout(resolve4, ms));
 async function retryUntil(operation, isDone, delaysMs, sleep = defaultSleep) {
   let result = await operation();
   let attempts = 1;
@@ -831,6 +831,7 @@ var vscode16 = __toESM(require("vscode"));
 
 // src/graph/layer_classifier.ts
 var vscode9 = __toESM(require("vscode"));
+var path6 = __toESM(require("path"));
 
 // src/analysis/state_managers.ts
 var BASES = {
@@ -867,7 +868,482 @@ function detectStateManager(relations) {
   return void 0;
 }
 
+// src/filesystem/exclusions.ts
+var DEFAULT_EXCLUDES = [
+  "**/*.g.dart",
+  "**/*.freezed.dart",
+  "**/*.gr.dart",
+  "**/*.mocks.dart",
+  "**/*.config.dart",
+  "**/*.chopper.dart",
+  "**/*.reflectable.dart",
+  "**/generated/**",
+  "**/.dart_tool/**"
+];
+function globToRegExp(glob) {
+  let out = "";
+  for (let i = 0; i < glob.length; i++) {
+    const ch = glob[i];
+    if (ch === "*") {
+      if (glob[i + 1] === "*") {
+        if (glob[i + 2] === "/") {
+          out += "(?:.*/)?";
+          i += 2;
+        } else {
+          out += ".*";
+          i += 1;
+        }
+      } else {
+        out += "[^/]*";
+      }
+    } else if (ch === "?") {
+      out += "[^/]";
+    } else {
+      out += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`^${out}$`, "i");
+}
+function makeExcluder(patterns) {
+  const regexes = patterns.filter((p) => p.trim() !== "").map(globToRegExp);
+  return (relativePath) => {
+    const normalized = relativePath.replace(/\\/g, "/");
+    return regexes.some((r) => r.test(normalized));
+  };
+}
+
+// src/analysis/architecture_presets.ts
+var COMMON_NEUTRAL = {
+  id: "core",
+  label: "Core",
+  neutral: true,
+  description: "Shared code. Takes no part in the rules.",
+  folders: ["**/core/**", "**/utils/**", "**/shared/**", "**/common/**", "**/helpers/**"]
+};
+var PRESETS = {
+  // The four layers Satori always had, written out so they can be extended.
+  default: {
+    description: "View, State, Service and Model, placed by Satori's own guess. Using a layer above yours is a violation.",
+    layers: [{ id: "view" }, { id: "state" }, { id: "service" }, { id: "model" }, { id: "utility", neutral: true }],
+    mode: "order",
+    allow: [],
+    heuristic: { view: "view", state: "state", service: "service", model: "model", utility: "utility" }
+  },
+  // Presentation and data both depend on the domain; the domain depends on nothing.
+  clean: {
+    description: "Clean Architecture: presentation and data depend on the domain, the domain on nothing.",
+    layers: [
+      {
+        id: "presentation",
+        label: "Presentation",
+        color: "#1e88e5",
+        icon: "layer-view",
+        description: "Screens, widgets and their state. May use the domain, never the data layer directly.",
+        folders: ["**/presentation/**", "**/pages/**", "**/screens/**", "**/views/**", "**/widgets/**", "**/ui/**"],
+        names: ["*Page", "*Screen", "*View"]
+      },
+      {
+        id: "domain",
+        label: "Domain",
+        color: "#8e24aa",
+        description: "Entities and business rules. Depends on nothing else.",
+        folders: ["**/domain/**", "**/entities/**", "**/usecases/**", "**/use_cases/**"],
+        names: ["*UseCase", "*Entity"]
+      },
+      {
+        id: "data",
+        label: "Data",
+        color: "#43a047",
+        icon: "layer-model",
+        description: "Repositories, data sources and DTOs. May use the domain.",
+        folders: ["**/data/**", "**/repositories/**", "**/datasources/**", "**/data_sources/**"],
+        names: ["*Repository*", "*DataSource*", "*Dto"]
+      },
+      COMMON_NEUTRAL
+    ],
+    mode: "allow",
+    allow: [["presentation", "domain"], ["data", "domain"]],
+    heuristic: { view: "presentation", state: "presentation", service: "data", model: "domain", utility: "core" }
+  },
+  // View -> view model -> model, one way.
+  mvvm: {
+    description: "MVVM: views use view models, view models use the model. Never the other way round.",
+    layers: [
+      {
+        id: "view",
+        label: "View",
+        color: "#1e88e5",
+        icon: "layer-view",
+        description: "Screens and widgets. Show what the view model exposes.",
+        folders: ["**/views/**", "**/pages/**", "**/screens/**", "**/widgets/**", "**/ui/**"],
+        extends: ["StatelessWidget", "StatefulWidget"],
+        names: ["*Page", "*Screen", "*View"]
+      },
+      {
+        id: "viewmodel",
+        label: "View model",
+        color: "#fbc02d",
+        icon: "layer-state",
+        description: "State and logic of a screen. Uses the model, knows nothing of widgets.",
+        folders: ["**/viewmodels/**", "**/view_models/**", "**/viewmodel/**", "**/blocs/**", "**/cubits/**", "**/controllers/**", "**/providers/**", "**/state/**"],
+        names: ["*ViewModel", "*Bloc", "*Cubit", "*Controller", "*Notifier"]
+      },
+      {
+        id: "model",
+        label: "Model",
+        color: "#e64a19",
+        icon: "layer-model",
+        description: "Data, repositories and services.",
+        folders: ["**/models/**", "**/repositories/**", "**/services/**", "**/data/**", "**/domain/**"],
+        names: ["*Model", "*Repository*", "*Service"]
+      },
+      COMMON_NEUTRAL
+    ],
+    mode: "order",
+    allow: [],
+    heuristic: { view: "view", state: "viewmodel", service: "model", model: "model", utility: "core" }
+  }
+};
+var LIST_KEYS = ["folders", "names", "extends"];
+function mergeLayers(base, extra) {
+  const merged = base.map((l) => ({ ...l }));
+  const neutralAt = merged.findIndex((l) => l.neutral);
+  for (const item of extra) {
+    if (!item || typeof item !== "object" || typeof item.id !== "string") {
+      continue;
+    }
+    const existing = merged.find((l) => l.id === item.id);
+    if (!existing) {
+      const at = neutralAt >= 0 ? merged.findIndex((l) => l.neutral) : merged.length;
+      merged.splice(at, 0, { ...item });
+      continue;
+    }
+    for (const [key, value] of Object.entries(item)) {
+      if (LIST_KEYS.includes(key) && Array.isArray(value)) {
+        const current = existing[key];
+        existing[key] = [...value, ...current ?? []];
+      } else {
+        existing[key] = value;
+      }
+    }
+  }
+  return merged;
+}
+var ROLES = [
+  { rank: 0, names: /^(views?|pages?|screens?|ui|widgets?|presentation|components?)$/ },
+  { rank: 1, names: /^(view_?models?|blocs?|cubits?|controllers?|providers?|state|states|stores?|notifiers?)$/ },
+  { rank: 2, names: /^(use_?cases?|domain|logic|business|services?|interactors?)$/ },
+  { rank: 3, names: /^(repositor(y|ies)|data|data_?sources?|api|network|remote|local|infra(structure)?)$/ },
+  { rank: 4, names: /^(models?|entit(y|ies)|dtos?)$/ }
+];
+var NEUTRAL_NAMES = /^(core|utils?|shared|common|helpers?|config|configs?|constants?|extensions?|theme|themes?|l10n|generated|assets|routes?|router|di|injection|mixins?)$/;
+var UNKNOWN_RANK = 2.5;
+var MAX_LAYERS = 12;
+function layerId(name) {
+  const id = name.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^[^a-z]+/, "");
+  return id === "" ? "folder" : id.slice(0, 32);
+}
+function layerLabel(name) {
+  const words = name.replace(/[-_]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function layersFromFolders(base, folders) {
+  const used = /* @__PURE__ */ new Set(["core"]);
+  const own = [];
+  const shared = [];
+  for (const name of [...new Set(folders)].sort()) {
+    if (name.startsWith(".")) {
+      continue;
+    }
+    const lower = name.toLowerCase();
+    if (NEUTRAL_NAMES.test(lower)) {
+      shared.push(`${base}/${name}/**`);
+      continue;
+    }
+    if (own.length >= MAX_LAYERS) {
+      shared.push(`${base}/${name}/**`);
+      continue;
+    }
+    let id = layerId(name);
+    for (let i = 2; used.has(id); i++) {
+      id = `${layerId(name).slice(0, 28)}-${i}`;
+    }
+    used.add(id);
+    const role = ROLES.find((r) => r.names.test(lower));
+    own.push({ spec: { id, label: layerLabel(name), folders: [`${base}/${name}/**`] }, rank: role ? role.rank : UNKNOWN_RANK, name });
+  }
+  own.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+  return [
+    ...own.map((o) => o.spec),
+    { id: "core", label: "Core", neutral: true, description: "Shared code and whatever is outside the folders above. Takes no part in the rules.", folders: shared }
+  ];
+}
+
+// src/analysis/architecture_config.ts
+var BUILTIN_LAYER_IDS = ["view", "state", "service", "model", "utility"];
+function defaultArchitecture() {
+  return {
+    layers: [
+      { id: "view" },
+      { id: "state" },
+      { id: "service" },
+      { id: "model" },
+      { id: "utility", neutral: true }
+    ],
+    mode: "order",
+    allow: [],
+    forbid: [],
+    neutral: "utility",
+    overrides: {},
+    heuristic: { view: "view", state: "state", service: "service", model: "model", utility: "utility" },
+    builtin: true
+  };
+}
+var KNOWN_ICONS = ["layer-view", "layer-state", "layer-service", "layer-model", "layer-utility", "layer-generic"];
+var ID = /^[a-z][a-z0-9_-]{0,31}$/;
+var COLOR = /^#[0-9a-fA-F]{6}$/;
+function strings(value) {
+  return Array.isArray(value) ? value.filter((v) => typeof v === "string" && v.trim() !== "") : void 0;
+}
+function pairs(value, known, what, problems) {
+  const out = [];
+  if (value === void 0) {
+    return out;
+  }
+  if (!Array.isArray(value)) {
+    problems.push(`"${what}" must be a list of [from, to] pairs.`);
+    return out;
+  }
+  for (const item of value) {
+    if (Array.isArray(item) && item.length === 2 && typeof item[0] === "string" && typeof item[1] === "string") {
+      if (!known.has(item[0]) || !known.has(item[1])) {
+        problems.push(`"${what}" names a layer that does not exist: ${item[0]} -> ${item[1]}.`);
+      } else {
+        out.push([item[0], item[1]]);
+      }
+    } else {
+      problems.push(`"${what}" has an entry that is not a [from, to] pair.`);
+    }
+  }
+  return out;
+}
+function parseArchitecture(text, context = {}) {
+  if (text === void 0 || text.trim() === "") {
+    return { architecture: defaultArchitecture(), problems: [] };
+  }
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (e) {
+    return { architecture: defaultArchitecture(), problems: [`satori.json is not valid JSON (${e.message}). The default layers are used.`] };
+  }
+  const section = raw && typeof raw === "object" ? raw.architecture : void 0;
+  if (section === void 0) {
+    return { architecture: defaultArchitecture(), problems: [] };
+  }
+  if (!section || typeof section !== "object") {
+    return { architecture: defaultArchitecture(), problems: ['"architecture" must be an object. The default layers are used.'] };
+  }
+  const problems = [];
+  let rawLayers = Array.isArray(section.layers) ? section.layers : [];
+  let presetRules = {};
+  let presetHeuristic;
+  if (section.preset === "folders") {
+    const found = context.discoverFolders?.();
+    if (!found || found.folders.length === 0) {
+      problems.push('"preset": "folders" needs a lib/ folder with subfolders, and none was found.');
+    } else {
+      rawLayers = mergeLayers(layersFromFolders(found.base, found.folders), rawLayers);
+      presetRules = { mode: "none", allow: [] };
+      presetHeuristic = {};
+    }
+  } else if (section.preset !== void 0) {
+    const preset = typeof section.preset === "string" ? PRESETS[section.preset] : void 0;
+    if (!preset) {
+      problems.push(`"preset" must be one of: ${[...Object.keys(PRESETS), "folders"].join(", ")} (got ${JSON.stringify(section.preset)}).`);
+    } else {
+      rawLayers = mergeLayers(preset.layers, rawLayers);
+      presetRules = { mode: preset.mode, allow: preset.allow };
+      presetHeuristic = preset.heuristic;
+    }
+  }
+  if (rawLayers.length === 0) {
+    return { architecture: defaultArchitecture(), problems: [...problems, '"architecture.layers" must be a list with at least one layer, or "architecture.preset" must name one. The default layers are used.'] };
+  }
+  const layers = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of rawLayers) {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || !ID.test(item.id)) {
+      problems.push(`A layer needs an "id" of lowercase letters, digits, "-" or "_" (got ${JSON.stringify(item && item.id)}).`);
+      continue;
+    }
+    if (seen.has(item.id)) {
+      problems.push(`The layer "${item.id}" is written twice; the second one is ignored.`);
+      continue;
+    }
+    seen.add(item.id);
+    const spec = { id: item.id };
+    if (typeof item.label === "string") {
+      spec.label = item.label;
+    }
+    if (typeof item.description === "string") {
+      spec.description = item.description;
+    }
+    if (typeof item.color === "string") {
+      if (COLOR.test(item.color)) {
+        spec.color = item.color.toLowerCase();
+      } else {
+        problems.push(`The colour of "${item.id}" must look like #1e88e5.`);
+      }
+    }
+    if (typeof item.icon === "string") {
+      if (KNOWN_ICONS.includes(item.icon)) {
+        spec.icon = item.icon;
+      } else {
+        problems.push(`The icon of "${item.id}" must be one of: ${KNOWN_ICONS.join(", ")}.`);
+      }
+    }
+    const folders = strings(item.folders);
+    if (folders) {
+      spec.folders = folders;
+    }
+    const ext = strings(item.extends);
+    if (ext) {
+      spec.extends = ext;
+    }
+    const names = strings(item.names);
+    if (names) {
+      spec.names = names;
+    }
+    if (item.neutral === true) {
+      spec.neutral = true;
+    }
+    layers.push(spec);
+  }
+  if (layers.length === 0) {
+    return { architecture: defaultArchitecture(), problems: [...problems, "No valid layer was found. The default layers are used."] };
+  }
+  let neutral = layers.find((l) => l.neutral)?.id;
+  if (!neutral) {
+    const existing = layers.find((l) => l.id === "other");
+    if (existing) {
+      existing.neutral = true;
+    } else {
+      layers.push({ id: "other", label: "Other", neutral: true });
+      seen.add("other");
+    }
+    neutral = "other";
+  }
+  layers.forEach((l) => {
+    if (l.id !== neutral) {
+      delete l.neutral;
+    }
+  });
+  const known = new Set(layers.map((l) => l.id));
+  const fileRules = section.rules && typeof section.rules === "object" ? section.rules : {};
+  const rules = { ...presetRules, ...fileRules };
+  let mode = "order";
+  if (rules.mode === "allow" || rules.mode === "none") {
+    mode = rules.mode;
+  } else if (rules.mode !== void 0 && rules.mode !== "order") {
+    problems.push('"rules.mode" must be "order", "allow" or "none"; "order" is used.');
+  }
+  const overrides2 = {};
+  if (section.overrides && typeof section.overrides === "object") {
+    for (const [name, layer] of Object.entries(section.overrides)) {
+      if (typeof layer === "string" && known.has(layer)) {
+        overrides2[name] = layer;
+      } else {
+        problems.push(`"overrides" puts ${name} in a layer that does not exist (${String(layer)}).`);
+      }
+    }
+  }
+  const heuristic = {};
+  if (section.heuristic === false) {
+  } else if (section.heuristic && typeof section.heuristic === "object") {
+    for (const [from, to] of Object.entries(section.heuristic)) {
+      if (!BUILTIN_LAYER_IDS.includes(from)) {
+        problems.push(`"heuristic" does not know "${from}"; use view, state, service, model or utility.`);
+      } else if (typeof to === "string" && known.has(to)) {
+        heuristic[from] = to;
+      } else {
+        problems.push(`"heuristic" sends ${from} to a layer that does not exist (${String(to)}).`);
+      }
+    }
+  } else if (presetHeuristic) {
+    for (const [from, to] of Object.entries(presetHeuristic)) {
+      if (known.has(to)) {
+        heuristic[from] = to;
+      }
+    }
+  } else {
+    for (const id of BUILTIN_LAYER_IDS) {
+      if (known.has(id)) {
+        heuristic[id] = id;
+      }
+    }
+  }
+  return {
+    architecture: {
+      layers,
+      mode,
+      allow: pairs(rules.allow, known, "rules.allow", problems),
+      forbid: pairs(rules.forbid, known, "rules.forbid", problems),
+      neutral,
+      overrides: overrides2,
+      heuristic,
+      builtin: false
+    },
+    problems
+  };
+}
+function namePattern(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+function layerFor(arch, facts) {
+  const byName = arch.overrides[facts.name];
+  if (byName) {
+    return byName;
+  }
+  const path20 = facts.path.replace(/\\/g, "/");
+  for (const layer of arch.layers) {
+    if ((layer.folders ?? []).some((g) => globToRegExp(g).test(path20))) {
+      return layer.id;
+    }
+  }
+  for (const layer of arch.layers) {
+    if ((layer.extends ?? []).some((e) => facts.parents.includes(e))) {
+      return layer.id;
+    }
+  }
+  for (const layer of arch.layers) {
+    if ((layer.names ?? []).some((p) => namePattern(p).test(facts.name))) {
+      return layer.id;
+    }
+  }
+  return arch.heuristic[facts.guess] ?? arch.neutral;
+}
+
 // src/graph/layer_classifier.ts
+var architecture = null;
+var projectRootPath = "";
+function setArchitecture(arch, projectRoot = "") {
+  architecture = arch;
+  projectRootPath = projectRoot;
+}
+function parentNames(relations) {
+  return [...relations?.extends ?? [], ...relations?.implements ?? [], ...relations?.with ?? []].map((r) => (typeof r === "string" ? r : r.name).split("<")[0].trim());
+}
+function classifyLayer(symbol, relations) {
+  const guess = getArchitecturalLayer(symbol, relations);
+  if (guess === "member" || !architecture || architecture.builtin) {
+    return guess;
+  }
+  const file = symbol.fileUri ? vscode9.Uri.parse(symbol.fileUri).fsPath : "";
+  const relative3 = projectRootPath && file ? path6.relative(projectRootPath, file) : file;
+  return layerFor(architecture, { name: symbol.name, path: relative3, parents: parentNames(relations), guess });
+}
 function getArchitecturalLayer(symbol, relations) {
   if (symbol.kind !== vscode9.SymbolKind.Class && symbol.kind !== vscode9.SymbolKind.Enum) {
     return "member";
@@ -997,7 +1473,7 @@ function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById,
       }
       if (!generatedNodeIds.has(nodeId)) {
         generatedNodeIds.add(nodeId);
-        const layer = getArchitecturalLayer(s, s.relations);
+        const layer = classifyLayer(s, s.relations);
         log.debug(`[DEBUG-RECURSIVE-PARENT] Processing: ${s.name}, parentClass: ${parentClass?.name ?? "none"}`);
         const stateManager = s.kind === KIND_CLASS ? detectStateManager(s.relations) : void 0;
         const node = {
@@ -1176,7 +1652,7 @@ function isPathInside(child, parent) {
 var vscode11 = __toESM(require("vscode"));
 
 // src/analysis/hierarchy.ts
-function parentNames(symbol) {
+function parentNames2(symbol) {
   const relations = symbol.relations;
   if (!relations) {
     return [];
@@ -1191,7 +1667,7 @@ var OverrideIndex = class {
       for (const child of cls.children ?? []) {
         this.ownerOfMember.set(child, cls);
       }
-      for (const parent of parentNames(cls)) {
+      for (const parent of parentNames2(cls)) {
         const list = this.subclassesOf.get(parent);
         if (list) {
           list.push(cls);
@@ -1647,7 +2123,7 @@ var fs8 = __toESM(require("fs"));
 // src/packages/package_analyzer.ts
 var fs7 = __toESM(require("fs"));
 var import_path3 = __toESM(require("path"));
-function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPath) {
+function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPath2) {
   log.debug(` -> Analyzing details of package '${packageName}'...`);
   if (!fs7.existsSync(packagePath)) {
     log.debug(`    -> ERROR: Package path does not exist: ${packagePath}`);
@@ -1658,7 +2134,7 @@ function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPa
       name: packageName,
       path: packagePath,
       version: rawData.version || "unknown",
-      type: determinePackageType(packageName, packagePath, projectRootPath),
+      type: determinePackageType(packageName, packagePath, projectRootPath2),
       dartFiles: [],
       hasLibFolder: false,
       isFlutterPackage: false,
@@ -1695,8 +2171,8 @@ function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPa
     return null;
   }
 }
-function determinePackageType(packageName, packagePath, projectRootPath) {
-  let actualProjectRoot = projectRootPath || null;
+function determinePackageType(packageName, packagePath, projectRootPath2) {
+  let actualProjectRoot = projectRootPath2 || null;
   if (!actualProjectRoot) {
     actualProjectRoot = findProjectRootWithPubspec(packagePath) || findProjectRootWithPubspec(process.cwd());
   }
@@ -1801,11 +2277,11 @@ function findAllPackages(searchStartPath) {
 
 // src/packages/graph_integration/container_nodes.ts
 var vscode14 = __toESM(require("vscode"));
-function packagesNeedingContainers(packages, projectRootPath) {
-  if (!projectRootPath) {
+function packagesNeedingContainers(packages, projectRootPath2) {
+  if (!projectRootPath2) {
     return packages;
   }
-  return packages.filter((pkg) => !isSamePath(pkg.path, projectRootPath));
+  return packages.filter((pkg) => !isSamePath(pkg.path, projectRootPath2));
 }
 function createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds) {
   log.debug(`[PackageContainers] Creating container nodes for${externalPackages.length} paquetes...`);
@@ -2726,7 +3202,7 @@ function parsePubspecName(content) {
 
 // src/packages/import_targets.ts
 var fs10 = __toESM(require("fs"));
-var path11 = __toESM(require("path"));
+var path12 = __toESM(require("path"));
 var import_url = require("url");
 function readPackageLibDirs(packageConfigJson, configDir) {
   const result = {};
@@ -2741,8 +3217,8 @@ function readPackageLibDirs(packageConfigJson, configDir) {
       continue;
     }
     try {
-      const root = pkg.rootUri.startsWith("file:") ? (0, import_url.fileURLToPath)(pkg.rootUri) : path11.resolve(configDir, decodeURIComponent(pkg.rootUri));
-      result[pkg.name] = path11.resolve(root, pkg.packageUri ?? "lib");
+      const root = pkg.rootUri.startsWith("file:") ? (0, import_url.fileURLToPath)(pkg.rootUri) : path12.resolve(configDir, decodeURIComponent(pkg.rootUri));
+      result[pkg.name] = path12.resolve(root, pkg.packageUri ?? "lib");
     } catch {
     }
   }
@@ -2750,8 +3226,8 @@ function readPackageLibDirs(packageConfigJson, configDir) {
 }
 function findSdkLibDir(candidates, exists = fs10.existsSync) {
   for (const candidate of candidates) {
-    const lib = path11.join(candidate, "lib");
-    if (exists(path11.join(lib, "core", "core.dart"))) {
+    const lib = path12.join(candidate, "lib");
+    if (exists(path12.join(lib, "core", "core.dart"))) {
       return lib;
     }
   }
@@ -2763,12 +3239,12 @@ function resolveImportFile(uri, libDirs, sdkLibDir, exists = fs10.existsSync) {
     if (!sdkLibDir) {
       return void 0;
     }
-    const file = path11.join(sdkLibDir, dart[1], dart[1] + ".dart");
+    const file = path12.join(sdkLibDir, dart[1], dart[1] + ".dart");
     return exists(file) ? file : void 0;
   }
   const pkg = /^package:([^/]+)\/(.+)$/.exec(uri);
   if (pkg && libDirs[pkg[1]]) {
-    const file = path11.join(libDirs[pkg[1]], pkg[2]);
+    const file = path12.join(libDirs[pkg[1]], pkg[2]);
     return exists(file) ? file : void 0;
   }
   return void 0;
@@ -2776,20 +3252,20 @@ function resolveImportFile(uri, libDirs, sdkLibDir, exists = fs10.existsSync) {
 
 // src/lsp/dart_sdk.ts
 var vscode23 = __toESM(require("vscode"));
-var path13 = __toESM(require("path"));
+var path14 = __toESM(require("path"));
 var fs11 = __toESM(require("fs"));
 var import_child_process = require("child_process");
 
 // src/lsp/dart_executable.ts
-var path12 = __toESM(require("path"));
+var path13 = __toESM(require("path"));
 function realDartExecutable(found, exists, platform = process.platform) {
   const exe = platform === "win32" ? "dart.exe" : "dart";
-  const base = path12.basename(found).toLowerCase();
-  const isLauncher = /\.(bat|cmd|sh)$/.test(base) || path12.basename(path12.dirname(found)).toLowerCase() === "bin" && base === "dart" && exists(path12.join(path12.dirname(found), "cache", "dart-sdk", "bin", exe));
+  const base = path13.basename(found).toLowerCase();
+  const isLauncher = /\.(bat|cmd|sh)$/.test(base) || path13.basename(path13.dirname(found)).toLowerCase() === "bin" && base === "dart" && exists(path13.join(path13.dirname(found), "cache", "dart-sdk", "bin", exe));
   if (!isLauncher) {
     return found;
   }
-  const fromFlutter = path12.join(path12.dirname(found), "cache", "dart-sdk", "bin", exe);
+  const fromFlutter = path13.join(path13.dirname(found), "cache", "dart-sdk", "bin", exe);
   return exists(fromFlutter) ? fromFlutter : found;
 }
 function firstExistingPath(output, exists) {
@@ -2803,7 +3279,7 @@ function findDartSdk() {
   if (userPath) {
     log.debug(`Checking user configured path: ${userPath}`);
     if (fs11.existsSync(userPath) && fs11.statSync(userPath).isDirectory()) {
-      const dartExecutable = path13.join(userPath, "bin", "dart");
+      const dartExecutable = path14.join(userPath, "bin", "dart");
       if (fs11.existsSync(dartExecutable)) {
         log.info(`\u2705 Found Dart SDK at configured path: ${userPath}`);
         return dartExecutable;
@@ -2851,6 +3327,68 @@ function readAuditConfig(get) {
       cycles: bounded(get("audit.weights.cycles"), d.weights.cycles, 0, 1),
       violations: bounded(get("audit.weights.violations"), d.weights.violations, 0, 1)
     }
+  };
+}
+
+// src/analysis/architecture_file.ts
+var fs12 = __toESM(require("fs"));
+var path15 = __toESM(require("path"));
+var ARCHITECTURE_FILE = "satori.json";
+function findArchitectureFile(start) {
+  let dir = path15.resolve(start);
+  for (let i = 0; i < 6; i++) {
+    const candidate = path15.join(dir, ARCHITECTURE_FILE);
+    if (fs12.existsSync(candidate)) {
+      return candidate;
+    }
+    if (fs12.existsSync(path15.join(dir, "pubspec.yaml"))) {
+      return void 0;
+    }
+    const parent = path15.dirname(dir);
+    if (parent === dir) {
+      return void 0;
+    }
+    dir = parent;
+  }
+  return void 0;
+}
+function discoverFolders(projectDir) {
+  const list = (dir) => {
+    try {
+      return fs12.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name);
+    } catch {
+      return [];
+    }
+  };
+  const lib = list(path15.join(projectDir, "lib"));
+  if (lib.length === 1 && lib[0] === "src") {
+    return { base: "lib/src", folders: list(path15.join(projectDir, "lib", "src")) };
+  }
+  return { base: "lib", folders: lib };
+}
+function loadArchitecture(start) {
+  const file = findArchitectureFile(start);
+  if (!file) {
+    return parseResult(void 0);
+  }
+  try {
+    const context = { discoverFolders: () => discoverFolders(path15.dirname(file)) };
+    return { ...parseArchitecture(fs12.readFileSync(file, "utf8"), context), file };
+  } catch (e) {
+    return { ...parseResult(void 0), problems: [`${ARCHITECTURE_FILE} could not be read (${e.message}). The default layers are used.`], file };
+  }
+}
+function parseResult(text) {
+  return parseArchitecture(text);
+}
+function viewArchitecture(a) {
+  return {
+    layers: a.layers.map((l) => ({ id: l.id, label: l.label, description: l.description, color: l.color, icon: l.icon, neutral: l.neutral === true })),
+    mode: a.mode,
+    allow: a.allow,
+    forbid: a.forbid,
+    neutral: a.neutral,
+    builtin: a.builtin
   };
 }
 
@@ -2938,7 +3476,7 @@ var ENRICH_FILE_CONCURRENCY = 4;
 function readOwnPackageName(projectRoot) {
   try {
     const root = findProjectRootWithPubspec(projectRoot);
-    return root ? parsePubspecName(fs12.readFileSync(import_path7.default.join(root, "pubspec.yaml"), "utf8")) : "";
+    return root ? parsePubspecName(fs13.readFileSync(import_path7.default.join(root, "pubspec.yaml"), "utf8")) : "";
   } catch {
     return "";
   }
@@ -2953,8 +3491,8 @@ function resolveImportTargets(projectRoot, fileImports, ownPackage) {
     const configPath = import_path7.default.join(root, ".dart_tool", "package_config.json");
     let libDirs = {};
     const candidates = [];
-    if (fs12.existsSync(configPath)) {
-      const json = fs12.readFileSync(configPath, "utf8");
+    if (fs13.existsSync(configPath)) {
+      const json = fs13.readFileSync(configPath, "utf8");
       libDirs = readPackageLibDirs(json, import_path7.default.dirname(configPath));
       const flutterRoot = JSON.parse(json).flutterRoot;
       if (flutterRoot) {
@@ -3023,6 +3561,11 @@ async function createWebview(context, data) {
     `img-src data: ${panel.webview.cspSource}`
   ].join("; ");
   const fileImports = {};
+  const loadedArchitecture = loadArchitecture(data.projectRoot);
+  if (loadedArchitecture.problems.length > 0) {
+    loadedArchitecture.problems.forEach((p) => log.info(`satori.json: ${p}`));
+    void vscode24.window.showWarningMessage(`satori.json: ${loadedArchitecture.problems[0]}${loadedArchitecture.problems.length > 1 ? ` (+${loadedArchitecture.problems.length - 1} more, see the "satori" output)` : ""}`);
+  }
   let projectGraph;
   let enrichedAt;
   let graphBuiltAt;
@@ -3060,7 +3603,7 @@ async function createWebview(context, data) {
     }));
     reporter.start("types");
     const processedFiles = await mapLimited(data.files, ENRICH_FILE_CONCURRENCY, async (f_item) => {
-      const fileContent = fs12.readFileSync(f_item.file, "utf8");
+      const fileContent = fs13.readFileSync(f_item.file, "utf8");
       const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode24.Uri.file(f_item.file).toString();
       const imports = parseImports(fileContent);
       if (imports.length) {
@@ -3090,14 +3633,21 @@ async function createWebview(context, data) {
     }
     engine = navigation ? "analysis server" : "language server";
     setNavigationIndex(navigation ? navigation.index : null);
+    setArchitecture(loadedArchitecture.architecture, data.projectRoot);
     setPassProgress((pass, done, total) => reporter.progress("graph", done, total, t(`loading.graph.${pass}`)));
     try {
       projectGraph = await buildGraphModel(data.files, data.projectRoot);
     } finally {
       setNavigationIndex(null);
+      setArchitecture(null);
       setPassProgress(null);
     }
     reporter.finish("graph");
+    if (!loadedArchitecture.architecture.builtin) {
+      const classes = projectGraph.nodes.filter((n) => n.kind === "class");
+      const neutral = classes.filter((n) => n.data.layer === loadedArchitecture.architecture.neutral).length;
+      log.info(`satori.json: ${classes.length - neutral} of ${classes.length} classes were placed in a layer; ${neutral} are in "${loadedArchitecture.architecture.neutral}".`);
+    }
     graphBuiltAt = Date.now();
     log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
     log.debug("Calculating coupling degrees (in/out degree) of nodes...");
@@ -3192,6 +3742,7 @@ async function createWebview(context, data) {
     graph: projectGraph,
     fileImports,
     ownPackage,
+    architecture: viewArchitecture(loadedArchitecture.architecture),
     auditConfig: readAuditConfig((key) => vscode24.workspace.getConfiguration("satori").get(key)),
     importTargets: resolveImportTargets(data.projectRoot, fileImports, ownPackage)
   };
@@ -3213,7 +3764,7 @@ async function createWebview(context, data) {
   await Localization.getInstance().loadTranslations(context.extensionPath, language);
   const translations = Localization.getInstance().getByPrefix("trail.", "hud.", "layer.");
   const mediaUri = panel.webview.asWebviewUri(vscode24.Uri.joinPath(context.extensionUri, "media")).toString();
-  let html = fs12.readFileSync(
+  let html = fs13.readFileSync(
     import_path7.default.join(context.extensionUri.fsPath, "media", "webviewContent.html"),
     "utf8"
   );
@@ -3238,8 +3789,8 @@ function getNonce() {
 }
 
 // src/analysis/graph_cache.ts
-var fs13 = __toESM(require("fs"));
-var path15 = __toESM(require("path"));
+var fs14 = __toESM(require("fs"));
+var path17 = __toESM(require("path"));
 var crypto = __toESM(require("crypto"));
 var CACHE_LAYOUT = 1;
 function fingerprintOf(stamps) {
@@ -3251,7 +3802,7 @@ function stampFiles(files) {
   const stamps = [];
   for (const file of files) {
     try {
-      const st = fs13.statSync(file);
+      const st = fs14.statSync(file);
       stamps.push({ path: file, size: st.size, mtimeMs: st.mtimeMs });
     } catch {
     }
@@ -3260,14 +3811,14 @@ function stampFiles(files) {
 }
 function cacheFileFor(storageDir, projectRoot) {
   const key = crypto.createHash("sha1").update(projectRoot.toLowerCase()).digest("hex").slice(0, 16);
-  return path15.join(storageDir, `analysis-${key}.json`);
+  return path17.join(storageDir, `analysis-${key}.json`);
 }
 function readCachedAnalysis(file, fingerprint, extensionVersion) {
   try {
-    if (!fs13.existsSync(file)) {
+    if (!fs14.existsSync(file)) {
       return null;
     }
-    const cached = JSON.parse(fs13.readFileSync(file, "utf8"));
+    const cached = JSON.parse(fs14.readFileSync(file, "utf8"));
     if (cached.layout !== CACHE_LAYOUT || cached.extensionVersion !== extensionVersion || cached.fingerprint !== fingerprint) {
       return null;
     }
@@ -3278,59 +3829,15 @@ function readCachedAnalysis(file, fingerprint, extensionVersion) {
 }
 function writeCachedAnalysis(file, fingerprint, extensionVersion, graph, fileImports) {
   const entry = { layout: CACHE_LAYOUT, extensionVersion, fingerprint, savedAt: Date.now(), graph, fileImports };
-  fs13.mkdirSync(path15.dirname(file), { recursive: true });
+  fs14.mkdirSync(path17.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.tmp`;
-  fs13.writeFileSync(temp, JSON.stringify(entry));
-  fs13.renameSync(temp, file);
-}
-
-// src/filesystem/exclusions.ts
-var DEFAULT_EXCLUDES = [
-  "**/*.g.dart",
-  "**/*.freezed.dart",
-  "**/*.gr.dart",
-  "**/*.mocks.dart",
-  "**/*.config.dart",
-  "**/*.chopper.dart",
-  "**/*.reflectable.dart",
-  "**/generated/**",
-  "**/.dart_tool/**"
-];
-function globToRegExp(glob) {
-  let out = "";
-  for (let i = 0; i < glob.length; i++) {
-    const ch = glob[i];
-    if (ch === "*") {
-      if (glob[i + 1] === "*") {
-        if (glob[i + 2] === "/") {
-          out += "(?:.*/)?";
-          i += 2;
-        } else {
-          out += ".*";
-          i += 1;
-        }
-      } else {
-        out += "[^/]*";
-      }
-    } else if (ch === "?") {
-      out += "[^/]";
-    } else {
-      out += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-    }
-  }
-  return new RegExp(`^${out}$`, "i");
-}
-function makeExcluder(patterns) {
-  const regexes = patterns.filter((p) => p.trim() !== "").map(globToRegExp);
-  return (relativePath) => {
-    const normalized = relativePath.replace(/\\/g, "/");
-    return regexes.some((r) => r.test(normalized));
-  };
+  fs14.writeFileSync(temp, JSON.stringify(entry));
+  fs14.renameSync(temp, file);
 }
 
 // src/analysis/navigation_runner.ts
-var fs14 = __toESM(require("fs"));
-var path16 = __toESM(require("path"));
+var fs15 = __toESM(require("fs"));
+var path18 = __toESM(require("path"));
 var vscode25 = __toESM(require("vscode"));
 
 // src/lsp/analysis_server.ts
@@ -3364,8 +3871,8 @@ var DartAnalysisClient = class {
   /** Points the server at a project and waits until it has finished analysing it. */
   async analyze(root, timeoutMs) {
     let timer;
-    const finished = new Promise((resolve3, reject) => {
-      this.analysisFinished = resolve3;
+    const finished = new Promise((resolve4, reject) => {
+      this.analysisFinished = resolve4;
       this.analysisFailed = reject;
       timer = setTimeout(() => reject(new Error("the analysis server did not finish in " + Math.round(timeoutMs / 1e3) + "s")), timeoutMs);
     });
@@ -3400,9 +3907,9 @@ var DartAnalysisClient = class {
       return Promise.reject(new Error("the analysis server is not running"));
     }
     const id = String(this.nextId++);
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       this.pending.set(id, {
-        resolve: (message) => message.error ? reject(new Error(`${message.error.code}: ${message.error.message}`)) : resolve3(message),
+        resolve: (message) => message.error ? reject(new Error(`${message.error.code}: ${message.error.message}`)) : resolve4(message),
         reject
       });
       this.child.stdin.write(JSON.stringify({ id, method, params }) + "\n");
@@ -3468,12 +3975,12 @@ function positionAt(starts, offset) {
 }
 var NavigationIndex = class _NavigationIndex {
   byTarget = /* @__PURE__ */ new Map();
-  static key(path18, line, character) {
-    return `${normalizePath(path18)}:${line}:${character}`;
+  static key(path20, line, character) {
+    return `${normalizePath(path20)}:${line}:${character}`;
   }
   /** The uses of the symbol declared at this position (0-based) of this file, or an empty list. */
-  referencesTo(path18, line, character) {
-    return this.byTarget.get(_NavigationIndex.key(path18, line, character)) ?? [];
+  referencesTo(path20, line, character) {
+    return this.byTarget.get(_NavigationIndex.key(path20, line, character)) ?? [];
   }
   get size() {
     return this.byTarget.size;
@@ -3534,7 +4041,7 @@ async function buildNavigationIndex(projectRoot, files, reporter = silentReporte
     reporter.finish("relations");
     return null;
   }
-  const dart = realDartExecutable(found, fs14.existsSync);
+  const dart = realDartExecutable(found, fs15.existsSync);
   const client = new DartAnalysisClient(dart);
   try {
     reporter.start("relations", t("loading.relations.starting"));
@@ -3543,12 +4050,12 @@ async function buildNavigationIndex(projectRoot, files, reporter = silentReporte
     log.debug(`[Navigation] analysis server ${version} started with ${dart}`);
     const t1 = Date.now();
     reporter.start("relations", t("loading.relations.analyzing"));
-    await client.analyze(path16.resolve(projectRoot), ANALYSIS_TIMEOUT_MS);
+    await client.analyze(path18.resolve(projectRoot), ANALYSIS_TIMEOUT_MS);
     const t2 = Date.now();
     const projectFiles = new Set(files.map((u) => normalizePath(u.fsPath)));
     const index = new NavigationIndex();
     await mapLimited(files, REQUESTS_IN_FLIGHT, async (uri) => {
-      const text = fs14.readFileSync(uri.fsPath, "utf8");
+      const text = fs15.readFileSync(uri.fsPath, "utf8");
       const result = await client.getNavigation(uri.fsPath, text.length);
       index.addFile(result, uri.toString(), text, (p) => projectFiles.has(normalizePath(p)), uri.fsPath);
     }, (done, total) => reporter.progress("relations", done, total, t("loading.relations.reading")));
@@ -3677,7 +4184,7 @@ function transformLspSymbols(lspSymbols, parentId, fileUri) {
 }
 
 // src/analysis/snippet.ts
-var fs15 = __toESM(require("fs"));
+var fs16 = __toESM(require("fs"));
 var vscode27 = __toESM(require("vscode"));
 var MAX_LINES = 60;
 var CONTEXT = 3;
@@ -3702,7 +4209,7 @@ function escapeRegExp2(text) {
 function buildLineSnippet(fileUri, line, column, length) {
   let fileLines;
   try {
-    fileLines = fs15.readFileSync(vscode27.Uri.parse(fileUri).fsPath, "utf8").split(/\r?\n/);
+    fileLines = fs16.readFileSync(vscode27.Uri.parse(fileUri).fsPath, "utf8").split(/\r?\n/);
   } catch {
     return null;
   }
@@ -3735,7 +4242,7 @@ function buildSnippet(graph, request) {
   }
   let content;
   try {
-    content = fs15.readFileSync(vscode27.Uri.parse(primary.data.fileUri).fsPath, "utf8");
+    content = fs16.readFileSync(vscode27.Uri.parse(primary.data.fileUri).fsPath, "utf8");
   } catch {
     return null;
   }
@@ -3957,7 +4464,7 @@ async function analyzeProject(rootUri, context, progress) {
   log.debug(`\u{1F50D} Analyzing project at: ${root}`);
   log.debug(`\u{1F4CA} Root URI - scheme: ${rootUri.scheme}, fsPath: ${rootUri.fsPath}`);
   log.debug(`\u{1F4CA} Root URI - toString: ${rootUri.toString()}`);
-  const isProjectRoot = fs16.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  const isProjectRoot = fs17.existsSync(import_path8.default.join(root, "pubspec.yaml"));
   log.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${isProjectRoot}`);
   const analysisStart = Date.now();
   const loading = new NotificationReporter(progress, {
@@ -3979,7 +4486,7 @@ async function analyzeProject(rootUri, context, progress) {
 }
 async function analyzeFiles(rootUri, context, loading) {
   const root = rootUri.fsPath;
-  const isProjectRoot = fs16.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  const isProjectRoot = fs17.existsSync(import_path8.default.join(root, "pubspec.yaml"));
   const analysisStart = Date.now();
   loading.start("files");
   const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot);
@@ -3997,7 +4504,8 @@ async function analyzeFiles(rootUri, context, loading) {
   const useCache = vscode28.workspace.getConfiguration("satori").get("cache.enabled", true);
   const extensionVersion = String(context.extension.packageJSON.version);
   const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath2(root));
-  const fingerprint = fingerprintOf(stampFiles(uniqueUris.map((u) => u.fsPath)));
+  const architectureFile = findArchitectureFile(root);
+  const fingerprint = fingerprintOf(stampFiles([...uniqueUris.map((u) => u.fsPath), ...architectureFile ? [architectureFile] : []]));
   const cached = useCache ? readCachedAnalysis(cacheFile, fingerprint, extensionVersion) : null;
   if (cached) {
     const result = await createWebview(context, {

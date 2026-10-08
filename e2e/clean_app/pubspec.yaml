@@ -1,0 +1,7 @@
+name: clean_app
+description: Example with a Clean Architecture layout, to try the layers of satori.json.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.0.0

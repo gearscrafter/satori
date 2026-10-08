@@ -22,6 +22,7 @@
     let projectRoot = '';
     let fileImports = {};
     let ownPackage = '';
+    let architecture = null;
     let auditConfig = null;
     let importTargets = {};
     let graph;
@@ -33,6 +34,7 @@
         savedAnnotations = payload.annotations || {};
         fileImports = payload.fileImports || {};
         ownPackage = payload.ownPackage || '';
+        architecture = payload.architecture || null;
         auditConfig = payload.auditConfig || null;
         importTargets = payload.importTargets || {};
     } catch (e) {
@@ -46,7 +48,6 @@
         data: ['READS_FROM', 'WRITES_TO', 'OBSERVES'],
         types: ['USES_AS_TYPE', 'INSTANCE_OF']
     };
-    const FLOW_ORDER = ['view', 'state', 'service', 'model'];
     const VERBS = {
         CALLS: 'calls', EXTENDS: 'extends', IMPLEMENTS: 'implements', READS_FROM: 'reads',
         WRITES_TO: 'writes', USES_AS_TYPE: 'type', INSTANCE_OF: 'creates', PASSES_AS_ARGUMENT: 'passes', OBSERVES: 'observes', IMPORTS: 'imports'
@@ -116,7 +117,7 @@
             labels = new Set();
             Object.keys(groups).forEach(function (k) { if (groups[k]) { EDGE_GROUPS[k].forEach(function (l) { labels.add(l); }); } });
         }
-        return M.createModel(graph, { edgeLabels: labels, projectRoot: projectRoot, fileImports: fileImports, ownPackage: ownPackage, audit: auditConfig });
+        return M.createModel(graph, { edgeLabels: labels, projectRoot: projectRoot, fileImports: fileImports, ownPackage: ownPackage, audit: auditConfig, architecture: architecture });
     }
 
     /* ---------- DOM helpers ---------- */
@@ -156,7 +157,48 @@
         });
         return node;
     }
-    function layerLabel(layer) { return t('layer.' + layer); }
+    /* The layers of the project (satori.json) or the four of always: how each one is called, drawn and explained. */
+    function layerSpec(layer) { return model.architecture.layers.find(function (l) { return l.id === layer; }) || null; }
+    function layerLabel(layer) {
+        const spec = layerSpec(layer);
+        if (spec && spec.label) { return spec.label; }
+        if (M.LAYERS.indexOf(layer) >= 0) { return t('layer.' + layer); }
+        const words = String(layer).replace(/[-_]+/g, ' ');
+        return words.charAt(0).toUpperCase() + words.slice(1);
+    }
+    function layerIcon(layer) {
+        const spec = layerSpec(layer);
+        const name = spec && spec.icon ? spec.icon : 'layer-' + layer;
+        return window.TrailIcons.names().indexOf(name) >= 0 ? name : 'layer-generic';
+    }
+    function layerDescription(layer) {
+        const spec = layerSpec(layer);
+        if (spec && spec.description) { return spec.description; }
+        return M.LAYERS.indexOf(layer) >= 0 ? t('hud.layer.' + layer) : '';
+    }
+
+    /** Colours for the layers that are not one of the four of always: the one in the file, or one of the palette. */
+    const LAYER_PALETTE = ['#7e57c2', '#26a69a', '#ef5350', '#ffa726', '#5c6bc0', '#8d6e63', '#26c6da', '#ec407a'];
+    function mixWithWhite(hex, share) {
+        const n = parseInt(hex.slice(1), 16);
+        const channel = function (v) { return Math.round(v + (255 - v) * share); };
+        const r = channel((n >> 16) & 255), g = channel((n >> 8) & 255), b = channel(n & 255);
+        return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+    function applyLayerStyles() {
+        let sheet = document.getElementById('layer-styles');
+        if (!sheet) { sheet = document.createElement('style'); sheet.id = 'layer-styles'; document.head.appendChild(sheet); }
+        const rules = [];
+        let paletteIndex = 0;
+        model.architecture.layers.forEach(function (l) {
+            const builtin = M.LAYERS.indexOf(l.id) >= 0;
+            // A layer that takes no part in the rules is grey unless the file says otherwise; the others take the palette in turn.
+            const color = l.color || (builtin ? null : l.id === model.neutralLayer ? '#9e9e9e' : LAYER_PALETTE[paletteIndex++ % LAYER_PALETTE.length]);
+            if (!color) { return; }
+            rules.push('.layer-' + l.id + ', [data-layer="' + l.id + '"] { --lb: ' + mixWithWhite(color, 0.88) + '; --lbd: ' + mixWithWhite(color, 0.5) + '; --li: ' + color + '; }');
+        });
+        sheet.textContent = rules.join('\n');
+    }
     function cssEscape(value) { return (window.CSS && CSS.escape) ? CSS.escape(value) : String(value).replace(/"/g, '\\"'); }
     function canvasOrigin() { return $('canvas').getBoundingClientRect(); }
     /** Box position inside the canvas, in canvas units (the zoom scales the canvas as a whole). */
@@ -382,7 +424,7 @@
                 c.dominantLabel = M.dominantLabel(c.byLabel);
                 c.members = c.memberIds.map(function (id) { const n = model.nodes.get(id); return { id: id, label: M.stripDecor(n.label), kind: n.kind }; });
             });
-            return M.LAYERS.map(function (layer) {
+            return model.layers.map(function (layer) {
                 return { layer: layer, cards: cards.filter(function (c) { return c.layer === layer; }).sort(function (a, b) { return b.edgeCount - a.edgeCount || a.label.localeCompare(b.label); }) };
             }).filter(function (g) { return g.cards.length > 0; });
         }
@@ -486,8 +528,8 @@
         function pill(layer) {
             const p = el('button', {
                 class: 'layer-pill layer-' + layer, 'aria-pressed': String(state.layerEmphasis === layer),
-                title: t('trail.tip.layer', layerLabel(layer)) + ' — ' + t('hud.layer.' + layer)
-            }, ico('layer-' + layer, 14), layerLabel(layer));
+                title: t('trail.tip.layer', layerLabel(layer)) + ' — ' + layerDescription(layer)
+            }, ico(layerIcon(layer), 14), layerLabel(layer));
             p.addEventListener('click', function () { state.layerEmphasis = state.layerEmphasis === layer ? null : layer; renderStage({ animate: false }); renderLayerFlow(); });
             return p;
         }
@@ -503,7 +545,7 @@
         }
 
         const shown = new Set();
-        const order = FLOW_ORDER.filter(function (layer) { return !involved || involved.has(layer); });
+        const order = model.flowOrder.filter(function (layer) { return !involved || involved.has(layer); });
         order.forEach(function (layer, i) {
             strip.appendChild(pill(layer));
             if (i < order.length - 1) {
@@ -512,7 +554,7 @@
                 if (f) { shown.add(f.from + '>' + f.to); }
             }
         });
-        if (!involved || involved.has('utility')) { strip.appendChild(pill('utility')); }
+        if (!involved || involved.has(model.neutralLayer)) { strip.appendChild(pill(model.neutralLayer)); }
 
         flows.filter(function (f) { return !shown.has(f.from + '>' + f.to); })
             .sort(function (a, b) { return (b.violation - a.violation) || (b.count - a.count); })
@@ -722,7 +764,7 @@
         o.layers.forEach(function (l) {
             l.classes.forEach(function (c) {
                 const name = model.folderOf(c.id) || t('trail.folder.root');
-                if (!buckets.has(name)) { buckets.set(name, { key: 'folder:' + name, layer: 'utility', label: name, folder: model.folderOf(c.id) || '', classes: [] }); }
+                if (!buckets.has(name)) { buckets.set(name, { key: 'folder:' + name, layer: model.neutralLayer, label: name, folder: model.folderOf(c.id) || '', classes: [] }); }
                 buckets.get(name).classes.push(c);
             });
         });
@@ -740,6 +782,20 @@
         renderStage({ animate: true });
     }
 
+    /**
+     * When the architecture of satori.json leaves most classes in the neutral layer, its folders and names probably do
+     * not match the project. Says so, with the folders the project has, instead of showing one full column and three empty ones.
+     */
+    function unmatchedNotice(o, total) {
+        if (model.architecture.builtin || total < 3) { return null; }
+        const neutral = o.layers.find(function (l) { return l.layer === model.neutralLayer; });
+        const inNeutral = neutral ? neutral.classes.length : 0;
+        if (inNeutral / total < 0.5) { return null; }
+        const folders = model.folders().filter(function (f) { return f.name !== ''; }).slice(0, 8).map(function (f) { return f.name; }).join(', ');
+        return el('div', { class: 'arch-notice', role: 'note' }, ico('warning', 15),
+            el('span', { text: t('trail.arch.unmatched', String(inNeutral), String(total), layerLabel(model.neutralLayer), folders || '-') }));
+    }
+
     function renderOverview(columns) {
         const o = model.overview(state.folder === null ? undefined : { folder: state.folder });
         const total = o.layers.reduce(function (n, l) { return n + l.classes.length; }, 0);
@@ -751,13 +807,15 @@
             return;
         }
         columns.appendChild(el('div', { class: 'overview-head' },
-            el('p', { class: 'overview-hint' }, ico('pointer', 14), t('trail.overviewHint')), picker));
+            el('p', { class: 'overview-hint' }, ico('pointer', 14), (model.architecture.builtin ? t('trail.overviewHint') : t('trail.overviewHintCustom'))), picker));
+        const notice = unmatchedNotice(o, total);
+        if (notice) { columns.appendChild(notice); }
         const grid = el('div', { id: 'overview' });
         const byFolders = state.groupBy === 'folder';
         const buckets = byFolders ? overviewFolders(o) : o.layers.map(function (l) { return { key: l.layer, layer: l.layer, label: layerLabel(l.layer), classes: l.classes }; });
         buckets.forEach(function (l) {
-            const col = el('div', { class: 'overview-col layer-' + (byFolders ? 'utility folder-col' : l.layer) + (!byFolders && state.layerEmphasis && state.layerEmphasis !== l.layer ? ' dim' : ''), title: byFolders ? l.label : t('hud.layer.' + l.layer) });
-            col.appendChild(el('h3', null, byFolders ? ico('folder', 15) : ico('layer-' + l.layer, 15), el('span', { class: 'band-title', text: l.label }), el('span', { class: 'n', text: String(l.classes.length) })));
+            const col = el('div', { class: 'overview-col layer-' + (byFolders ? model.neutralLayer + ' folder-col' : l.layer) + (!byFolders && state.layerEmphasis && state.layerEmphasis !== l.layer ? ' dim' : ''), title: byFolders ? l.label : layerDescription(l.layer) });
+            col.appendChild(el('h3', null, byFolders ? ico('folder', 15) : ico(layerIcon(l.layer), 15), el('span', { class: 'band-title', text: l.label }), el('span', { class: 'n', text: String(l.classes.length) })));
             const chips = el('div', { class: 'group-chips' });
             l.classes.slice(0, 6).forEach(function (c) { chips.appendChild(chipFor(c)); });
             if (l.classes.length > 6) { chips.appendChild(el('span', { class: 'group-chip more', text: '+' + (l.classes.length - 6) })); }
@@ -1011,7 +1069,7 @@
             });
             const connections = g.cards.reduce(function (n, c) { return n + c.edgeCount; }, 0);
             const band = el('div', { class: 'layer-band', title: t('trail.tip.band') },
-                g.folder ? ico('folder', 13) : ico('layer-' + g.layer, 13), el('span', { class: 'band-title', text: title }),
+                g.folder ? ico('folder', 13) : ico(layerIcon(g.layer), 13), el('span', { class: 'band-title', text: title }),
                 el('span', { class: 'band-count', text: t('trail.group.count', String(g.cards.length), String(connections)) }),
                 el('span', { class: 'band-chevron' }, ico('arrow-down', 12)));
             makeDraggable(band, group, key);
@@ -1053,7 +1111,7 @@
         const key = 'center:' + c.id;
         const bandName = state.groupBy === 'folder' ? (model.folderOf(c.id) || t('trail.folder.root')) : layerLabel(c.layer);
         const centerBand = el('div', { class: 'center-band layer-' + c.layer, title: t('trail.tip.band') },
-            state.groupBy === 'folder' ? ico('folder', 13) : ico('layer-' + c.layer, 13), el('span', { class: 'band-title', text: bandName }));
+            state.groupBy === 'folder' ? ico('folder', 13) : ico(layerIcon(c.layer), 13), el('span', { class: 'band-title', text: bandName }));
         clickable(centerBand, function () { zoomInto(centerBand); });
         center.appendChild(centerBand);
         const isStart = state.trace && model.ownerOf(state.trace.startId) === c.id;
@@ -1064,7 +1122,7 @@
             c.kind === 'package' ? null : stateBadge(c.id),
             c.kind === 'package'
                 ? el('span', { class: 'badge', title: t('trail.tip.deps.' + c.depKind) }, ico(DEP_ICON[c.depKind] || 'package', 11), t('trail.deps.' + c.depKind))
-                : el('span', { class: 'badge', title: t('hud.layer.' + c.layer) }, ico('layer-' + c.layer, 11), layerLabel(c.layer)));
+                : el('span', { class: 'badge', title: layerDescription(c.layer) }, ico(layerIcon(c.layer), 11), layerLabel(c.layer)));
         clickable(head, function () { navigate(c.id); });
         makeDraggable(head, card, key);
         card.appendChild(head);
@@ -1761,10 +1819,10 @@
         const panel = el('div', { class: 'hud-panel', role: 'dialog', 'aria-label': t('hud.title') },
             el('div', { class: 'hud-head' }, ico('help', 16), el('h2', { text: t('hud.title') }), close));
 
-        const layers = el('section', null, el('h3', { text: t('hud.layers') }), el('p', { class: 'hud-note', text: t('hud.layers.desc') }));
-        M.LAYERS.forEach(function (layer) {
-            layers.appendChild(hudRow(el('span', { class: 'hud-layer layer-' + layer }, ico('layer-' + layer, 14)),
-                layerLabel(layer) + ' — ' + t('hud.layer.' + layer)));
+        const layers = el('section', null, el('h3', { text: t('hud.layers') }), el('p', { class: 'hud-note', text: model.architecture.builtin ? t('hud.layers.desc') : t('hud.layers.descCustom') }));
+        model.layers.forEach(function (layer) {
+            layers.appendChild(hudRow(el('span', { class: 'hud-layer layer-' + layer }, ico(layerIcon(layer), 14)),
+                layerLabel(layer) + ' — ' + layerDescription(layer)));
         });
         panel.appendChild(layers);
 
@@ -2026,6 +2084,7 @@
 
     /* ---------- wiring ---------- */
     function init() {
+        applyLayerStyles();
         setIcon($('btn-home'), 'home', t('trail.tip.home'));
         setIcon($('btn-back'), 'back', t('trail.tip.back'));
         setIcon($('btn-forward'), 'forward', t('trail.tip.forward'));

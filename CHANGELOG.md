@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.2.0] - 10-07-2026
+
+### Added
+
+- **Your own architecture** (`satori.json` at the root of the project, with a JSON schema so VS Code validates it and suggests keys). Define the layers (id, label, description, colour, icon), place classes by folder, by what they extend, by name or by hand (`overrides`), choose which layer takes no part in the rules, and write the rules as an order (`"mode": "order"`, with exceptions in `allow` and extra prohibitions in `forbid`) or as a list of permitted pairs (`"mode": "allow"`, for presentation / domain / data and similar). The overview columns, the layer bar, the legend, the audit and the red violation arrows all follow it. Without the file the four layers of before are used and nothing changes.
+- **Presets** for `satori.json`: `{ "architecture": { "preset": "clean" } }` (presentation / domain / data) or `"mvvm"` (view / view model / model) is a complete file, and `"default"` is the four layers of before, written out so it can be extended. Their folders match at any depth (`**/presentation/**`), so they work with `lib/src/`, a folder per feature and monorepos. What the file adds is merged into the preset.
+- **`"preset": "folders"`**: one layer per folder of `lib/` (or `lib/src/`), read from the project, ordered from the screens down to the data when the folder name says what it holds, with the shared folders (`core`, `utils`, `theme`...) together in the neutral layer. It applies no rule until the file asks for one, which needs the new `"mode": "none"` (no rule at all).
+- A note in the overview when most classes land in the neutral layer, with the folders of the project, and a line in the "satori" output with how many classes were placed.
+- `e2e/clean_app`, an example with a Clean Architecture layout, its `satori.json` and a deliberate violation, and `e2e/suite_architecture.js` to check it in VS Code.
+
+### Changed
+
+- A class's layer can be any text, not only view, state, service, model or utility. The saved analysis also depends on `satori.json`.
+
 ## [2.1.1] - 10-07-2026
 
 ### Fixed

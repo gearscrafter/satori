@@ -1,0 +1,42 @@
+{
+  "architecture": {
+    "layers": [
+      {
+        "id": "presentation",
+        "label": "Presentation",
+        "description": "Screens and widgets. May use the domain, never the data layer directly.",
+        "folders": ["lib/presentation/**"],
+        "color": "#1e88e5",
+        "icon": "layer-view"
+      },
+      {
+        "id": "domain",
+        "label": "Domain",
+        "description": "Business rules. Depends on nothing else.",
+        "folders": ["lib/domain/**"],
+        "names": ["*UseCase"],
+        "color": "#8e24aa"
+      },
+      {
+        "id": "data",
+        "label": "Data",
+        "description": "Repositories and data sources. May use the domain.",
+        "folders": ["lib/data/**"],
+        "names": ["*Repository*"],
+        "color": "#43a047",
+        "icon": "layer-model"
+      },
+      {
+        "id": "core",
+        "label": "Core",
+        "description": "Shared helpers. Takes no part in the rules.",
+        "folders": ["lib/core/**"],
+        "neutral": true
+      }
+    ],
+    "rules": {
+      "mode": "allow",
+      "allow": [["presentation", "domain"], ["data", "domain"]]
+    }
+  }
+}

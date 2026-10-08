@@ -61,6 +61,9 @@
     "workspaceContains:pubspec.yaml"
   ],
   "contributes": {
+    "jsonValidation": [
+      { "fileMatch": "satori.json", "url": "./schemas/satori.schema.json" }
+    ],
     "commands": [
       {
         "command": "satori.analyzeProject",

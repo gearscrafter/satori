@@ -15,7 +15,7 @@ export interface ProjectGraphNode {
     stateManager?: { family: 'bloc' | 'provider' | 'riverpod' | 'getx'; base: string }; // What state holder the class is
     complexity?: number; // Cyclomatic complexity of a method, constructor or function
     resolvedType?: string; // For fields/variables
-    layer?: 'view' | 'state' | 'service' | 'model' | 'utility' | 'member';
+    layer?: string; // view, state, service, model, utility or member, or any layer of satori.json
     // Adding missing properties
     source?: FileSource; // Information about file origin
     packageName?: string; // Package name (for compatibility)

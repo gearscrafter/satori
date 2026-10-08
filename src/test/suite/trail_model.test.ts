@@ -560,3 +560,101 @@ suite('Trail State Management Test Suite', () => {
         assert.strictEqual(observed, 3);
     });
 });
+
+suite('Trail Architecture Test Suite', () => {
+    // presentation -> domain <- data, and a core layer outside the rules
+    const archGraph = {
+        nodes: [
+            node('P', 'HomePage', 'class', 'presentation'),
+            node('P.build', 'build', 'method', 'member', 'P'),
+            node('D', 'LoginUseCase', 'class', 'domain'),
+            node('D.run', 'run', 'method', 'member', 'D'),
+            node('R', 'UserRepository', 'class', 'data'),
+            node('R.fetch', 'fetch', 'method', 'member', 'R'),
+            node('C', 'Logger', 'class', 'core'),
+            node('C.log', 'log', 'method', 'member', 'C')
+        ],
+        edges: [
+            edge('a', 'P.build', 'D.run', 'CALLS'),      // presentation -> domain
+            edge('b', 'R.fetch', 'D.run', 'CALLS'),      // data -> domain
+            edge('c', 'D.run', 'R.fetch', 'CALLS'),      // domain -> data
+            edge('d', 'P.build', 'R.fetch', 'CALLS'),    // presentation -> data
+            edge('e', 'R.fetch', 'C.log', 'CALLS')       // data -> core (neutral)
+        ]
+    };
+    const layers = [{ id: 'presentation' }, { id: 'domain' }, { id: 'data' }, { id: 'core', neutral: true }];
+    const make = (rules: any) => TrailModel.createModel(archGraph, { architecture: { layers, neutral: 'core', ...rules } });
+    const violations = (m: any) => m.audit().violations.map((v: any) => v.sourceLabel + '>' + v.targetLabel).sort();
+
+    test('the layers of the architecture are the ones the model works with', () => {
+        const m = make({ mode: 'allow', allow: [] });
+        assert.deepStrictEqual(m.layers, ['presentation', 'domain', 'data', 'core']);
+        assert.deepStrictEqual(m.flowOrder, ['presentation', 'domain', 'data']);
+        assert.strictEqual(m.neutralLayer, 'core');
+        const overview = m.overview();
+        assert.deepStrictEqual(overview.layers.map((l: any) => l.layer), ['presentation', 'domain', 'data', 'core']);
+        assert.strictEqual(overview.layers.find((l: any) => l.layer === 'core').classes[0].label, 'Logger');
+    });
+
+    test('in allow mode anything not listed is a violation, and the neutral layer takes no part', () => {
+        const m = make({ mode: 'allow', allow: [['presentation', 'domain'], ['data', 'domain']] });
+        assert.deepStrictEqual(violations(m), ['HomePage>UserRepository', 'LoginUseCase>UserRepository']);
+    });
+
+    test('in order mode a use that goes back up the order is a violation', () => {
+        const m = make({ mode: 'order' });
+        // order: presentation, domain, data. Going down is fine, going up is not: data -> domain.
+        assert.deepStrictEqual(violations(m), ['UserRepository>LoginUseCase']);
+    });
+
+    test('"allow" lists exceptions to the order, and "forbid" adds prohibitions', () => {
+        assert.deepStrictEqual(violations(make({ mode: 'order', allow: [['data', 'domain']] })), []);
+        assert.deepStrictEqual(violations(make({ mode: 'order', forbid: [['presentation', 'data']] })), ['HomePage>UserRepository', 'UserRepository>LoginUseCase']);
+    });
+
+    test('inheritance across layers is not a violation', () => {
+        const g = {
+            nodes: [node('I', 'UserRepo', 'class', 'domain'), node('Impl', 'UserRepoImpl', 'class', 'data')],
+            edges: [edge('x', 'I', 'Impl', 'IMPLEMENTS')]
+        };
+        const m = TrailModel.createModel(g, { architecture: { layers, neutral: 'core', mode: 'allow', allow: [] } });
+        assert.deepStrictEqual(m.audit().violations, []);
+    });
+
+    test('a class of a layer that is not in the architecture goes to the neutral layer', () => {
+        const g = { nodes: [node('X', 'Ghost', 'class', 'does-not-exist')], edges: [] };
+        const m = TrailModel.createModel(g, { architecture: { layers, neutral: 'core' } });
+        assert.strictEqual(m.layerOf('X'), 'core');
+    });
+
+    test('a missing or damaged architecture is the four layers of always', () => {
+        ['x', null, {}, { layers: [] }, { layers: [{}] }].forEach(bad => {
+            const m = TrailModel.createModel(graph, { architecture: bad });
+            assert.deepStrictEqual(m.layers, ['view', 'state', 'service', 'model', 'utility']);
+            assert.strictEqual(m.neutralLayer, 'utility');
+        });
+    });
+
+    test('libraries are placed in the neutral layer of the architecture', () => {
+        const g = { nodes: [node('P', 'HomePage', 'class', 'presentation')], edges: [] };
+        const m = TrailModel.createModel(g, {
+            architecture: { layers, neutral: 'core' },
+            fileImports: { 'file:///x.dart': [{ uri: 'package:dio/dio.dart', line: 0, column: 8 }] }
+        });
+        const lib = m.libraries()[0].items[0];
+        assert.strictEqual(m.layerOf(lib.id), 'core');
+    });
+});
+
+suite('Trail No Rules Test Suite', () => {
+    test('with the mode none no use is a violation, unless it is forbidden', () => {
+        const g = {
+            nodes: [node('A', 'ScreenA', 'class', 'views'), node('A.m', 'm', 'method', 'member', 'A'), node('B', 'DataB', 'class', 'models'), node('B.n', 'n', 'method', 'member', 'B')],
+            edges: [edge('1', 'A.m', 'B.n', 'CALLS'), edge('2', 'B.n', 'A.m', 'CALLS')]
+        };
+        const layers = [{ id: 'views' }, { id: 'models' }, { id: 'core', neutral: true }];
+        assert.deepStrictEqual(TrailModel.createModel(g, { architecture: { layers, neutral: 'core', mode: 'none' } }).audit().violations, []);
+        const forbidden = TrailModel.createModel(g, { architecture: { layers, neutral: 'core', mode: 'none', forbid: [['models', 'views']] } }).audit().violations;
+        assert.deepStrictEqual(forbidden.map((v: any) => v.sourceLabel + '>' + v.targetLabel), ['DataB>ScreenA']);
+    });
+});

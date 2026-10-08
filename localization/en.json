@@ -329,5 +329,8 @@
   "loading.relations.analyzing": "Dart is analysing the project",
   "loading.relations.reading": "Reading what each file points to",
   "loading.graph.fields": "Asking the language server about fields",
-  "loading.graph.calls": "Asking the language server about calls"
+  "loading.graph.calls": "Asking the language server about calls",
+  "hud.layers.descCustom": "These layers come from the satori.json of your project. A use that breaks its rules is drawn in red and dashed.",
+  "trail.overviewHintCustom": "Pick a class to start a trail. Columns follow the layers of your architecture (satori.json).",
+  "trail.arch.unmatched": "{0} of {1} classes match no layer of satori.json, so they are in \"{2}\". Add their folders or names to a layer. Folders in this project: {3}."
 }

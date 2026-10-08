@@ -1,6 +1,38 @@
 import * as vscode from 'vscode';
 import { EnrichedSymbol, TypeReference } from '../types/index';
+import * as path from 'path';
 import { detectStateManager } from '../analysis/state_managers';
+import { Architecture, layerFor } from '../analysis/architecture_config';
+
+let architecture: Architecture | null = null;
+let projectRootPath = '';
+
+/** The architecture classes are placed with (null for the four layers of always). Set for the length of one analysis. */
+export function setArchitecture(arch: Architecture | null, projectRoot = ''): void {
+    architecture = arch;
+    projectRootPath = projectRoot;
+}
+
+function parentNames(relations: { extends?: (string | TypeReference)[]; with?: (string | TypeReference)[]; implements?: (string | TypeReference)[] } | undefined): string[] {
+    return [...(relations?.extends ?? []), ...(relations?.implements ?? []), ...(relations?.with ?? [])]
+        .map(r => (typeof r === 'string' ? r : r.name).split('<')[0].trim());
+}
+
+/**
+ * The layer of a symbol in the architecture of the project: where the file is, what the class extends and how it is
+ * called, then Satori's own guess (see getArchitecturalLayer). Members and other symbols that are not classes keep
+ * the value the guess gives them.
+ */
+export function classifyLayer(
+    symbol: EnrichedSymbol,
+    relations: { extends?: (string | TypeReference)[]; with?: (string | TypeReference)[]; implements?: (string | TypeReference)[] } | undefined
+): string {
+    const guess = getArchitecturalLayer(symbol, relations);
+    if (guess === 'member' || !architecture || architecture.builtin) { return guess; }
+    const file = symbol.fileUri ? vscode.Uri.parse(symbol.fileUri).fsPath : '';
+    const relative = projectRootPath && file ? path.relative(projectRootPath, file) : file;
+    return layerFor(architecture, { name: symbol.name, path: relative, parents: parentNames(relations), guess });
+}
 
 /**
  * Determines the architectural layer of a symbol based on hierarchical pattern

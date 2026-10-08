@@ -329,5 +329,8 @@
   "loading.relations.analyzing": "Dart está analizando el proyecto",
   "loading.relations.reading": "Leyendo a qué apunta cada archivo",
   "loading.graph.fields": "Preguntando al servidor de lenguaje por los campos",
-  "loading.graph.calls": "Preguntando al servidor de lenguaje por las llamadas"
+  "loading.graph.calls": "Preguntando al servidor de lenguaje por las llamadas",
+  "hud.layers.descCustom": "Estas capas vienen del satori.json de tu proyecto. Un uso que rompe sus reglas se dibuja en rojo y con guiones.",
+  "trail.overviewHintCustom": "Elige una clase para empezar un recorrido. Las columnas siguen las capas de tu arquitectura (satori.json).",
+  "trail.arch.unmatched": "{0} de {1} clases no encajan en ninguna capa de satori.json, así que están en \"{2}\". Añade sus carpetas o nombres a una capa. Carpetas de este proyecto: {3}."
 }

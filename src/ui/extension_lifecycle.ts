@@ -11,6 +11,7 @@ import { createWebview, saveAnnotations } from './webview_creator';
 import { cacheFileFor, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis } from '../analysis/graph_cache';
 import { DEFAULT_EXCLUDES, makeExcluder } from '../filesystem/exclusions';
 import { buildNavigationIndex } from '../analysis/navigation_runner';
+import { findArchitectureFile } from '../analysis/architecture_file';
 import { LoadingReporter, silentReporter } from './loading_state';
 import { NotificationReporter } from './progress_reporter';
 import { log } from '../utils/logger';
@@ -303,7 +304,9 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
     const useCache = vscode.workspace.getConfiguration('satori').get<boolean>('cache.enabled', true);
     const extensionVersion = String(context.extension.packageJSON.version);
     const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath(root));
-    const fingerprint = fingerprintOf(stampFiles(uniqueUris.map(u => u.fsPath)));
+    // satori.json decides the layer of every class, so changing it must analyse again.
+    const architectureFile = findArchitectureFile(root);
+    const fingerprint = fingerprintOf(stampFiles([...uniqueUris.map(u => u.fsPath), ...(architectureFile ? [architectureFile] : [])]));
     const cached = useCache ? readCachedAnalysis<ProjectGraphModel, Record<string, ImportRef[]>>(cacheFile, fingerprint, extensionVersion) : null;
 
     if (cached) {

@@ -10,6 +10,29 @@
 
     const LAYERS = ['view', 'state', 'service', 'model', 'utility'];
     const LAYER_RANK = { view: 0, state: 1, service: 2, model: 3 };
+
+    /** The four layers Satori always had, used when the project has no satori.json. */
+    function defaultArchitecture() {
+        return {
+            layers: LAYERS.map(function (id) { return { id: id, neutral: id === 'utility' }; }),
+            mode: 'order', allow: [], forbid: [], neutral: 'utility', builtin: true
+        };
+    }
+
+    /** Fills in whatever a (possibly missing or damaged) architecture does not say. */
+    function resolveArchitecture(given) {
+        const base = defaultArchitecture();
+        if (!given || !Array.isArray(given.layers) || given.layers.length === 0) { return base; }
+        const layers = given.layers.filter(function (l) { return l && typeof l.id === 'string'; });
+        if (layers.length === 0) { return base; }
+        const ids = layers.map(function (l) { return l.id; });
+        const neutral = ids.indexOf(given.neutral) >= 0 ? given.neutral : ids[ids.length - 1];
+        const pairs = function (list) { return Array.isArray(list) ? list.filter(function (p) { return Array.isArray(p) && p.length === 2; }) : []; };
+        return {
+            layers: layers, mode: given.mode === 'allow' || given.mode === 'none' ? given.mode : 'order', allow: pairs(given.allow), forbid: pairs(given.forbid),
+            neutral: neutral, builtin: given.builtin === true
+        };
+    }
     const LABEL_PRIORITY = ['EXTENDS', 'IMPLEMENTS', 'OBSERVES', 'CALLS', 'WRITES_TO', 'READS_FROM', 'PASSES_AS_ARGUMENT', 'INSTANCE_OF', 'USES_AS_TYPE'];
     const INHERITANCE = new Set(['EXTENDS', 'IMPLEMENTS']);
     // Which end of an edge provides the data. All edges are drawn from the method to the symbol it touches:
@@ -69,7 +92,15 @@
     }
 
     function createModel(graph, options) {
-        const opts = Object.assign({ showSdk: false, showPackages: true, edgeLabels: null, projectRoot: '', fileImports: {}, ownPackage: '', audit: null }, options || {});
+        const opts = Object.assign({ showSdk: false, showPackages: true, edgeLabels: null, projectRoot: '', fileImports: {}, ownPackage: '', audit: null, architecture: null }, options || {});
+        const arch = resolveArchitecture(opts.architecture);
+        const layerIds = arch.layers.map(function (l) { return l.id; });
+        const neutralLayer = arch.neutral;
+        // Position in the order of the layers that take part in the rules (the neutral one does not).
+        const layerRank = new Map();
+        arch.layers.filter(function (l) { return l.id !== neutralLayer; }).forEach(function (l, i) { layerRank.set(l.id, i); });
+        const allowed = new Set(arch.allow.map(function (p) { return p[0] + '>' + p[1]; }));
+        const forbidden = new Set(arch.forbid.map(function (p) { return p[0] + '>' + p[1]; }));
         const nodes = new Map();
         for (const n of (graph && graph.nodes) || []) {
             if (n.kind !== 'package_container') { nodes.set(n.id, n); }
@@ -103,7 +134,7 @@
         function layerOf(id) {
             const n = nodes.get(ownerOf(id));
             const layer = n && n.data && n.data.layer;
-            return LAYERS.indexOf(layer) >= 0 ? layer : 'utility';
+            return layerIds.indexOf(layer) >= 0 ? layer : neutralLayer;
         }
 
         function nameOf(id) {
@@ -140,11 +171,21 @@
             edges.push({ id: e.id, source: e.source, target: e.target, label: e.label, so, to });
         }
 
+        /**
+         * A use that goes against the architecture. Inheritance never counts, nor does the neutral layer or a use
+         * inside one layer. "forbid" always counts. Then, in "allow" mode anything not listed counts; in "order" mode a
+         * use that goes back up the order counts unless "allow" lists it as an exception.
+         */
         function isViolation(sourceOwner, targetOwner, byLabel) {
-            const rs = LAYER_RANK[layerOf(sourceOwner)];
-            const rt = LAYER_RANK[layerOf(targetOwner)];
-            if (rs === undefined || rt === undefined || rt >= rs) { return false; }
-            return !Object.keys(byLabel).every(l => INHERITANCE.has(l));
+            const from = layerOf(sourceOwner);
+            const to = layerOf(targetOwner);
+            if (from === to || from === neutralLayer || to === neutralLayer) { return false; }
+            if (Object.keys(byLabel).every(l => INHERITANCE.has(l))) { return false; }
+            const pair = from + '>' + to;
+            if (forbidden.has(pair)) { return true; }
+            if (arch.mode === 'none') { return false; }
+            if (arch.mode === 'allow') { return !allowed.has(pair); }
+            return layerRank.get(to) < layerRank.get(from) && !allowed.has(pair);
         }
 
         const aggregated = new Map();
@@ -208,7 +249,7 @@
                     const id = 'lib:' + c.kind + ':' + c.name;
                     let lib = libNodes.get(id);
                     if (!lib) {
-                        lib = { id: id, label: c.name, kind: 'package', data: { fileUri: '', layer: 'utility', depKind: c.kind, uris: [], source: { type: 'library', packageName: c.name } } };
+                        lib = { id: id, label: c.name, kind: 'package', data: { fileUri: '', layer: neutralLayer, depKind: c.kind, uris: [], source: { type: 'library', packageName: c.name } } };
                         libNodes.set(id, lib);
                     }
                     if (lib.data.uris.indexOf(imp.uri) < 0) { lib.data.uris.push(imp.uri); }
@@ -242,11 +283,11 @@
             return {
                 focusId: id, ownerId: id, activeMemberId: null, isLibrary: true,
                 center: {
-                    id: id, label: lib.label, kind: 'package', layer: 'utility', source: 'library', depKind: lib.data.depKind,
+                    id: id, label: lib.label, kind: 'package', layer: neutralLayer, source: 'library', depKind: lib.data.depKind,
                     inDeg: all.length, outDeg: 0, internalCount: 0,
                     members: lib.data.uris.map(function (uri) { return { id: 'lib-file:' + uri, label: uri, kind: 'library', uri: uri, inCount: 0, outCount: 0 }; })
                 },
-                left: LAYERS.map(function (layer) {
+                left: layerIds.map(function (layer) {
                     return { layer: layer, cards: all.filter(function (c) { return c.layer === layer; }).sort(function (a, b) { return a.label.localeCompare(b.label); }) };
                 }).filter(function (g) { return g.cards.length > 0; }),
                 right: []
@@ -304,16 +345,16 @@
 
         function overview(filter) {
             const byLayer = {};
-            for (const l of LAYERS) { byLayer[l] = []; }
+            for (const l of layerIds) { byLayer[l] = []; }
             const folder = filter && typeof filter.folder === 'string' ? filter.folder : null;
             for (const n of owners) {
                 if (folder !== null && folderOf(n.id) !== folder) { continue; }
                 byLayer[layerOf(n.id)].push(ownerSummary(n));
             }
-            for (const l of LAYERS) {
+            for (const l of layerIds) {
                 byLayer[l].sort((a, b) => (b.inDeg + b.outDeg) - (a.inDeg + a.outDeg) || a.label.localeCompare(b.label));
             }
-            return { layers: LAYERS.map(layer => ({ layer, classes: byLayer[layer] })), flow: layerFlow() };
+            return { layers: layerIds.map(layer => ({ layer, classes: byLayer[layer] })), flow: layerFlow() };
         }
 
         /**
@@ -590,7 +631,7 @@
                         : isViolation(owner, c.id, c.byLabel);
                     c.members = c.memberIds.map(mid => ({ id: mid, label: stripDecor(nodes.get(mid).label), kind: nodes.get(mid).kind }));
                 }
-                return LAYERS.map(layer => ({
+                return layerIds.map(layer => ({
                     layer,
                     cards: cards.filter(c => c.layer === layer)
                         .sort((a, b) => b.edgeCount - a.edgeCount || a.label.localeCompare(b.label))
@@ -741,7 +782,8 @@
         }
 
         return {
-            nodes, edges, internalCount,
+            nodes, edges, internalCount, architecture: arch, layers: layerIds, neutralLayer,
+            flowOrder: layerIds.filter(function (id) { return id !== neutralLayer; }),
             ownerOf, layerOf, nameOf, sourceTypeOf,
             overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders, dependenciesOf, libraries, isLibrary, audit, heatOf, stateOf, stateManagers,
             nodeRange: id => normalizeRange(nodes.get(id) && nodes.get(id).data && (nodes.get(id).data.range || nodes.get(id).data.selectionRange))
@@ -796,5 +838,5 @@
         return members.filter(function (m) { return keep.has(m.id); });
     }
 
-    return { LAYERS, LAYER_RANK, DEPENDENCY_KINDS, createModel, createTrail, stripDecor, normalizeRange, dominantLabel, limitCards, visibleMembers, relativeFolder, classifyImport };
+    return { LAYERS, LAYER_RANK, defaultArchitecture, resolveArchitecture, DEPENDENCY_KINDS, createModel, createTrail, stripDecor, normalizeRange, dominantLabel, limitCards, visibleMembers, relativeFolder, classifyImport };
 });

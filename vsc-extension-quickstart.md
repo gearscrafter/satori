@@ -121,6 +121,8 @@ The webview sends `getSnippet` (code for a reference), `openClass` (open a file 
 | Audit: circular dependency | `ApiClient`, `Cart` and `Product` |
 | Audit: layer violation | `OrderData` (a model) uses `ApiClient` (a service) |
 | Audit: God Class | `CheckoutManager` (WMC 48, ATFD 8, TCC 0) |
+| One layer per folder | Put `{ "architecture": { "preset": "folders" } }` in a `satori.json` next to the `pubspec.yaml` of `e2e/dummy_app` (copy the project first, so the end-to-end checks that expect the default layers keep passing) and analyse it: views, widgets, state, services and models become the layers |
+| Your own architecture | `e2e/clean_app` has a `satori.json` with presentation / domain / data / core. Run it with `SATORI_E2E_PROJECT=e2e/clean_app SATORI_E2E_SUITE=e2e/suite_architecture.js node e2e/run.js`, or press `F5` on that folder and open the diagram: `LoginPage.shortcut` reaches into the data layer and is drawn in red |
 | State management map | Open `CounterView`: it listens to `CounterCubit` (Bloc), `SessionNotifier` (Provider) and `ProfileController` (GetX). `WishlistStore` (Riverpod) is listened to by nobody. The audit panel warns that four approaches are mixed. The base classes are tiny stand-ins in `lib/state/shims.dart`, so the example needs no extra packages |
 
 The audit thresholds and weights live in the settings `satori.audit.*` (open `Ctrl+,` and search for `satori.audit`). They are read when the analysis runs, so run it again after changing them. Try `satori.audit.godClass.wmc` = `40` and see which classes change.

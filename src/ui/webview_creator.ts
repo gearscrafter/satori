@@ -17,6 +17,8 @@ import { findDartSdk } from '../lsp/dart_sdk';
 import { buildTypeIndex, clearTypeIndex } from '../analysis/enrichment/type-resolver';
 import { clearHoverCache } from '../lsp/hover_enrichment';
 import { readAuditConfig } from '../analysis/audit_config';
+import { loadArchitecture, viewArchitecture } from '../analysis/architecture_file';
+import { setArchitecture } from '../graph/layer_classifier';
 import { NavigationOutcome } from '../analysis/navigation_runner';
 import { setNavigationIndex, setPassProgress } from '../lsp/reference_analysis';
 import { LoadingReporter, silentReporter } from './loading_state';
@@ -150,6 +152,11 @@ export async function createWebview(
   ].join('; ');
 
   const fileImports: Record<string, ImportRef[]> = {};
+  const loadedArchitecture = loadArchitecture(data.projectRoot);
+  if (loadedArchitecture.problems.length > 0) {
+    loadedArchitecture.problems.forEach(p => log.info(`satori.json: ${p}`));
+    void vscode.window.showWarningMessage(`satori.json: ${loadedArchitecture.problems[0]}${loadedArchitecture.problems.length > 1 ? ` (+${loadedArchitecture.problems.length - 1} more, see the "satori" output)` : ''}`);
+  }
   let projectGraph: ProjectGraphModel;
   let enrichedAt: number;
   let graphBuiltAt: number;
@@ -220,14 +227,21 @@ export async function createWebview(
   }
   engine = navigation ? "analysis server" : "language server";
   setNavigationIndex(navigation ? navigation.index : null);
+  setArchitecture(loadedArchitecture.architecture, data.projectRoot);
   setPassProgress((pass, done, total) => reporter.progress('graph', done, total, t(`loading.graph.${pass}`)));
   try {
     projectGraph = await buildGraphModel(data.files, data.projectRoot);
   } finally {
     setNavigationIndex(null);
+    setArchitecture(null);
     setPassProgress(null);
   }
   reporter.finish('graph');
+  if (!loadedArchitecture.architecture.builtin) {
+    const classes = projectGraph.nodes.filter(n => n.kind === 'class');
+    const neutral = classes.filter(n => n.data.layer === loadedArchitecture.architecture.neutral).length;
+    log.info(`satori.json: ${classes.length - neutral} of ${classes.length} classes were placed in a layer; ${neutral} are in "${loadedArchitecture.architecture.neutral}".`);
+  }
   graphBuiltAt = Date.now();
   log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
 
@@ -345,6 +359,7 @@ export async function createWebview(
     graph: projectGraph,
     fileImports,
     ownPackage,
+    architecture: viewArchitecture(loadedArchitecture.architecture),
     auditConfig: readAuditConfig(key => vscode.workspace.getConfiguration('satori').get(key)),
     importTargets: resolveImportTargets(data.projectRoot, fileImports, ownPackage)
   };
