@@ -332,5 +332,21 @@
   "loading.graph.calls": "Preguntando al servidor de lenguaje por las llamadas",
   "hud.layers.descCustom": "Estas capas vienen del satori.json de tu proyecto. Un uso que rompe sus reglas se dibuja en rojo y con guiones.",
   "trail.overviewHintCustom": "Elige una clase para empezar un recorrido. Las columnas siguen las capas de tu arquitectura (satori.json).",
-  "trail.arch.unmatched": "{0} de {1} clases no encajan en ninguna capa de satori.json, así que están en \"{2}\". Añade sus carpetas o nombres a una capa. Carpetas de este proyecto: {3}."
+  "trail.arch.unmatched": "{0} de {1} clases no encajan en ninguna capa de satori.json, así que están en \"{2}\". Añade sus carpetas o nombres a una capa. Carpetas de este proyecto: {3}.",
+  "health.warning": "Satori encontró clases en solo {0} de {1} archivos ({2} clases en total), así que el diagrama probablemente está incompleto. No se guardó.",
+  "health.causesTitle": "Por qué Satori puede no haber encontrado los símbolos:",
+  "health.action.retry": "Analizar de nuevo",
+  "health.action.details": "Ver detalles",
+  "health.cause.untrusted": "El espacio de trabajo no es de confianza (Modo restringido), así que la extensión de Dart no analiza código. Confía en la carpeta y analiza de nuevo.",
+  "health.cause.dartInactive": "La extensión de Dart no está activa. Instala o activa Dart-Code.dart-code y recarga la ventana.",
+  "health.cause.noPubspec": "La carpeta no tiene pubspec.yaml, así que no es la raíz de un proyecto Dart. Abre la carpeta que contiene pubspec.yaml.",
+  "health.cause.noPackageConfig": "El proyecto no tiene .dart_tool/package_config.json. Ejecuta \"dart pub get\" o \"flutter pub get\" y analiza de nuevo.",
+  "health.cause.leftOut": "{0} archivos se dejaron fuera por \"satori.analysis.exclude\" (código generado por defecto). Cambia ese ajuste si deben incluirse.",
+  "health.cause.warming": "El servidor de análisis de Dart puede estar arrancando todavía. Espera a que termine el estado de Dart en la barra de estado y analiza de nuevo.",
+  "cache.cleared": "Análisis guardados eliminados: {0}. El próximo análisis volverá a leer el proyecto.",
+  "loading.symbols.waiting": "Esperando al servidor de Dart",
+  "trail.emptyProject": "No se encontró ninguna clase en este proyecto",
+  "trail.emptyProjectCauses": "Lo habitual es que el servidor de análisis de Dart siguiera arrancando, que la carpeta no tenga pubspec.yaml o que falten los paquetes (ejecuta pub get). También puede mostrarse un análisis guardado que estaba vacío; analizar de nuevo lo ignora.",
+  "trail.emptyProjectButton": "Analizar de nuevo",
+  "trail.emptyProjectTip": "Analiza el proyecto otra vez sin usar el análisis guardado"
 }

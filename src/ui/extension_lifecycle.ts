@@ -8,7 +8,8 @@ import { DetailsViewProvider } from './providers/details_provider';
 import { findCustomDartDirectories } from '../filesystem/directory_scanner';
 import { extractPackageImportsFromFile } from '../packages/package_files';
 import { createWebview, saveAnnotations } from './webview_creator';
-import { cacheFileFor, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis } from '../analysis/graph_cache';
+import { cacheFileFor, clearCachedAnalyses, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis } from '../analysis/graph_cache';
+import { AnalysisStats, SymbolStats, isHealthy, likelyCauses, symbolsLookComplete } from '../analysis/analysis_health';
 import { DEFAULT_EXCLUDES, makeExcluder } from '../filesystem/exclusions';
 import { buildNavigationIndex } from '../analysis/navigation_runner';
 import { findArchitectureFile } from '../analysis/architecture_file';
@@ -119,7 +120,7 @@ type FileData = { file: string; fileUri: string; symbols: any[] };
 async function discoverDartFiles(
     rootUri: vscode.Uri,
     isProjectRoot: boolean
-): Promise<vscode.Uri[]> {
+): Promise<{ uris: vscode.Uri[]; leftOut: number }> {
     const root = rootUri.fsPath;
     const uris: vscode.Uri[] = [];
     const pattern = isProjectRoot ? 'lib/**/*.dart' : '**/*.dart';
@@ -169,7 +170,7 @@ async function discoverDartFiles(
         log.info(`Left out ${found.length - uniqueUris.length} of ${found.length} Dart files that match satori.analysis.exclude (generated code by default).`);
     }
     log.debug(`📄 Total unique files found: ${uniqueUris.length}`);
-    return uniqueUris;
+    return { uris: uniqueUris, leftOut: found.length - uniqueUris.length };
 }
 
 /**
@@ -183,7 +184,7 @@ async function discoverDartFiles(
 async function extractFileSymbols(
     uris: vscode.Uri[],
     reporter: LoadingReporter = silentReporter
-): Promise<FileData[]> {
+): Promise<{ files: FileData[]; stats: SymbolStats }> {
     let analyzedCount = 0;
     let errorCount = 0;
     let emptyCount = 0;
@@ -224,7 +225,7 @@ async function extractFileSymbols(
     reporter.finish('symbols');
 
     log.debug(`📊 Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
-    return filesData;
+    return { files: filesData, stats: { files: filesData.length, withSymbols: analyzedCount, errors: errorCount } };
 }
 
 const SYMBOL_REQUEST_CONCURRENCY = 8;
@@ -250,7 +251,8 @@ const MAX_EMPTY_FILES_IN_A_ROW = 6;
 async function analyzeProject(
     rootUri: vscode.Uri, 
     context: vscode.ExtensionContext, 
-    progress: vscode.Progress<{ increment: number; message: string }>
+    progress: vscode.Progress<{ increment: number; message: string }>,
+    fresh = false
 ) {
     const root = rootUri.fsPath;
     log.debug(`🔍 Analyzing project at: ${root}`);
@@ -274,18 +276,47 @@ async function analyzeProject(
         elapsed: t('loading.elapsed')
     });
     try {
-        return await analyzeFiles(rootUri, context, loading);
+        return await analyzeFiles(rootUri, context, loading, fresh);
     } finally {
         loading.release();
     }
 }
 
-async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContext, loading: LoadingReporter) {
+/**
+ * Says that the analysis found less than the project has, why that probably happened and what to do: writes the
+ * reasons to the "satori" output and offers to analyse again (which ignores the saved analysis).
+ */
+function reportIncompleteAnalysis(stats: AnalysisStats, root: string, isProjectRoot: boolean, leftOut: number): void {
+    const causes = likelyCauses({
+        files: stats.files,
+        withSymbols: stats.withSymbols,
+        isProjectRoot,
+        hasPackageConfig: fs.existsSync(path.join(root, '.dart_tool', 'package_config.json')),
+        dartExtensionActive: vscode.extensions.getExtension('Dart-Code.dart-code')?.isActive === true,
+        workspaceTrusted: vscode.workspace.isTrusted,
+        leftOutBySatori: leftOut
+    });
+    log.info(`⚠️ ${t('health.warning', String(stats.withSymbols), String(stats.files), String(stats.classes))}`);
+    log.info(t('health.causesTitle'));
+    causes.forEach(c => log.info(`  - ${t('health.cause.' + c.id, ...c.args)}`));
+
+    const retry = t('health.action.retry');
+    const details = t('health.action.details');
+    void vscode.window.showWarningMessage(t('health.warning', String(stats.withSymbols), String(stats.files), String(stats.classes)), retry, details).then(choice => {
+        if (choice === retry) { void vscode.commands.executeCommand('satori.reanalyze'); }
+        else if (choice === details) { log.show(); }
+    });
+}
+
+const SECOND_CHANCE_WAIT_MS = 8000;
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContext, loading: LoadingReporter, fresh: boolean) {
     const root = rootUri.fsPath;
     const isProjectRoot = fs.existsSync(path.join(root, 'pubspec.yaml'));
     const analysisStart = Date.now();
     loading.start('files');
-    const uniqueUris = await discoverDartFiles(rootUri, isProjectRoot);
+    const { uris: uniqueUris, leftOut } = await discoverDartFiles(rootUri, isProjectRoot);
     const discoveredAt = Date.now();
     loading.finish('files');
 
@@ -307,7 +338,7 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
     // satori.json decides the layer of every class, so changing it must analyse again.
     const architectureFile = findArchitectureFile(root);
     const fingerprint = fingerprintOf(stampFiles([...uniqueUris.map(u => u.fsPath), ...(architectureFile ? [architectureFile] : [])]));
-    const cached = useCache ? readCachedAnalysis<ProjectGraphModel, Record<string, ImportRef[]>>(cacheFile, fingerprint, extensionVersion) : null;
+    const cached = useCache && !fresh ? readCachedAnalysis<ProjectGraphModel, Record<string, ImportRef[]>>(cacheFile, fingerprint, extensionVersion) : null;
 
     if (cached) {
         const result = await createWebview(context, {
@@ -330,13 +361,22 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
 
     const navigation = buildNavigationIndex(root, uniqueUris, loading);
 
-    const filesDataArray = await extractFileSymbols(uniqueUris, loading);
-    const symbolsAt = Date.now();
-
-    if (filesDataArray.every(f => f.symbols.length === 0) && filesDataArray.length > 0) {
-        log.info('⚠️ No classes/symbols found in any project Dart files.');
-        vscode.window.showWarningMessage('No classes or symbols found in the project. The diagram may be empty.');
+    let extraction = await extractFileSymbols(uniqueUris, loading);
+    if (!symbolsLookComplete(extraction.stats)) {
+        // Most files answered "no symbols". Almost always Dart's server is still starting: wait a moment and ask
+        // again, only about the files that came back empty, before giving the result as final.
+        log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server and asking again.`);
+        loading.start('symbols', t('loading.symbols.waiting'));
+        await sleep(SECOND_CHANCE_WAIT_MS);
+        const empty = new Set(extraction.files.filter(f => f.symbols.length === 0).map(f => f.fileUri));
+        const again = await extractFileSymbols(uniqueUris.filter(u => empty.has(u.toString())), loading);
+        const byUri = new Map(again.files.map(f => [f.fileUri, f]));
+        const merged = extraction.files.map(f => byUri.get(f.fileUri) ?? f);
+        extraction = { files: merged, stats: { files: merged.length, withSymbols: merged.filter(f => f.symbols.length > 0).length, errors: again.stats.errors } };
     }
+    const filesDataArray = extraction.files;
+    const symbolStats = extraction.stats;
+    const symbolsAt = Date.now();
 
 
     log.debug(`📦 Preparing to create webview...`);
@@ -365,16 +405,22 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
             `(find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, ` +
             `graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
 
-        if (useCache && graph.nodes && graph.nodes.length > 0) {
-            // After the page is on screen: serialising a big graph takes a moment and nobody waits for it.
-            setTimeout(() => {
-                try {
-                    writeCachedAnalysis(cacheFile, fingerprint, extensionVersion, graph, result.fileImports);
-                    log.info(`💾 Analysis saved for the next time (${cacheFile})`);
-                } catch (e: any) {
-                    log.error(`Could not save the analysis: ${e.message}`);
-                }
-            }, 0);
+        const stats: AnalysisStats = { ...symbolStats, classes: (graph.nodes ?? []).filter(n => n.kind === 'class').length };
+        if (isHealthy(stats)) {
+            if (useCache) {
+                // After the page is on screen: serialising a big graph takes a moment and nobody waits for it.
+                setTimeout(() => {
+                    try {
+                        writeCachedAnalysis(cacheFile, fingerprint, extensionVersion, graph, result.fileImports, stats);
+                        log.info(`💾 Analysis saved for the next time (${cacheFile})`);
+                    } catch (e: any) {
+                        log.error(`Could not save the analysis: ${e.message}`);
+                    }
+                }, 0);
+            }
+        } else {
+            // An incomplete analysis is shown but never saved: reopening the project would repeat it.
+            reportIncompleteAnalysis(stats, root, isProjectRoot, leftOut);
         }
 
         log.debug(`✅ Webview created successfully!`);
@@ -382,7 +428,6 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
         
         if (!graph.nodes || graph.nodes.length === 0) {
             log.error(`⚠️ WARNING: Graph has no nodes!`);
-            vscode.window.showWarningMessage('The graph was created but contains no nodes. Check the logs for details.');
         }
 
         
@@ -405,6 +450,7 @@ type GraphWebviewMessage =
     | { command: 'log'; args: unknown[] }
     | { command: 'openClass'; file?: string; start?: LspPosition; end?: LspPosition }
     | { command: 'ready' }
+    | { command: 'reanalyze' }
     | { command: 'saveAnnotations'; projectRoot: string; data: Record<string, unknown> }
     | { command: 'getSnippet'; requestId: number; reveal?: boolean; nodeId?: string; sourceId?: string; targetId?: string;
         fileUri?: string; line?: number; column?: number; length?: number }
@@ -506,6 +552,10 @@ function setupWebviewMessageHandlers(
 
                 case 'ready':
                     state.stats.webviewReady = true;
+                    return;
+
+                case 'reanalyze':
+                    void vscode.commands.executeCommand('satori.reanalyze');
                     return;
 
                 case 'saveAnnotations':
@@ -630,7 +680,7 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
     );
 
-    const runAnalysis = (rootUri: vscode.Uri) =>
+    const runAnalysis = (rootUri: vscode.Uri, fresh = false) =>
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Satori",
@@ -638,7 +688,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }, async (progress) => {
             progress.report({ increment: 0, message: t('progress.starting') });
 
-            const result = await analyzeProject(rootUri, context, progress);
+            const result = await analyzeProject(rootUri, context, progress, fresh);
 
             if (!result) {
                 log.debug('Analysis returned NULL - ABORTING');
@@ -667,6 +717,18 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     log.info('Command satori.analyzeProject registered');
     context.subscriptions.push(analyzeCurrentProjectCommand);
+
+    // The way out of a saved analysis that is wrong or out of date: analyse again without it.
+    context.subscriptions.push(vscode.commands.registerCommand('satori.reanalyze', async () => {
+        const rootUri = await findFlutterProjectRoot();
+        if (!rootUri) { return; }
+        await runAnalysis(rootUri, true);
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('satori.clearCache', () => {
+        const removed = clearCachedAnalyses(context.globalStorageUri.fsPath);
+        log.info(`Saved analyses removed: ${removed}`);
+        void vscode.window.showInformationMessage(t('cache.cleared', String(removed)));
+    }));
 
     const showProjectDiagramCommand = vscode.commands.registerCommand(
         'extension.showProjectDiagram',

@@ -2,7 +2,7 @@
   "publisher": "gearscrafter",
   "name": "satori",
   "displayName": "Satori",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Interactive architecture visualizer for Flutter/Dart projects. Achieve sudden enlightenment of your code structure.",
   "license": "Apache-2.0",
   "categories": [
@@ -65,6 +65,16 @@
       { "fileMatch": "satori.json", "url": "./schemas/satori.schema.json" }
     ],
     "commands": [
+      {
+        "command": "satori.reanalyze",
+        "title": "Analyze Current Project (ignore saved analysis)",
+        "category": "satori"
+      },
+      {
+        "command": "satori.clearCache",
+        "title": "Clear Saved Analyses",
+        "category": "satori"
+      },
       {
         "command": "satori.analyzeProject",
         "title": "Analyze Current Project",

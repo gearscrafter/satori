@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { AnalysisStats, isHealthy } from './analysis_health';
 
 /**
  * Remembers the finished analysis of a project, so opening it again without changing any file does not ask the
@@ -10,13 +11,15 @@ import * as crypto from 'crypto';
  * The cache holds the graph and the imports that the page needs. It is valid only for the same files (path,
  * size and modification time of every one), the same extension version and the same cache layout.
  */
-export const CACHE_LAYOUT = 1;
+// 2: an analysis is saved only when it found what the project has, and says how much it found.
+export const CACHE_LAYOUT = 2;
 
 export interface CachedAnalysis<G = unknown, I = unknown> {
     layout: number;
     extensionVersion: string;
     fingerprint: string;
     savedAt: number;
+    stats: AnalysisStats;
     graph: G;
     fileImports: I;
 }
@@ -63,6 +66,7 @@ export function readCachedAnalysis<G, I>(file: string, fingerprint: string, exte
         if (cached.layout !== CACHE_LAYOUT || cached.extensionVersion !== extensionVersion || cached.fingerprint !== fingerprint) {
             return null;
         }
+        if (!cached.stats || !isHealthy(cached.stats)) { return null; }
         return cached;
     } catch {
         // A damaged or half-written file is as good as no cache.
@@ -70,11 +74,24 @@ export function readCachedAnalysis<G, I>(file: string, fingerprint: string, exte
     }
 }
 
-export function writeCachedAnalysis<G, I>(file: string, fingerprint: string, extensionVersion: string, graph: G, fileImports: I): void {
-    const entry: CachedAnalysis<G, I> = { layout: CACHE_LAYOUT, extensionVersion, fingerprint, savedAt: Date.now(), graph, fileImports };
+export function writeCachedAnalysis<G, I>(file: string, fingerprint: string, extensionVersion: string, graph: G, fileImports: I, stats: AnalysisStats): void {
+    const entry: CachedAnalysis<G, I> = { layout: CACHE_LAYOUT, extensionVersion, fingerprint, savedAt: Date.now(), stats, graph, fileImports };
     fs.mkdirSync(path.dirname(file), { recursive: true });
     // Written to a temporary name first so a crash never leaves a truncated cache behind.
     const temp = `${file}.${process.pid}.tmp`;
     fs.writeFileSync(temp, JSON.stringify(entry));
     fs.renameSync(temp, file);
+}
+
+/** Removes every saved analysis in the folder (all projects). Returns how many files went. */
+export function clearCachedAnalyses(storageDir: string): number {
+    let removed = 0;
+    let names: string[] = [];
+    try { names = fs.readdirSync(storageDir); } catch { return 0; }
+    for (const name of names) {
+        if (/^analysis-[0-9a-f]+\.json(\.\d+\.tmp)?$/.test(name)) {
+            try { fs.unlinkSync(path.join(storageDir, name)); removed++; } catch { /* in use or already gone */ }
+        }
+    }
+    return removed;
 }

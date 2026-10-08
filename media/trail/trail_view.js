@@ -802,6 +802,17 @@
         columns.style.display = 'block';
         const picker = folderSelect();
         if (total === 0) {
+            // No class at all in the graph is not a filter: the analysis found nothing, and a saved one may be to blame.
+            const noClasses = !graph.nodes.some(function (n) { return n.kind === 'class'; });
+            if (noClasses) {
+                const retry = el('button', { class: 'empty-action', title: t('trail.emptyProjectTip') }, ico('reset', 14), t('trail.emptyProjectButton'));
+                retry.addEventListener('click', function () { vscodeApi.postMessage({ command: 'reanalyze' }); });
+                columns.appendChild(el('div', { class: 'empty-project', role: 'note' },
+                    el('p', { class: 'empty-title', text: t('trail.emptyProject') }),
+                    el('p', { class: 'overview-hint', text: t('trail.emptyProjectCauses') }),
+                    retry));
+                return;
+            }
             columns.appendChild(el('p', { class: 'overview-hint', text: t('trail.empty') }));
             if (picker) { columns.appendChild(picker); }
             return;

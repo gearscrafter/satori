@@ -332,5 +332,21 @@
   "loading.graph.calls": "Asking the language server about calls",
   "hud.layers.descCustom": "These layers come from the satori.json of your project. A use that breaks its rules is drawn in red and dashed.",
   "trail.overviewHintCustom": "Pick a class to start a trail. Columns follow the layers of your architecture (satori.json).",
-  "trail.arch.unmatched": "{0} of {1} classes match no layer of satori.json, so they are in \"{2}\". Add their folders or names to a layer. Folders in this project: {3}."
+  "trail.arch.unmatched": "{0} of {1} classes match no layer of satori.json, so they are in \"{2}\". Add their folders or names to a layer. Folders in this project: {3}.",
+  "health.warning": "Satori found classes in only {0} of {1} files ({2} classes in total), so the diagram is probably incomplete. It was not saved.",
+  "health.causesTitle": "Why Satori may not have found the symbols:",
+  "health.action.retry": "Analyze again",
+  "health.action.details": "Show details",
+  "health.cause.untrusted": "The workspace is not trusted (Restricted Mode), so the Dart extension does not analyse code. Trust the folder and analyse again.",
+  "health.cause.dartInactive": "The Dart extension is not active. Install or enable Dart-Code.dart-code and reload the window.",
+  "health.cause.noPubspec": "The folder has no pubspec.yaml, so it is not a Dart project root. Open the folder that contains pubspec.yaml.",
+  "health.cause.noPackageConfig": "The project has no .dart_tool/package_config.json. Run \"dart pub get\" or \"flutter pub get\" and analyse again.",
+  "health.cause.leftOut": "{0} files were left out by \"satori.analysis.exclude\" (generated code by default). Change that setting if they should be included.",
+  "health.cause.warming": "Dart's analysis server may still be starting. Wait for the Dart status in the status bar to finish, then analyse again.",
+  "cache.cleared": "Saved analyses removed: {0}. The next analysis will read the project again.",
+  "loading.symbols.waiting": "Waiting for the Dart server",
+  "trail.emptyProject": "No classes were found in this project",
+  "trail.emptyProjectCauses": "Usually Dart's analysis server was still starting, the folder has no pubspec.yaml or packages are missing (run pub get). A saved analysis that was empty may also be showing; analysing again ignores it.",
+  "trail.emptyProjectButton": "Analyze again",
+  "trail.emptyProjectTip": "Analyse the project again without using the saved analysis"
 }

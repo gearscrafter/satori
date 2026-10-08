@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.1] - 10-07-2026
+
+### Fixed
+
+- **An empty or partial diagram stayed that way when the project was opened again.** An analysis was saved even when Dart's language server, still starting, had answered "no symbols" for most files, and reopening reused it. Now an analysis is saved only when it found classes in at least half of the files, and the saved ones from before (which carry no such record) are ignored.
+- When most files come back empty, Satori waits about 8 seconds and asks again for those files before giving the result as final.
+- If the result is still incomplete it says so, lists the likely reasons in the "satori" output (workspace not trusted, Dart extension not active, no `pubspec.yaml`, no `.dart_tool/package_config.json`, files left out by `satori.analysis.exclude`, server still starting) and offers **Analyze again** and **Show details**.
+
+### Added
+
+- `satori.reanalyze` (**Analyze Current Project (ignore saved analysis)**) and `satori.clearCache` (**Clear Saved Analyses**) commands.
+- The diagram of a project with no classes explains what usually causes it and has an **Analyze again** button.
+
 ## [2.2.0] - 10-07-2026
 
 ### Added

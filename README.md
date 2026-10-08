@@ -301,6 +301,8 @@ The expected direction is **View -> State -> Service -> Model**. References that
 | Command | Description |
 |---------|-------------|
 | `satori.analyzeProject` | Automatically analyze the current project |
+| `satori.reanalyze` | Analyze again **ignoring the saved analysis**: the way out of a diagram that is empty or out of date |
+| `satori.clearCache` | Remove every saved analysis (all projects) |
 | `extension.showProjectDiagram` | Pick a folder manually and open its diagram |
 | `satori.toggleDebugLogs` | Enable/disable debug logs |
 
@@ -409,6 +411,16 @@ The graph model, drawing logic and icon set are plain JavaScript without DOM acc
 1. Ensure the official Dart extension is installed and active
 2. Verify the Dart extension can analyze your project files
 3. Check that `dart pub get` has been run in the project
+
+### The diagram is empty or has few classes
+
+Satori reads the classes from Dart's language server. If the server is still starting it answers "no symbols" for most files, so:
+
+1. **Wait for the Dart analysis to finish** (the Dart status in the status bar) and run **satori: Analyze Current Project (ignore saved analysis)**. The empty diagram has a button for it.
+2. Satori already waits about 8 seconds and asks again for the files that came back empty. If it still finds classes in fewer than half of the files it says so, lists the likely reasons in the "satori" output and **does not save that analysis**, so reopening the project does not repeat it.
+3. Other reasons it checks and lists: the workspace is not trusted (Restricted Mode: the Dart extension does not analyse code), the Dart extension is not active, the folder has no `pubspec.yaml` or no `.dart_tool/package_config.json` (run `dart pub get` / `flutter pub get`), or the files were left out by `satori.analysis.exclude` (generated code by default).
+4. If a diagram from the saved analysis looks wrong, **satori: Clear Saved Analyses** removes them all; `satori.cache.enabled` = `false` turns the saved analysis off.
+5. Enable debug logs: `satori.toggleDebugLogs`.
 
 ### Incomplete Analysis
 

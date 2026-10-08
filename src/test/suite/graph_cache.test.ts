@@ -3,8 +3,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-    cacheFileFor, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis, CACHE_LAYOUT
+    cacheFileFor, clearCachedAnalyses, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis, CACHE_LAYOUT
 } from '../../analysis/graph_cache';
+
+const GOOD = { files: 2, withSymbols: 2, errors: 0, classes: 2 };
 
 suite('Graph Cache Test Suite', () => {
     let dir: string;
@@ -24,7 +26,7 @@ suite('Graph Cache Test Suite', () => {
 
     test('a saved analysis comes back when nothing changed', () => {
         const file = cacheFileFor(dir, '/projects/app');
-        writeCachedAnalysis(file, 'abc', '2.1.1', { nodes: [1, 2], edges: [] }, { 'a.dart': [] });
+        writeCachedAnalysis(file, 'abc', '2.1.1', { nodes: [1, 2], edges: [] }, { 'a.dart': [] }, GOOD);
         const cached = readCachedAnalysis<{ nodes: number[] }, unknown>(file, 'abc', '2.1.1');
         assert.deepStrictEqual(cached?.graph.nodes, [1, 2]);
         assert.strictEqual(cached?.layout, CACHE_LAYOUT);
@@ -32,7 +34,7 @@ suite('Graph Cache Test Suite', () => {
 
     test('it is ignored when the files, the extension version or the layout differ', () => {
         const file = cacheFileFor(dir, '/projects/app');
-        writeCachedAnalysis(file, 'abc', '2.1.1', {}, {});
+        writeCachedAnalysis(file, 'abc', '2.1.1', {}, {}, GOOD);
         assert.strictEqual(readCachedAnalysis(file, 'other', '2.1.1'), null);
         assert.strictEqual(readCachedAnalysis(file, 'abc', '2.2.0'), null);
         const entry = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -45,6 +47,32 @@ suite('Graph Cache Test Suite', () => {
         assert.strictEqual(readCachedAnalysis(file, 'abc', '2.1.1'), null);
         fs.writeFileSync(file, '{"layout": 1, "graph": ');
         assert.strictEqual(readCachedAnalysis(file, 'abc', '2.1.1'), null);
+    });
+
+    test('an analysis that found little or nothing is saved but never reused', () => {
+        const file = cacheFileFor(dir, '/projects/app');
+        writeCachedAnalysis(file, 'abc', '2.1.1', { nodes: [], edges: [] }, {}, { files: 40, withSymbols: 3, errors: 0, classes: 0 });
+        assert.strictEqual(readCachedAnalysis(file, 'abc', '2.1.1'), null);
+        writeCachedAnalysis(file, 'abc', '2.1.1', { nodes: [1], edges: [] }, {}, { files: 40, withSymbols: 5, errors: 0, classes: 4 });
+        assert.strictEqual(readCachedAnalysis(file, 'abc', '2.1.1'), null, 'classes found but for only a few files');
+    });
+
+    test('an analysis saved by an older version, with no statistics, is ignored', () => {
+        const file = cacheFileFor(dir, '/projects/app');
+        writeCachedAnalysis(file, 'abc', '2.1.1', {}, {}, GOOD);
+        const entry = JSON.parse(fs.readFileSync(file, 'utf8'));
+        delete entry.stats;
+        fs.writeFileSync(file, JSON.stringify(entry));
+        assert.strictEqual(readCachedAnalysis(file, 'abc', '2.1.1'), null);
+    });
+
+    test('clearing removes the saved analyses and the leftovers, and nothing else', () => {
+        writeCachedAnalysis(cacheFileFor(dir, '/projects/one'), 'a', '2.1.1', {}, {}, GOOD);
+        writeCachedAnalysis(cacheFileFor(dir, '/projects/two'), 'a', '2.1.1', {}, {}, GOOD);
+        fs.writeFileSync(path.join(dir, 'notes.txt'), 'keep me');
+        assert.strictEqual(clearCachedAnalyses(dir), 2);
+        assert.deepStrictEqual(fs.readdirSync(dir), ['notes.txt']);
+        assert.strictEqual(clearCachedAnalyses(path.join(dir, 'missing')), 0);
     });
 
     test('every project folder gets its own file', () => {
@@ -62,7 +90,7 @@ suite('Graph Cache Test Suite', () => {
 
     test('writing leaves no temporary file behind', () => {
         const file = cacheFileFor(dir, '/projects/app');
-        writeCachedAnalysis(file, 'abc', '2.1.1', {}, {});
+        writeCachedAnalysis(file, 'abc', '2.1.1', {}, {}, GOOD);
         assert.deepStrictEqual(fs.readdirSync(dir).filter(f => f.endsWith('.tmp')), []);
     });
 });

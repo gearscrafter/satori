@@ -621,3 +621,10 @@ button.tool[aria-pressed="true"], button.width[aria-pressed="true"] { background
 /* satori.json leaves most classes in the neutral layer: a note, not an error. */
 .arch-notice { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid #f2d9a0; border-radius: 10px; background: #fff8e6; color: #7a4b00; font-size: 12.5px; }
 .arch-notice .ico { flex: none; margin-top: 2px; }
+
+/* Nothing was found in the project: say why that may be and offer the way out. */
+.empty-project { max-width: 620px; margin: 36px auto; padding: 18px 22px; border: 1px solid var(--color-border-soft); border-radius: 14px; background: #fff; text-align: center; }
+.empty-title { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.empty-project .overview-hint { margin: 0 0 14px; }
+.empty-action { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 16px; border: 1px solid var(--accent); background: #f3eefc; color: var(--accent); font-weight: 600; cursor: pointer; }
+.empty-action:hover { background: #e8def9; }

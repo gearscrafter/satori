@@ -1,16 +1,4949 @@
-"use strict";var Zr=Object.create;var De=Object.defineProperty;var Qr=Object.getOwnPropertyDescriptor;var ei=Object.getOwnPropertyNames;var ti=Object.getPrototypeOf,ni=Object.prototype.hasOwnProperty;var ri=(t,e)=>{for(var n in e)De(t,n,{get:e[n],enumerable:!0})},rn=(t,e,n,r)=>{if(e&&typeof e=="object"||typeof e=="function")for(let i of ei(e))!ni.call(t,i)&&i!==n&&De(t,i,{get:()=>e[i],enumerable:!(r=Qr(e,i))||r.enumerable});return t};var y=(t,e,n)=>(n=t!=null?Zr(ti(t)):{},rn(e||!t||!t.__esModule?De(n,"default",{value:t,enumerable:!0}):n,t)),ii=t=>rn(De({},"__esModule",{value:!0}),t);var ls={};ri(ls,{activate:()=>Xr});module.exports=ii(ls);var w=y(require("vscode")),ue=y(require("path")),tn=y(require("fs"));var Ae=y(require("vscode"));var sn=y(require("vscode")),mt=y(require("fs")),ht=y(require("path")),ee=class t{static instance;translations={};static getInstance(){return t.instance||(t.instance=new t),t.instance}async loadTranslations(e,n){n||(n=sn.workspace.getConfiguration("satori").get("language","en"));let r=ht.join(e,"localization",`${n}.json`);try{let i=mt.readFileSync(r,"utf8");this.translations=JSON.parse(i)}catch{let s=ht.join(e,"localization","en.json"),o=mt.readFileSync(s,"utf8");this.translations=JSON.parse(o)}}getByPrefix(...e){let n={};for(let[r,i]of Object.entries(this.translations))e.some(s=>r.startsWith(s))&&(n[r]=i);return n}t(e,...n){let r=this.translations[e]||e;return n.forEach((i,s)=>{r=r.replace(`{${s}}`,i)}),r}},m=(t,...e)=>ee.getInstance().t(t,...e);var we=y(require("fs"));var Ne=y(require("vscode")),bt=class t{static instance;outputChannel;debugMode=!1;constructor(){this.outputChannel=Ne.window.createOutputChannel("satori"),this.loadDebugConfig()}static getInstance(){return t.instance||(t.instance=new t),t.instance}getOutputChannel(){return this.outputChannel}loadDebugConfig(){let e=Ne.workspace.getConfiguration("satori");this.debugMode=e.get("enableDebugLogs",!1)}info(e){this.outputChannel.appendLine(e)}error(e){this.outputChannel.appendLine(`\u274C ${e}`)}debug(e){this.debugMode&&this.outputChannel.appendLine(`[DEBUG] ${e}`)}show(){this.outputChannel.show()}setDebugMode(e){this.debugMode=e,this.info(`\u{1F527} Debug logs ${e?"activados":"desactivados"}`)}isDebugEnabled(){return this.debugMode}},fe=bt.getInstance(),a={info:t=>fe.info(t),error:t=>fe.error(t),debug:t=>fe.debug(t),show:()=>fe.show(),setDebug:t=>fe.setDebugMode(t),isDebug:()=>fe.isDebugEnabled()};var Se=class{constructor(e){this._extensionUri=e}static viewType="ast-graph.detailsView";view;resolveWebviewView(e){this.view=e,e.webview.options={enableScripts:!0,localResourceRoots:[Ae.Uri.joinPath(this._extensionUri,"media"),this._extensionUri]},e.webview.html=this._getHtmlForWebview(e.webview)}updateDetails(e){if(this.view&&e){let n=e.focusedNode?this.analyzeNodeSemantics(e.focusedNode):null;this.view.webview.postMessage({command:"update",data:{...e,semantics:n}})}}analyzeNodeSemantics(e){if(!e||!e.data?.fileUri)return null;try{let n=this.getSourceCodeForNode(e);return{responsibilities:this.extractResponsibilities(n,e),decisions:this.extractDecisions(n,e),validations:this.extractValidations(n,e),collaborations:this.extractCollaborationPatterns(n,e)}}catch{return null}}extractResponsibilities(e,n){let r=[];return e.includes("return ")&&n.kind==="method"&&(e.match(/return\s+\w+\.\w+/)&&r.push(m("responsibilities.transformsData")),e.match(/return\s+new\s+\w+/)&&r.push(m("responsibilities.createsObjects"))),(e.includes("setState")||e.includes("emit("))&&r.push(m("responsibilities.managesState")),(e.includes("Navigator.")||e.includes("context.go"))&&r.push(m("responsibilities.controlsNavigation")),e.match(/http\.|client\.|api\./)&&r.push(m("responsibilities.communicatesWithServices")),(e.includes("validate")||e.match(/if\s*\([^)]*\.isEmpty/))&&r.push(m("responsibilities.validatesInput")),r}extractDecisions(e,n){let r=[],i=e.match(/if\s*\([^)]+\)/g)||[];i.length>0&&r.push(m("decisions.conditionalDecisions",i.length.toString()));let s=e.match(/switch\s*\([^)]+\)/g)||[];return s.length>0&&r.push(m("decisions.businessCases",s.length.toString())),e.includes("? ")&&e.includes(": ")&&r.push(m("decisions.ternaryOperators")),e.match(/throw\s+\w+Exception/)&&r.push(m("decisions.throwsExceptions")),r}extractValidations(e,n){let r=[];return e.match(/\.isEmpty|\.isNotEmpty/)&&r.push(m("validations.checksEmpty")),e.match(/\.length\s*[<>]=?\s*\d/)&&r.push(m("validations.checksLength")),(e.includes("assert(")||e.includes("require("))&&r.push(m("validations.preconditions")),e.match(/\bnull\b.*check|\bcheck.*\bnull\b/i)&&r.push(m("validations.preventsNull")),r}getSourceCodeForNode(e){if(!e?.data?.fileUri||!e?.data?.range)return"";try{let n=Ae.Uri.parse(e.data.fileUri).fsPath,i=we.readFileSync(n,"utf8").split(/\r?\n/),s=e.data.range.start,o=e.data.range.end;if(s.line>=i.length||o.line>=i.length)return"";if(s.line===o.line)return i[s.line].substring(s.character,o.character);let c=i[s.line].substring(s.character);for(let l=s.line+1;l<o.line;l++)c+=`
-`+i[l];return c+=`
-`+i[o.line].substring(0,o.character),c}catch{return""}}extractCollaborationPatterns(e,n){let r=[],i=e.match(/\.\w+\(\)/g);return i&&i.length>3&&r.push(m("collaborations.intensiveCollaboration")),e.includes("await ")&&r.push(m("collaborations.coordinatesAsync")),(e.includes("listen")||e.includes("stream"))&&r.push(m("collaborations.listensReactively")),r}clearDetails(){this.view&&this.view.webview.postMessage({command:"clear"})}updateLanguage(){this.view&&(this.view.webview.html=this._getHtmlForWebview(this.view.webview))}_getHtmlForWebview(e){a.debug("Looking for details panel HTML file..");try{let n=Ae.Uri.joinPath(this._extensionUri,"media","detailsView.html");if(a.debug(`[DEBUG] Path constructed: ${n.fsPath}`),!we.existsSync(n.fsPath))return a.debug("File not found! Make sure 'detailsView.html' is in your project root folder."),"<h1>Error: detailsView.html not found</h1>";a.debug("[DEBUG] File found. Reading content...");let r={"details.placeholder":m("details.placeholder"),"details.noCollaborations":m("details.noCollaborations"),"details.analysisOf":m("details.analysisOf"),"details.collaborations":m("details.collaborations"),"details.noValidRelations":m("details.noValidRelations"),"details.responsibilities":m("details.responsibilities"),"details.decisions":m("details.decisions"),"details.validations":m("details.validations"),"details.behaviors":m("details.behaviors"),"details.responsibilities.count":m("details.responsibilities.count"),"details.decisions.count":m("details.decisions.count"),"details.validations.count":m("details.validations.count"),"details.behaviors.count":m("details.behaviors.count"),"details.multipleComponents":m("details.multipleComponents"),"verb.extends":m("verb.extends"),"verb.implements":m("verb.implements"),"verb.calls":m("verb.calls"),"verb.readsFrom":m("verb.readsFrom"),"verb.writesTo":m("verb.writesTo"),"verb.instanceOf":m("verb.instanceOf"),"verb.usesAsType":m("verb.usesAsType"),"verb.unknown":m("verb.unknown"),"verb.reactsTo":m("verb.reactsTo"),"verb.showsUser":m("verb.showsUser"),"verb.buildsAndShows":m("verb.buildsAndShows"),"verb.managesState":m("verb.managesState"),"verb.delegates":m("verb.delegates"),"verb.notifies":m("verb.notifies"),"verb.composedOf":m("verb.composedOf"),"verb.formats":m("verb.formats"),"verb.assembles":m("verb.assembles"),"verb.reportsEvent":m("verb.reportsEvent"),"narrative.verb.showsUser":m("narrative.verb.showsUser"),"narrative.verb.readsFrom":m("narrative.verb.readsFrom"),"narrative.verb.buildsAndShows":m("narrative.verb.buildsAndShows"),"narrative.verb.instanceOf":m("narrative.verb.instanceOf"),"narrative.verb.notifies":m("narrative.verb.notifies"),"narrative.verb.delegates":m("narrative.verb.delegates"),"narrative.verb.formats":m("narrative.verb.formats"),"narrative.verb.managesState":m("narrative.verb.managesState"),"narrative.verb.reactsTo":m("narrative.verb.reactsTo"),"narrative.verb.implements":m("narrative.verb.implements"),"narrative.verb.extends":m("narrative.verb.extends"),"narrative.default":m("narrative.default"),"responsibilities.transformsData":m("responsibilities.transformsData"),"responsibilities.createsObjects":m("responsibilities.createsObjects"),"responsibilities.managesState":m("responsibilities.managesState"),"responsibilities.controlsNavigation":m("responsibilities.controlsNavigation"),"responsibilities.communicatesWithServices":m("responsibilities.communicatesWithServices"),"responsibilities.validatesInput":m("responsibilities.validatesInput"),"decisions.conditionalDecisions":m("decisions.conditionalDecisions"),"decisions.businessCases":m("decisions.businessCases"),"decisions.ternaryOperators":m("decisions.ternaryOperators"),"decisions.throwsExceptions":m("decisions.throwsExceptions"),"validations.checksEmpty":m("validations.checksEmpty"),"validations.checksLength":m("validations.checksLength"),"validations.preconditions":m("validations.preconditions"),"validations.preventsNull":m("validations.preventsNull"),"collaborations.intensiveCollaboration":m("collaborations.intensiveCollaboration"),"collaborations.coordinatesAsync":m("collaborations.coordinatesAsync"),"collaborations.listensReactively":m("collaborations.listensReactively")},i=we.readFileSync(n.fsPath,"utf8");return i.includes("window.translations || {")&&(i=i.replace("const translations = window.translations || {",`const translations = ${JSON.stringify(r)} || {`)),i}catch(n){return a.debug(`[ERROR] Catastrophic failure loading details view: ${n.message}`),`<h1>Critical Error: ${n.message}</h1>`}}};var ln=y(require("vscode")),yt=y(require("path")),$e=y(require("fs"));var an=y(require("vscode")),pe=y(require("path"));var te=y(require("path")),V=y(require("fs"));function K(t){a.debug(`[Project Root] Searching for pubspec.yaml from${t}`);try{let e=t,n=10,r=0;for(;r<n;){let i=te.join(e,"pubspec.yaml");if(V.existsSync(i))return a.debug(`\u2705 Found pubspec.yaml in: ${e}`),e;let s=te.dirname(e);if(s===e)break;e=s,r++}return a.debug(`\u26A0\uFE0F Could not find pubspec.yaml searching from: ${t}`),null}catch(e){return a.debug("---"),a.debug("\u274C [Project Root] CRITICAL ERROR while searching for the project root."),e instanceof Error?a.debug(`   Error message: ${e.message}`):a.debug(`   Unknown error: ${String(e)}`),a.debug("---"),null}}async function on(t){let e=[],n=t.split(te.sep),r=n[0];if(!V.existsSync(r))return e;function i(s,o){if(o.length===0){V.existsSync(s)&&V.statSync(s).isDirectory()&&e.push(s);return}let[c,...l]=o;if(c==="*")try{let d=V.readdirSync(s,{withFileTypes:!0});for(let u of d)if(u.isDirectory()&&!u.name.startsWith(".")){let g=te.join(s,u.name);i(g,l)}}catch{}else{let d=te.join(s,c);V.existsSync(d)&&i(d,l)}}return i(r,n.slice(1)),e}async function cn(t,e){let n=["packages/*/lib","modules/*/lib","features/*/lib","apps/*/lib","plugins/*/lib","shared/*/lib"];for(let r of n)try{let i=pe.join(t,r),s=await on(i);for(let o of s)if(await Me(o)){let c=pe.dirname(o),l=an.Uri.file(c);e.some(d=>d.fsPath===c)||(e.push(l),a.debug(`\u{1F4E6} Modular directory found: ${pe.relative(t,c)}`))}}catch{continue}}async function dn(t){let e=[],n=t.fsPath,r=new Set(["lib","test","example","tool","bin","integration_test",".dart_tool","build",".packages","node_modules"]);try{let i=$e.readdirSync(n,{withFileTypes:!0});for(let s of i){if(!s.isDirectory())continue;let o=s.name;if(o.startsWith(".")||o.startsWith("_")||r.has(o)||o==="android"||o==="ios"||o==="web"||o==="windows"||o==="macos"||o==="linux")continue;let c=yt.join(n,o);if(await Me(c)){let l=ln.Uri.file(c);e.push(l),a.debug(`\u{1F50D} Custom directory found: ${o}`)}}await cn(n,e)}catch(i){a.error(`\u26A0\uFE0F Error scanning custom directories: ${i}`)}return e}async function Me(t,e=3){if(e<=0||!$e.existsSync(t))return!1;try{let n=$e.readdirSync(t,{withFileTypes:!0});for(let r of n){if(r.isFile()&&r.name.endsWith(".dart"))return!0;if(r.isDirectory()&&!r.name.startsWith(".")){let i=yt.join(t,r.name);if(await Me(i,e-1))return!0}}}catch{return!1}return!1}var Fe=y(require("fs")),vt=y(require("path")),un=y(require("vscode"));function fn(t,e=20){let n=[];try{let i=function(s,o=0){if(o>3||n.length>=e)return;let c=Fe.readdirSync(s,{withFileTypes:!0});for(let l of c){if(n.length>=e)break;l.isFile()&&l.name.endsWith(".dart")?n.push(vt.default.join(s,l.name)):l.isDirectory()&&!l.name.startsWith(".")&&i(vt.default.join(s,l.name),o+1)}};var r=i;i(t)}catch{}return n}function pn(t){try{let e=un.Uri.parse(t).fsPath,n=Fe.readFileSync(e,"utf8"),r=/import\s+['"]package:([\w]+)\//g,i=new Set,s;for(;(s=r.exec(n))!==null;)i.add(s[1]);return Array.from(i)}catch{return[]}}var T=y(require("vscode")),de=y(require("fs")),q=y(require("path"));var xe=y(require("vscode"));function gn(t){let e=new Map;function n(r){for(let i of r){if(i.uniqueId&&e.set(i.uniqueId,i),i.kind===xe.SymbolKind.Class&&a.debug(`[VALIDATE] Class: ${i.name}`),i.kind===xe.SymbolKind.Constructor&&(!i.parameters&&i.detail&&a.debug(`[WARN] Constructor '${i.name}' has detail but no parameters were extracted.`),i.parentId)){let s=e.get(i.parentId);if(!s)a.debug(`[ERROR] parentId '${i.parentId}' of '${i.name}' is not among the uniqueIds.`);else if(s.kind!==xe.SymbolKind.Class&&a.debug(`[ERROR] parentId '${i.parentId}' of '${i.name}' is not a class (kind: ${s.kind}, expected: ${xe.SymbolKind.Class})`),Array.isArray(i.parameters)&&Array.isArray(s.children)){let o=new Set(s.children.map(c=>c.name));for(let c of i.parameters)c.name&&!o.has(c.name)&&a.debug(`[WARN] Constructor '${i.name}' has parameter '${c.name}' not found as property in '${s.name}'`)}}i.parentId&&!e.has(i.parentId)&&a.debug(`[ERROR] parentId '${i.parentId}' of '${i.name}' is not among the uniqueIds.`),i.children&&n(i.children)}}try{for(let r of t)n(r.symbols)}catch(r){a.error(`Error running validateEnrichedData: ${r}`)}}var J=y(require("vscode")),Ee=J.SymbolKind.Class,Ue=J.SymbolKind.Enum,je=J.SymbolKind.Method,Le=J.SymbolKind.Function,wt=J.SymbolKind.Constructor,Oe=J.SymbolKind.Field,_e=J.SymbolKind.Property,mn=J.SymbolKind.Namespace,hn=22;function St(t,e){let n=t.fileUri||"unknown_uri",r=t.name,i=si(t.kind);return t.kind===wt&&r===e&&(r="_default_"),e?`${n}#parent:${e}#kind:${i}#name:${r}`:`${n}#kind:${i}#name:${r}`}function si(t){return{5:"class",6:"method",12:"func",9:"ctor",8:"field",7:"prop",10:"enum",3:"ext",22:"typedef"}[t]||`k${t}`}function $t(t){return{[Ee]:"class",[je]:"method",[Le]:"function",[wt]:"constructor",[Oe]:"field",[_e]:"property",[Ue]:"enum",[hn]:"typedef",[mn]:"namespace"}[t]||`kind_${t}`}function xt(t){if(!t)return;let e=t.trim().replace(/\?$/,""),n=e.match(/^[\w\s]+\s*<(.+)>$/);if(n?.[1]){let r=xt(n[1]);if(r)return r}return e.split(".").pop()?.split(" ").pop()||e}function ge(t){return t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function Ge(t){return t.replace(/\/\/.*$/gm,"").replace(/\/\*[\s\S]*?\*\//g,"").replace(/(["'`])(?:\\.|[^\\])*?\1/g,"")}function bn(t){if(typeof t!="string")return t;let e=t.replace(/[\x00-\x07\x0b\x0e-\x1f\x7f]/g,function(n){return"\\u"+("0000"+n.charCodeAt(0).toString(16)).slice(-4)});return e=e.replace(/\r\n/g,"\\n").replace(/\n/g,"\\n").replace(/\r/g,"\\r").replace(/\t/g,"\\t").replace(/\f/g,"\\f").replace(/\x08/g,"\\b"),e}function We(t){if(!(t===null||typeof t!="object")){if(Array.isArray(t))for(let e=0;e<t.length;e++){let n=t[e];typeof n=="string"?t[e]=bn(n):typeof n=="object"&&We(n)}else for(let e in t)if(t.hasOwnProperty(e)){let n=t[e];typeof n=="string"?t[e]=bn(n):typeof n=="object"&&We(n)}}}function yn(t){let e=new Map(t.nodes.map(n=>[n.id,n]));for(let n of t.nodes)n.inDegree=0,n.outDegree=0;for(let n of t.edges){let r=e.get(n.source),i=e.get(n.target);r&&r.outDegree++,i&&i.inDegree++}}var oi=t=>new Promise(e=>setTimeout(e,t));async function Ke(t,e,n,r=oi){let i=await t(),s=1;for(let o of n){if(e(i))return{result:i,attempts:s,exhausted:!1};await r(o),i=await t(),s++}return{result:i,attempts:s,exhausted:!e(i)}}async function Y(t,e,n,r){let i=new Array(t.length),s=0,o=0;async function c(){for(;s<t.length;){let l=s++;i[l]=await n(t[l],l),o++,r?.(o,t.length)}}return await Promise.all(Array.from({length:Math.min(Math.max(e,1),t.length)},c)),i}var Ie=y(require("vscode"));var C=y(require("vscode")),In=y(require("path"));var ai={bloc:"bloc",cubit:"bloc",hydratedbloc:"bloc",hydratedcubit:"bloc",replaybloc:"bloc",replaycubit:"bloc",changenotifier:"provider",valuenotifier:"provider",statenotifier:"riverpod",notifier:"riverpod",asyncnotifier:"riverpod",autodisposenotifier:"riverpod",autodisposeasyncnotifier:"riverpod",getxcontroller:"getx",getxservice:"getx",rxcontroller:"getx"};function Be(t){if(t)for(let e of[t.extends,t.with,t.implements])for(let n of e??[]){let r=(typeof n=="string"?n:n.name).split("<")[0].trim(),i=ai[r.toLowerCase()];if(i)return{family:i,base:r}}}var vn=["**/*.g.dart","**/*.freezed.dart","**/*.gr.dart","**/*.mocks.dart","**/*.config.dart","**/*.chopper.dart","**/*.reflectable.dart","**/generated/**","**/.dart_tool/**"];function Et(t){let e="";for(let n=0;n<t.length;n++){let r=t[n];r==="*"?t[n+1]==="*"?t[n+2]==="/"?(e+="(?:.*/)?",n+=2):(e+=".*",n+=1):e+="[^/]*":r==="?"?e+="[^/]":e+=r.replace(/[.+^${}()|[\]\\]/g,"\\$&")}return new RegExp(`^${e}$`,"i")}function wn(t){let e=t.filter(n=>n.trim()!=="").map(Et);return n=>{let r=n.replace(/\\/g,"/");return e.some(i=>i.test(r))}}var Sn={id:"core",label:"Core",neutral:!0,description:"Shared code. Takes no part in the rules.",folders:["**/core/**","**/utils/**","**/shared/**","**/common/**","**/helpers/**"]},Pt={default:{description:"View, State, Service and Model, placed by Satori's own guess. Using a layer above yours is a violation.",layers:[{id:"view"},{id:"state"},{id:"service"},{id:"model"},{id:"utility",neutral:!0}],mode:"order",allow:[],heuristic:{view:"view",state:"state",service:"service",model:"model",utility:"utility"}},clean:{description:"Clean Architecture: presentation and data depend on the domain, the domain on nothing.",layers:[{id:"presentation",label:"Presentation",color:"#1e88e5",icon:"layer-view",description:"Screens, widgets and their state. May use the domain, never the data layer directly.",folders:["**/presentation/**","**/pages/**","**/screens/**","**/views/**","**/widgets/**","**/ui/**"],names:["*Page","*Screen","*View"]},{id:"domain",label:"Domain",color:"#8e24aa",description:"Entities and business rules. Depends on nothing else.",folders:["**/domain/**","**/entities/**","**/usecases/**","**/use_cases/**"],names:["*UseCase","*Entity"]},{id:"data",label:"Data",color:"#43a047",icon:"layer-model",description:"Repositories, data sources and DTOs. May use the domain.",folders:["**/data/**","**/repositories/**","**/datasources/**","**/data_sources/**"],names:["*Repository*","*DataSource*","*Dto"]},Sn],mode:"allow",allow:[["presentation","domain"],["data","domain"]],heuristic:{view:"presentation",state:"presentation",service:"data",model:"domain",utility:"core"}},mvvm:{description:"MVVM: views use view models, view models use the model. Never the other way round.",layers:[{id:"view",label:"View",color:"#1e88e5",icon:"layer-view",description:"Screens and widgets. Show what the view model exposes.",folders:["**/views/**","**/pages/**","**/screens/**","**/widgets/**","**/ui/**"],extends:["StatelessWidget","StatefulWidget"],names:["*Page","*Screen","*View"]},{id:"viewmodel",label:"View model",color:"#fbc02d",icon:"layer-state",description:"State and logic of a screen. Uses the model, knows nothing of widgets.",folders:["**/viewmodels/**","**/view_models/**","**/viewmodel/**","**/blocs/**","**/cubits/**","**/controllers/**","**/providers/**","**/state/**"],names:["*ViewModel","*Bloc","*Cubit","*Controller","*Notifier"]},{id:"model",label:"Model",color:"#e64a19",icon:"layer-model",description:"Data, repositories and services.",folders:["**/models/**","**/repositories/**","**/services/**","**/data/**","**/domain/**"],names:["*Model","*Repository*","*Service"]},Sn],mode:"order",allow:[],heuristic:{view:"view",state:"viewmodel",service:"model",model:"model",utility:"core"}}},ci=["folders","names","extends"];function Rt(t,e){let n=t.map(i=>({...i})),r=n.findIndex(i=>i.neutral);for(let i of e){if(!i||typeof i!="object"||typeof i.id!="string")continue;let s=n.find(o=>o.id===i.id);if(!s){let o=r>=0?n.findIndex(c=>c.neutral):n.length;n.splice(o,0,{...i});continue}for(let[o,c]of Object.entries(i))if(ci.includes(o)&&Array.isArray(c)){let l=s[o];s[o]=[...c,...l??[]]}else s[o]=c}return n}var li=[{rank:0,names:/^(views?|pages?|screens?|ui|widgets?|presentation|components?)$/},{rank:1,names:/^(view_?models?|blocs?|cubits?|controllers?|providers?|state|states|stores?|notifiers?)$/},{rank:2,names:/^(use_?cases?|domain|logic|business|services?|interactors?)$/},{rank:3,names:/^(repositor(y|ies)|data|data_?sources?|api|network|remote|local|infra(structure)?)$/},{rank:4,names:/^(models?|entit(y|ies)|dtos?)$/}],di=/^(core|utils?|shared|common|helpers?|config|configs?|constants?|extensions?|theme|themes?|l10n|generated|assets|routes?|router|di|injection|mixins?)$/,ui=2.5,fi=12;function $n(t){let e=t.toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^[^a-z]+/,"");return e===""?"folder":e.slice(0,32)}function pi(t){let e=t.replace(/[-_]+/g," ").trim();return e.charAt(0).toUpperCase()+e.slice(1)}function xn(t,e){let n=new Set(["core"]),r=[],i=[];for(let s of[...new Set(e)].sort()){if(s.startsWith("."))continue;let o=s.toLowerCase();if(di.test(o)){i.push(`${t}/${s}/**`);continue}if(r.length>=fi){i.push(`${t}/${s}/**`);continue}let c=$n(s);for(let d=2;n.has(c);d++)c=`${$n(s).slice(0,28)}-${d}`;n.add(c);let l=li.find(d=>d.names.test(o));r.push({spec:{id:c,label:pi(s),folders:[`${t}/${s}/**`]},rank:l?l.rank:ui,name:s})}return r.sort((s,o)=>s.rank-o.rank||s.name.localeCompare(o.name)),[...r.map(s=>s.spec),{id:"core",label:"Core",neutral:!0,description:"Shared code and whatever is outside the folders above. Takes no part in the rules.",folders:i}]}var En=["view","state","service","model","utility"];function me(){return{layers:[{id:"view"},{id:"state"},{id:"service"},{id:"model"},{id:"utility",neutral:!0}],mode:"order",allow:[],forbid:[],neutral:"utility",overrides:{},heuristic:{view:"view",state:"state",service:"service",model:"model",utility:"utility"},builtin:!0}}var Pn=["layer-view","layer-state","layer-service","layer-model","layer-utility","layer-generic"],gi=/^[a-z][a-z0-9_-]{0,31}$/,mi=/^#[0-9a-fA-F]{6}$/;function kt(t){return Array.isArray(t)?t.filter(e=>typeof e=="string"&&e.trim()!==""):void 0}function Rn(t,e,n,r){let i=[];if(t===void 0)return i;if(!Array.isArray(t))return r.push(`"${n}" must be a list of [from, to] pairs.`),i;for(let s of t)Array.isArray(s)&&s.length===2&&typeof s[0]=="string"&&typeof s[1]=="string"?!e.has(s[0])||!e.has(s[1])?r.push(`"${n}" names a layer that does not exist: ${s[0]} -> ${s[1]}.`):i.push([s[0],s[1]]):r.push(`"${n}" has an entry that is not a [from, to] pair.`);return i}function It(t,e={}){if(t===void 0||t.trim()==="")return{architecture:me(),problems:[]};let n;try{n=JSON.parse(t)}catch(f){return{architecture:me(),problems:[`satori.json is not valid JSON (${f.message}). The default layers are used.`]}}let r=n&&typeof n=="object"?n.architecture:void 0;if(r===void 0)return{architecture:me(),problems:[]};if(!r||typeof r!="object")return{architecture:me(),problems:['"architecture" must be an object. The default layers are used.']};let i=[],s=Array.isArray(r.layers)?r.layers:[],o={},c;if(r.preset==="folders"){let f=e.discoverFolders?.();!f||f.folders.length===0?i.push('"preset": "folders" needs a lib/ folder with subfolders, and none was found.'):(s=Rt(xn(f.base,f.folders),s),o={mode:"none",allow:[]},c={})}else if(r.preset!==void 0){let f=typeof r.preset=="string"?Pt[r.preset]:void 0;f?(s=Rt(f.layers,s),o={mode:f.mode,allow:f.allow},c=f.heuristic):i.push(`"preset" must be one of: ${[...Object.keys(Pt),"folders"].join(", ")} (got ${JSON.stringify(r.preset)}).`)}if(s.length===0)return{architecture:me(),problems:[...i,'"architecture.layers" must be a list with at least one layer, or "architecture.preset" must name one. The default layers are used.']};let l=[],d=new Set;for(let f of s){if(!f||typeof f!="object"||typeof f.id!="string"||!gi.test(f.id)){i.push(`A layer needs an "id" of lowercase letters, digits, "-" or "_" (got ${JSON.stringify(f&&f.id)}).`);continue}if(d.has(f.id)){i.push(`The layer "${f.id}" is written twice; the second one is ignored.`);continue}d.add(f.id);let S={id:f.id};typeof f.label=="string"&&(S.label=f.label),typeof f.description=="string"&&(S.description=f.description),typeof f.color=="string"&&(mi.test(f.color)?S.color=f.color.toLowerCase():i.push(`The colour of "${f.id}" must look like #1e88e5.`)),typeof f.icon=="string"&&(Pn.includes(f.icon)?S.icon=f.icon:i.push(`The icon of "${f.id}" must be one of: ${Pn.join(", ")}.`));let $=kt(f.folders);$&&(S.folders=$);let R=kt(f.extends);R&&(S.extends=R);let k=kt(f.names);k&&(S.names=k),f.neutral===!0&&(S.neutral=!0),l.push(S)}if(l.length===0)return{architecture:me(),problems:[...i,"No valid layer was found. The default layers are used."]};let u=l.find(f=>f.neutral)?.id;if(!u){let f=l.find(S=>S.id==="other");f?f.neutral=!0:(l.push({id:"other",label:"Other",neutral:!0}),d.add("other")),u="other"}l.forEach(f=>{f.id!==u&&delete f.neutral});let g=new Set(l.map(f=>f.id)),p=r.rules&&typeof r.rules=="object"?r.rules:{},h={...o,...p},b="order";h.mode==="allow"||h.mode==="none"?b=h.mode:h.mode!==void 0&&h.mode!=="order"&&i.push('"rules.mode" must be "order", "allow" or "none"; "order" is used.');let x={};if(r.overrides&&typeof r.overrides=="object")for(let[f,S]of Object.entries(r.overrides))typeof S=="string"&&g.has(S)?x[f]=S:i.push(`"overrides" puts ${f} in a layer that does not exist (${String(S)}).`);let v={};if(r.heuristic!==!1)if(r.heuristic&&typeof r.heuristic=="object")for(let[f,S]of Object.entries(r.heuristic))En.includes(f)?typeof S=="string"&&g.has(S)?v[f]=S:i.push(`"heuristic" sends ${f} to a layer that does not exist (${String(S)}).`):i.push(`"heuristic" does not know "${f}"; use view, state, service, model or utility.`);else if(c)for(let[f,S]of Object.entries(c))g.has(S)&&(v[f]=S);else for(let f of En)g.has(f)&&(v[f]=f);return{architecture:{layers:l,mode:b,allow:Rn(h.allow,g,"rules.allow",i),forbid:Rn(h.forbid,g,"rules.forbid",i),neutral:u,overrides:x,heuristic:v,builtin:!1},problems:i}}function hi(t){let e=t.replace(/[.+^${}()|[\]\\]/g,"\\$&").replace(/\*/g,".*");return new RegExp(`^${e}$`)}function kn(t,e){let n=t.overrides[e.name];if(n)return n;let r=e.path.replace(/\\/g,"/");for(let i of t.layers)if((i.folders??[]).some(s=>Et(s).test(r)))return i.id;for(let i of t.layers)if((i.extends??[]).some(s=>e.parents.includes(s)))return i.id;for(let i of t.layers)if((i.names??[]).some(s=>hi(s).test(e.name)))return i.id;return t.heuristic[e.guess]??t.neutral}var ze=null,Ct="";function Tt(t,e=""){ze=t,Ct=e}function bi(t){return[...t?.extends??[],...t?.implements??[],...t?.with??[]].map(e=>(typeof e=="string"?e:e.name).split("<")[0].trim())}function Cn(t,e){let n=yi(t,e);if(n==="member"||!ze||ze.builtin)return n;let r=t.fileUri?C.Uri.parse(t.fileUri).fsPath:"",i=Ct&&r?In.relative(Ct,r):r;return kn(ze,{name:t.name,path:i,parents:bi(e),guess:n})}function yi(t,e){if(t.kind!==C.SymbolKind.Class&&t.kind!==C.SymbolKind.Enum)return"member";let n=t.name.toLowerCase(),r=[...e?.extends||[],...e?.implements||[],...e?.with||[]].map(i=>(typeof i=="string"?i:i.name).toLowerCase().split("<")[0]);if(r.includes("statelesswidget")||r.includes("statefulwidget")||r.includes("hookwidget")||r.includes("widget")||t.kind===C.SymbolKind.Class&&t.children&&t.children.some(s=>s.kind===C.SymbolKind.Method&&s.name==="build")||r.some(i=>i.includes("widget")||i.includes("component")||i.includes("renderobject")||i.includes("sliver"))||n.endsWith("page")||n.endsWith("screen")||n.endsWith("view")||n.endsWith("widget")||n.endsWith("dialog")||n.endsWith("modal")||n.endsWith("bottomsheet")||n.endsWith("drawer")||n.includes("page")||n.includes("screen")||n.includes("widget")||n.includes("dialog"))return"view";if(Be(e)||r.includes("changenotifier")||r.includes("statenotifier")||r.includes("bloc")||r.includes("cubit")||r.includes("provider")||r.includes("controller"))return"state";if(t.kind===C.SymbolKind.Class&&t.children){let i=t.children.some(o=>(o.kind===C.SymbolKind.Field||o.kind===C.SymbolKind.Property)&&(o.name==="stream"||o.name==="state")),s=t.children.some(o=>o.kind===C.SymbolKind.Method&&(o.name==="add"||o.name==="emit"||o.name==="on"));if(i&&s)return"state"}if(n.endsWith("bloc")||n.endsWith("cubit")||n.endsWith("provider")||n.endsWith("controller")||n.endsWith("manager")||n.endsWith("viewmodel")||n.endsWith("notifier")||n.endsWith("store")||n.endsWith("reducer")||n.endsWith("state")||n.includes("bloc")||n.includes("cubit")||n.includes("provider")||n.includes("controller")||n.includes("notifier")||n.includes("state"))return"state";if(t.kind===C.SymbolKind.Class&&t.children){let i=t.children.filter(o=>o.kind===C.SymbolKind.Method),s=i.filter(o=>o.returnType?.toLowerCase().includes("future")||o.returnType?.toLowerCase().includes("stream")||o.name.toLowerCase().includes("async"));if(i.length>0&&s.length/i.length>=.5)return"service"}if(r.some(i=>i.includes("service")||i.includes("repository")||i.includes("client")||i.includes("adapter")||i.includes("gateway"))||n.endsWith("service")||n.endsWith("repository")||n.endsWith("api")||n.endsWith("datasource")||n.endsWith("client")||n.endsWith("gateway")||n.endsWith("adapter")||n.endsWith("helper")||n.endsWith("manager")||n.endsWith("handler")||n.includes("service")||n.includes("repository")||n.includes("api")||n.includes("client")||n.includes("gateway")||n.includes("adapter"))return"service";if(t.kind===C.SymbolKind.Class&&t.children){let i=t.children.filter(c=>c.kind===C.SymbolKind.Method),s=t.children.filter(c=>c.kind===C.SymbolKind.Field||c.kind===C.SymbolKind.Property),o=i.filter(c=>!["toString","hashcode","operator==","copyWith","toJson","fromJson"].includes(c.name.toLowerCase()));if(s.length>0&&o.length<=2)return"model"}if(n.endsWith("model")||n.endsWith("entity")||n.endsWith("dto")||n.endsWith("data")||n.endsWith("response")||n.endsWith("request")||n.endsWith("event")||n.endsWith("state")||n.endsWith("vo")||n.endsWith("pojo")||n.includes("model")||n.includes("entity")||n.includes("dto")||n.includes("data")||t.kind===C.SymbolKind.Enum)return"model";if(n.endsWith("util")||n.endsWith("utils")||n.endsWith("helper")||n.endsWith("extension")||n.endsWith("mixin")||n.endsWith("constants")||n.endsWith("config")||n.endsWith("settings"))return"utility";if(t.kind===C.SymbolKind.Class&&t.children){let i=t.children.filter(o=>o.kind===C.SymbolKind.Method),s=i.filter(o=>o.detail?.toLowerCase().includes("static"));if(i.length>0&&s.length/i.length>=.7)return"utility"}return"utility"}function Dt(t,e,n,r,i){function s(o,c,l){if(o)for(let d of o){d.fileUri=d.fileUri||l;let u=r(d,c?.name),g=c?r(c,void 0):void 0;if(c?(a.debug(`[DEBUG-PARENT] ${d.name} has parent${c.name}`),a.debug(`[DEBUG-PARENT-ID] ${d.name} -> parentId: ${g}`)):a.debug(`[DEBUG-PARENT] ${d.name} has no parent (is top-level)`),!i.has(u)){i.add(u);let b=Cn(d,d.relations);a.debug(`[DEBUG-RECURSIVE-PARENT] Processing: ${d.name}, parentClass: ${c?.name??"none"}`);let x=d.kind===Ee?Be(d.relations):void 0,v={id:u,label:d.name,kind:$t(d.kind),data:{fileUri:d.fileUri,range:d.range,selectionRange:d.selectionRange,isSDK:!!d.isSDK,access:d.access,layer:b,...x?{stateManager:x}:{}},parent:g};a.debug(`[DEBUG-GRAPH] Agdding node: ${v.label}, Layer: ${b}, Parent: ${v.parent}`),a.debug(`[DEBUG-KIND] ${d.name} (kind: ${$t(d.kind)})`),e.nodes.push(v)}n.set(u,d);let h=d.kind===Ee||d.kind===Ue||(d.children?.length??0)>0?d:c;d.children&&s(d.children,h,d.fileUri)}}for(let o of t)s(o.symbols,void 0,o.fileUri)}var Nt=y(require("vscode")),At=y(require("fs"));var Pe=new Map;function Mt(){Pe.clear(),qe.clear()}var qe=new Map;function Ft(t){if(qe.has(t))return qe.get(t);let e=null;try{let n=Pe.get(t);n===void 0&&(n=At.readFileSync(Nt.Uri.parse(t).fsPath,"utf8"),Pe.set(t,n)),e=n.split(/\r?\n/)}catch{e=null}return qe.set(t,e),e}function Tn(t){let e=t.range||t.selectionRange;if(!e||!t.fileUri)return"";try{let n=Nt.Uri.parse(t.fileUri).fsPath,r=Pe.get(t.fileUri);r===void 0?(a.debug(`[Cache MISS] Reading file: ${t.fileUri}`),r=At.readFileSync(n,"utf8"),Pe.set(t.fileUri,r)):a.debug(`[Cache HIT] ${t.fileUri}`);let i=r.split(/\r?\n/),s=e.start,o=e.end;if(s.line>=i.length||o.line>=i.length)return"";if(s.line===o.line)return i[s.line].substring(s.character,o.character);let c=i[s.line].substring(s.character);for(let l=s.line+1;l<o.line;l++)c+=`
-`+i[l];return c+=`
-`+i[o.line].substring(0,o.character),c}catch{return""}}var vi=/^(\?\?=|~\/=|>>>=|<<=|>>=|\+=|-=|\*=|\/=|%=|&=|\|=|\^=|=(?![=>]))/,wi=new Set(["if","while","for","switch","catch","assert","return","await","in","when"]),Ut=/\bthis\s*\.\s*$/;function Dn(t,e){let n=0;for(let r=e-1;r>=0;r--){let i=t[r];if(i===")")n++;else if(i==="("){if(n>0){n--;continue}let o=t.slice(0,r).replace(/\s+$/,"").match(/[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*(?:<[^()]*>)?$/);if(!o)return{open:!0,callee:null};let c=o[0].replace(/<.*$/,"").replace(/\s+/g,"");return{open:!0,callee:wi.has(c)?null:c}}}return{open:!1,callee:null}}function Si(t,e){return t?e.indexOf(t)>=0||e.indexOf(t.split(".")[0])>=0:!1}function Nn(t,e,n,r={}){let i=t.slice(0,e),s=t.slice(n),o=r.constructorNames||[];if(o.length&&Ut.test(i)){let h=i.replace(Ut,""),b=Dn(t,e),x=b.open&&Si(b.callee,o)&&/^\s*[,)}\]]/.test(s),v=!b.open&&/^\s*(?:(?:required|covariant|final|const)\s+)*(?:[\w$<>?,]+\s+)?$/.test(h)&&/^\s*(?:=\s*[^,;)]+)?\s*[,)}\]]?\s*$/.test(s)&&!/;\s*$/.test(s);if(x||v)return["write"]}let c=s.replace(/^[!\s]+/,""),l=vi.exec(c);if(l)return l[0]==="="?["write"]:["read","write"];if(/^(\+\+|--)/.test(c)||/(\+\+|--)\s*$/.test(i))return["read","write"];let d=i.replace(Ut,"").replace(/\s+$/,""),u=s.replace(/^\s+/,""),g=/[A-Za-z_$][\w$]*\s*:$/.test(d)&&!/\?[^:]*:$/.test(d);return(/[(,]$/.test(d)||g)&&/^[,)]/.test(u)&&Dn(t,e).callee!==null?["pass"]:["read"]}var He=y(require("path"));function Ve(t){let e=He.default.resolve(t);return process.platform==="win32"?e.toLowerCase():e}function An(t,e){return Ve(t)===Ve(e)}function he(t,e){let n=Ve(t),r=Ve(e);return n===r||n.startsWith(r.endsWith(He.default.sep)?r:r+He.default.sep)}var L=y(require("vscode"));function $i(t){let e=t.relations;return e?[...e.extends??[],...e.implements??[],...e.with??[]].map(n=>(typeof n=="string"?n:n.name).split("<")[0].trim()).filter(n=>n!==""):[]}var Je=class{ownerOfMember=new Map;subclassesOf=new Map;constructor(e){for(let n of e){for(let r of n.children??[])this.ownerOfMember.set(r,n);for(let r of $i(n)){let i=this.subclassesOf.get(r);i?i.push(n):this.subclassesOf.set(r,[n])}}}overridersOf(e){let n=this.ownerOfMember.get(e);if(!n)return[];let r=[],i=new Set([n]),s=[n];for(;s.length;){let o=s.shift();for(let c of this.subclassesOf.get(o.name)??[])if(!i.has(c)){i.add(c),s.push(c);for(let l of c.children??[])l.name===e.name&&l.kind===e.kind&&r.push(l)}}return r}};var X=null;function Lt(t){if(X)return X;X=new Map;for(let e of t){let n=e.data.fileUri;X.has(n)||X.set(n,[]),X.get(n).push(e)}return a.debug(`[RefAnalysis] nodesByFile index built: ${X.size} files`),X}function Ot(){X=null,Re.clear(),Ye=0,a.debug("[RefAnalysis] nodesByFile + references cache cleared.")}var Re=new Map,Xe=null,jt=new Map,_t=null,Gt=null;function Wt(t){Gt=t}function Kt(t){Xe=t,jt.clear(),t||(_t=null)}function Fn(t){_t=Xe?new Je(t):null}function xi(t){let e=r=>r.selectionRange&&r.fileUri?Xe.referencesTo(L.Uri.parse(r.fileUri).fsPath,r.selectionRange.start.line,r.selectionRange.start.character):[],n=[...e(t)];for(let r of _t?.overridersOf(t)??[])n.push(...e(r));if(t.kind===L.SymbolKind.Class)for(let r of t.children??[])r.kind===L.SymbolKind.Constructor&&n.push(...e(r));return n}function Ei(t){let e=xi(t);return e.length===0?null:e.map(n=>{let r=jt.get(n.uri);return r||(r=L.Uri.parse(n.uri),jt.set(n.uri,r)),new L.Location(r,new L.Range(n.line,n.character,n.endLine,n.endCharacter))})}var Pi=[250,750,1500],Ri=8,Ye=0;async function Bt(t){if(Xe)return Ei(t);let{line:e,character:n}=t.selectionRange.start,r=`${t.fileUri}:${e}:${n}`;if(Re.has(r)){let i=Re.get(r);return a.debug(`[RefCache HIT] '${t.name}' -> ${i?.length??0} refs`),i}try{let i=async()=>await L.commands.executeCommand("vscode.executeReferenceProvider",L.Uri.parse(t.fileUri),t.selectionRange.start),s=u=>!!u&&u.length>0,o=Ye>=Ri?[]:Pi,c=await Ke(i,s,o);Ye=c.exhausted?Ye+1:0,c.attempts>1&&a.debug(`[LSP] '${t.name}' needed ${c.attempts} attempts${c.exhausted?" and still returned nothing":""}`);let l=c.result,d=s(l)?l:null;return Re.set(r,d),a.debug(`[LSP] \u2705 Found ${d?.length??0} references for '${t.name}' [cached]`),d}catch{return Re.set(r,null),a.error(`[GraphBuilder] \u26A0\uFE0F LSP error for '${t.name}'`),null}}async function Un(t,e,n,r,i,s){if(!Ge(i).includes(r.name)){a.debug(`[LSP] Skipping '${r.name}' \u2014 not found in source of '${e.label}'`);return}let c=await Bt(r);if(!c){a.debug(`[LSP]  No references found for '${r.name}'`);return}let l=Lt(t.nodes);for(let d of c){let u=Ii(l,{uri:d.uri.toString(),range:d.range});if(u&&a.debug(`[LSP] Reference found within function: ${u.label}`),u&&u.id===e.id){a.debug(`[LSP] \u{1F3AF} READS_FROM: '${e.label}' -> '${n.label}'`),s(e.id,n.id,"READS_FROM");return}}a.debug(`[LSP] \u{1F9ED} No reference found within container '${e.label}'`)}var Mn=new Set(["field","property","variable","constant"]),ki={read:"READS_FROM",write:"WRITES_TO",pass:"PASSES_AS_ARGUMENT"},jn=6;async function Ln(t,e,n,r,i){let s=new Map(t.nodes.map(u=>[u.id,u])),o=Lt(t.nodes),c=t.nodes.filter(u=>{let g=e.get(u.id);return!Mn.has(u.kind)||!g||!g.selectionRange||!g.fileUri||!n.has(g.name)?!1:!r||he(L.Uri.parse(u.data.fileUri).fsPath,r)});a.debug(`[FieldAccess] ${c.length} fields to check of ${t.nodes.filter(u=>Mn.has(u.kind)).length}`);let l=await Y(c,jn,async u=>{let g=e.get(u.id),p=await Bt(g),h=new Map;for(let b of p??[]){if(b.range.start.line!==b.range.end.line)continue;let x=_n(o,b.uri.toString(),b.range.start.line);if(!x||x.id===u.id)continue;let f=Ft(b.uri.toString())?.[b.range.start.line];if(f===void 0)continue;let S=x.parent?s.get(x.parent):void 0,$=x.kind==="constructor"?[x.label,S?.label].filter(A=>!!A):void 0,R=Nn(f,b.range.start.character,b.range.end.character,{constructorNames:$}),k=h.get(x.id)??new Set;R.forEach(A=>k.add(A)),h.set(x.id,k)}return h},(u,g)=>Gt?.("fields",u,g)),d=0;c.forEach((u,g)=>{l[g].forEach((p,h)=>{["read","write","pass"].forEach(b=>{p.has(b)&&(i(h,u.id,ki[b]),d++)})})}),a.debug(`[FieldAccess] ${d} field access edges created`)}async function On(t,e,n,r){let i=new Map;e.forEach((d,u)=>i.set(d,u));let s=Lt(t.nodes),o=Array.from(n).filter(d=>d.selectionRange&&d.fileUri&&i.has(d));a.debug(`[CallResolution] ${o.length} methods share their name with another one; asking the language server`);let c=await Y(o,jn,async d=>{let u=i.get(d),g=new Set;for(let p of await Bt(d)??[]){if(p.range.start.line!==p.range.end.line)continue;let h=_n(s,p.uri.toString(),p.range.start.line);if(!h||h.id===u)continue;let b=Ft(p.uri.toString())?.[p.range.start.line];b!==void 0&&/^\s*(?:<[^()]*>)?\s*\(/.test(b.slice(p.range.end.character))&&g.add(h.id)}return g},(d,u)=>Gt?.("calls",d,u)),l=0;o.forEach((d,u)=>{c[u].forEach(g=>{r(g,i.get(d),"CALLS"),l++})}),a.debug(`[CallResolution] ${l} call edges created from ${o.length} ambiguous methods`)}function _n(t,e,n){return(t.get(e)??[]).find(r=>{let i=r.data.range;return(r.kind==="method"||r.kind==="function"||r.kind==="constructor")&&i!==void 0&&i.start.line<=n&&i.end.line>=n})}function Ii(t,e){let n=t.get(e.uri)??[],r=e.range.start;return n.find(i=>{let s=i.data.range;return(i.kind==="method"||i.kind==="function")&&s!==void 0&&s.start.line<=r.line&&s.end.line>=r.line})}function Gn(t){let e=0;for(let n=0;n<t.length;n++){let r=t[n];if(r==="(")e++;else if(r===")"){if(e--,e===0){let i=t.slice(n+1);return/^\s*;/.test(i)?"":i}}else{if(e===0&&(r==="{"||r==="="&&t[n+1]===">"))return t.slice(n);if(e===0&&r===";")return""}}return""}function Wn(t){let e=t.match(/\b(?:if|for|while|case|catch)\b/g)?.length??0,n=t.match(/&&|\|\|/g)?.length??0,r=t.match(/\?\?/g)?.length??0,i=t.match(/\s\?(?![?.\[])/g)?.length??0;return 1+e+n+r+i}var Ci=[/\b(?:BlocBuilder|BlocListener|BlocConsumer|BlocSelector|Consumer|Selector|ValueListenableBuilder)\s*<\s*([A-Z]\w*)/g,/\bcontext\s*\.\s*(?:read|watch|select)\s*<\s*([A-Z]\w*)/g,/\b(?:BlocProvider|RepositoryProvider|Provider)\s*\.\s*of\s*<\s*([A-Z]\w*)/g,/\bGet\s*\.\s*(?:find|put|lazyPut)\s*<\s*([A-Z]\w*)/g];function Kn(t){let e=new Set;for(let n of Ci)for(let r of t.matchAll(n))e.add(r[1]);return Array.from(e)}var Bn=y(require("vscode"));async function zn(t,e,n,r,i,s){a.debug("[GraphBuilder] Creating edges..."),Fn(Array.from(e.values()).filter(p=>p.kind===Bn.SymbolKind.Class));let o=new Map;for(let p of t.nodes)p.kind==="class"&&!o.has(p.label)&&o.set(p.label,p);let c=new Map;for(let p of e.values()){let h=p.name;c.has(h)||c.set(h,[]),c.get(h).push(p)}let l=new Map;for(let p of t.nodes){let h=e.get(p.id);h&&l.set(h,p)}let d=new Map;for(let p of c.keys())d.set(p,new RegExp(`\\b${ge(p)}\\s*\\(`));a.debug(`[EdgeCreator] Pre-compiled ${d.size} RegExp patterns.`);let u=new Set,g=new Set;for(let p of t.nodes){let h=e.get(p.id);if(h&&(h.relations&&(h.relations.extends?.forEach(b=>{let v=(typeof b=="string"?b:b.name).split("<")[0].trim(),f=o.get(v);f&&n(p.id,f.id,"EXTENDS")}),h.relations.implements?.forEach(b=>{let v=(typeof b=="string"?b:b.name).split("<")[0].trim(),f=o.get(v);f&&n(p.id,f.id,"IMPLEMENTS")})),p.kind==="method"||p.kind==="function"||p.kind==="constructor")){let b=Tn(h);if(!b)continue;let x=Ge(b);for(let S of x.matchAll(/[A-Za-z_$][\w$]*/g))u.add(S[0]);let v=Gn(x);p.data.complexity=Wn(v);for(let S of Kn(v)){let $=o.get(S);$&&$.id!==p.id&&n(p.id,$.id,"OBSERVES")}let f=[];for(let[S,$]of d)$.test(v)&&f.push(S);for(let S of f){let $=c.get(S),R=$.filter(k=>{let A=l.get(k);return A&&(A.kind==="method"||A.kind==="function")});for(let k of $){let A=l.get(k);!A||p.id===A.id||(A.kind==="method"||A.kind==="function"?R.length===1?n(p.id,A.id,"CALLS"):g.add(k):await Un(t,p,A,k,b,n))}}}}await On(t,e,g,n),await Ln(t,e,u,r,n)}var Qe=y(require("path")),Hn=y(require("vscode")),et=y(require("fs"));var ne=y(require("fs")),Ze=y(require("path"));function qn(t,e,n,r){if(a.debug(` -> Analyzing details of package '${t}'...`),!ne.existsSync(e))return a.debug(`    -> ERROR: Package path does not exist: ${e}`),null;try{let i={name:t,path:e,version:n.version||"unknown",type:Ti(t,e,r),dartFiles:[],hasLibFolder:!1,isFlutterPackage:!1,description:""};a.debug(`    -> Classified as: '${i.type}'`);let s=Ze.default.join(e,"lib");i.hasLibFolder=ne.existsSync(s);let o=Ze.default.join(e,"pubspec.yaml");if(ne.existsSync(o))try{let c=ne.readFileSync(o,"utf8");i.isFlutterPackage=c.includes("sdk: flutter");let l=c.match(/description:\s*(.+)/);l&&(i.description=l[1].trim().replace(/['"]/g,""))}catch{a.debug(`    -> INFO: Could not read pubspec.yaml for package ${t}.`)}return i.hasLibFolder&&(i.dartFiles=fn(s),a.debug(`    -> Found ${i.dartFiles.length} .dart files in its 'lib' folder.`)),i}catch(i){return a.error(`\u274C CRITICAL ERROR analyzing package ${t}:`),i instanceof Error?a.error(`   Mensaje: ${i.message}`):a.error(`   Unknown error: ${String(i)}`),null}}function Ti(t,e,n){let r=n||null;if(r||(r=K(e)||K(process.cwd())),r&&he(e,r))return"custom";if(r)try{let s=Ze.default.join(r,"pubspec.yaml");if(ne.existsSync(s)){let o=ne.readFileSync(s,"utf8");if(new RegExp(`${t}:\\s*\\n\\s*path:\\s*`,"m").test(o)||new RegExp(`dev_dependencies:[\\s\\S]*?${t}:\\s*`,"m").test(o))return"custom"}}catch(s){a.error(`[Debug] Error leyendo pubspec.yaml principal: ${s}`)}return["flutter","flutter_test","flutter_web_plugins","flutter_driver","integration_test","flutter_localizations","material","cupertino"].includes(t)||t.startsWith("flutter_")?"flutter_official":e.includes("dart-sdk")||e.includes("flutter/bin/cache/dart-sdk")?"sdk":"third_party"}function tt(t){a.debug(`
---- [Debug] Starting findAllPackages ---`);let e=[],n=K(t);if(!n)return a.debug("\u26A0\uFE0F [Debug] Project root with pubspec.yaml not found. Ending search."),e;a.debug(`[Debug] Project root found at: ${n}`);let r=Qe.default.join(n,".dart_tool","package_config.json");if(!et.existsSync(r))return a.debug("\u26A0\uFE0F [Debug].dart_tool/package_config.json file not found. Cannot determine packages."),e;a.debug(`[Debug] Analyzing ${r}...`);try{let i=JSON.parse(et.readFileSync(r,"utf8"));if(i.packages&&Array.isArray(i.packages)){a.debug(`   -> Found ${i.packages.length} packages in file.`);for(let s of i.packages){if(!s.name||!s.rootUri){a.debug(`   -> Skipping package without name or rootUri: ${JSON.stringify(s)}`);continue}a.debug(`
-   --- Processing package:  ${s.name} ---`),a.debug(`   original URI: ${s.rootUri}`);let o;if(s.rootUri.startsWith("file://"))o=Hn.Uri.parse(s.rootUri).fsPath;else{let l=Qe.default.dirname(r);o=Qe.default.resolve(l,s.rootUri)}a.debug(` Resolved Path: ${o}`);let c=qn(s.name,o,s,n);c&&(e.push(c),a.debug(`   -> Package added: ${c.name} (Type: ${c.type})`))}}}catch(i){a.error("\u274C [Debug]CRITICAL ERROR reading package_config.json"),i instanceof Error?a.error(`   Mensaje: ${i.message}`):a.error(`   Unknown error: ${String(i)}`)}return a.info(`
-[Debug] \u2705 Search completed. Found ${e.length} packages total (external and local)`),a.info(`--- [Debug] End of findAllPackages ---
-`),e}var ke=y(require("vscode"));function Vn(t,e){return e?t.filter(n=>!An(n.path,e)):t}function Jn(t,e,n){a.debug(`[PackageContainers] Creating container nodes for${t.length} paquetes...`);for(let r of t){let i=`package_container:${r.name}`;if(!n.has(i)){n.add(i);let s=new ke.Range(new ke.Position(0,0),new ke.Position(0,r.name.length)),o={id:i,label:r.name,kind:"package_container",data:{fileUri:`file:///packages/${r.name}`,range:s,selectionRange:s,access:"public",isSDK:r.type==="sdk",layer:"utility",source:{type:"external_package",packageName:r.name,packageVersion:r.version,packageType:r.type},packageName:r.name,packageVersion:r.version,packageType:r.type},parent:void 0,inDegree:0,outDegree:0};e.nodes.push(o),a.debug(` \u2705 Container created: ${r.name} (${r.type})`)}}a.debug(`[PackageContainers] \u2705 ${e.nodes.filter(r=>r.kind==="package_container").length} package containers created`)}function Yn(t,e,n){a.debug("[InterPackageDeps] Analyzing dependencies between packages...");let r=new Map;for(let o of t.nodes)r.set(o.id,o);let i=new Map;for(let o of e)i.set(o.name,`package_container:${o.name}`);let s=0;for(let o of t.edges){let c=r.get(o.source),l=r.get(o.target);if(!c||!l)continue;let d=c.data.source?.packageName,u=l.data.source?.packageName;if(d&&u&&d!==u){let g=i.get(d),p=i.get(u);g&&p&&(n(g,p,"USES_AS_TYPE"),s++,a.debug(`   Dependency: ${d} -> ${u}`))}if(!d&&u){let g=i.get(u);g&&n("project_root",g,"USES_AS_TYPE")}}a.debug(`  \u2705 ${s} inter-package dependencies created`)}var Xn=y(require("path")),Zn=y(require("vscode"));function Qn(t,e){try{if(!t)return{type:"project"};let n=Zn.Uri.parse(t).fsPath,r=n.replace(/\\/g,"/");if(r.includes("dart-sdk/lib")||r.includes("flutter/bin/cache/dart-sdk"))return{type:"sdk",packageType:"sdk"};for(let i of e)if(he(n,i.path))return{type:i.type==="custom"?"project":"external_package",packageName:i.name,packageVersion:i.version,packageType:i.type,relativePath:Xn.default.relative(i.path,n)};return{type:"project"}}catch(n){return a.error(`\u274C ERROR in determineFileSource when processing URI: "${t}"`),n instanceof Error&&a.error(`   -> Message:${n.message}`),{type:"project"}}}function er(t,e){a.debug("[PackageAssignment] Assigning nodes to package containers...");let n=0,r=0;for(let i of t.nodes){if(i.kind==="package_container")continue;let s=Qn(i.data.fileUri,e);if(i.data.source=s,s.type==="external_package"&&s.packageName){let o=`package_container:${s.packageName}`;i.parent=o,n++,i.label=`\u{1F517} ${i.label}`,a.debug(`    \u{1F4E6} ${i.label} -> ${s.packageName}`)}else s.type==="sdk"?i.label=`\u2699\uFE0F ${i.label}`:s.type==="project"&&r++}a.debug("  \u2705 Assignment completed:"),a.debug(`    \u2022 Project nodes: ${r}`),a.debug(`    \u2022 External package nodes: ${n}`)}async function tr(t,e,n,r,i){a.debug("[ExternalPackages] \u{1F50D} Integrating external packages..");let s=i??tt(e);if(s.length===0){a.debug("[ExternalPackages] No relevant external packages found");return}Jn(Vn(s,K(e)),t,n),er(t,s),Yn(t,s,r),a.debug("[ExternalPackages] \u2705 External package integration completed")}var nr=y(require("path"));async function rr(t,e){Mt(),Ot();let n={nodes:[],edges:[]},r=new Set,i=new Map,s=0,o={},c=new Set,l=(u,g,p)=>{if(!u||!g||u===g||!r.has(u)||!r.has(g))return;let h=`${u}|${g}|${p}`;c.has(h)||(c.add(h),n.edges.push({id:`e${s++}`,source:u,target:g,label:p}),p&&(o[p]=(o[p]||0)+1))};a.debug("[GraphBuilder] Creating nodes..."),Dt(t,n,i,St,r),a.debug(`  -> ${n.nodes.length} nodes created.`),a.debug("[GraphBuilder] Calling findAllPackages once...");let d=e?tt(e):[];if(a.debug(`[GraphBuilder] Found ${d.length} packages`),e){a.debug("[GraphBuilder] Extracting symbols from external packages...");let u=await Ni(e,d);for(let[g,p]of u)i.set(g,p);u.size>0&&(Dt([{fileUri:"external_packages",symbols:Array.from(u.values())}],n,i,St,r),a.debug(`-> ${u.size} external symbols added`))}if(await zn(n,i,l,e,r,d),a.debug(`[GraphBuilder] Edge breakdown: ${JSON.stringify(o)}`),a.debug(`  -> Final total edges: ${n.edges.length}`),e&&d.length>0){a.debug("[GraphBuilder] \u{1F4E6} Integrating external packages...");let u=n.nodes.length;await tr(n,e,r,l,d);let g=n.nodes.filter(p=>p.kind==="package_container");a.debug(`[GraphBuilder] \u2705 Nodes before: ${u}, after: ${n.nodes.length}`),a.debug(`    \u2022 Package containers: ${g.map(p=>p.label).join(", ")}`)}return Mt(),Ot(),n}function Di(t){return t.filter(e=>e.type==="third_party"||e.type==="custom"||e.type==="flutter_official"&&!["flutter","flutter_test"].includes(e.name))}async function Ni(t,e){let n=new Map,r=Di(e);for(let i of r){if(!i.hasLibFolder||i.dartFiles.length===0)continue;let s=i.dartFiles.filter(o=>{let c=nr.default.basename(o,".dart");return c===i.name||c==="main"||o.endsWith(`lib/${i.name}.dart`)}).slice(0,1);for(let o of s)try{let c=Ie.Uri.file(o),l=await Ie.commands.executeCommand("vscode.executeDocumentSymbolProvider",c)}catch{a.debug(`Skipping external file: ${o}`)}}return n}var se=new Map;var pr=y(require("vscode"));var ir=y(require("vscode"));function sr(t,e,n,r){if(a.debug(`${e}  [Basic Info] Enriching  '${t.name}'...`),t.fileUri=t.fileUri||n,t.isSDK=!!t.fileUri?.includes("/dart-sdk/lib/"),t.access=t.name.startsWith("_")?"private":"public",a.debug(`${e}    \u21B3 Final fileUri: ${t.fileUri}`),a.debug(`${e}    \u21B3 Access: ${t.access}, Is SDK: ${t.isSDK}`),t.parentId&&a.debug(`${e}   \u21B3 parentId: ${t.parentId}`),t.kind===ir.SymbolKind.Class){let i=`${t.fileUri}#${t.name.split("<")[0].trim()}`;a.debug(`${e}    \u21B3 It's a class. Searching relationships with key:  "${i}"`);let s=r.projectClassRelations.get(i);if(s){let o=[`Extends: ${s.extends?.join(", ")||"none"}`,`Implements: ${s.implements?.join(", ")||"none"}`,`With: ${s.with?.join(", ")||"none"}`].join("; ");a.debug(`${e}    \u21B3 \u2705 SUCCESS: Inheritance relationships found. ${o}`),t.relations||(t.relations={}),t.relations.extends=s.extends,t.relations.implements=s.implements,t.relations.with=s.with}else a.debug(`${e} \u21B3 INFO: No pre-calculated inheritance relationships found for this class.`)}}var Te=y(require("vscode"));var Ce=y(require("vscode"));var oe=null;function or(t){oe=new Map;for(let e of t)for(let n of e.symbols)(n.kind===Ce.SymbolKind.Class||n.kind===Ce.SymbolKind.Enum||n.kind===22)&&(oe.has(n.name)||oe.set(n.name,n));a.debug(`[TypeIndex] Built index with ${oe.size} types.`)}function ar(){oe=null,a.debug("[TypeIndex] Index cleared.")}async function nt(t,e){let n=xt(t);if(!n)return;if(se.has(t))return a.debug(` [Cache HIT] ${t}`),se.get(t);let r;if(oe)r=oe.get(n),a.debug(`\u{1F5C2}\uFE0F [Index ${r?"HIT":"MISS"}] ${n}`);else{a.debug(`\u26A0\uFE0F [TypeIndex] Index not built, falling back to linear search for '${n}'`);for(let s of e.allProjectFilesData){for(let o of s.symbols)if((o.kind===Ce.SymbolKind.Class||o.kind===Ce.SymbolKind.Enum||o.kind===22)&&o.name===n){r=o;break}if(r)break}}if(r){let s={name:t,definition:{name:r.name,kind:r.kind,fileUri:r.fileUri,selectionRange:r.selectionRange,isSDK:!!r.isSDK}};return se.set(t,s),a.debug(`\u{1F4E6} [Cache SET] ${t}`),s}let i={name:t};return se.set(t,i),i}async function cr(t,e,n){let r=t;if(!(!r.detail||typeof r.detail!="string")){if(a.debug(`[DEBUG-ENRICH-DETAIL] Enriching ${r.name}, detail: ${r.detail}`),a.debug(`${e}  [DEBUG] symbol.kind: ${r.kind}, symbol.detail: ${r.detail}`),a.debug(`${e}  [Type Detail] Analyzing detail: "${r.detail}"`),(r.kind===Te.SymbolKind.Field||r.kind===Te.SymbolKind.Property)&&!t.resolvedType){let s=r.detail.match(/^\s*(?:(?:@[\w.]+\s*)*(?:late|final|const|static|required|covariant)\s+)*([\w<>\[\]\{\},?().\s]+?)\s+[\w$]+\s*(?:=.*)?$/);s?.[1]&&(t.resolvedType=s[1].trim(),a.debug(`${e}  \u21B3 Detail: Campo '${r.name}' tipo extra\xEDdo: ${t.resolvedType}`),t.resolvedTypeRef=await nt(t.resolvedType,n))}else if(/\(.*\)/s.test(r.detail)){if(a.debug(`${e}  [DEBUG] Evaluating enrichedSym.parameters, current value: ${JSON.stringify(t.parameters)}`),!Array.isArray(t.parameters)||t.parameters.length===0){a.debug(`${e}  [DEBUG] enrichedSym.parameters is undefined or empty. Starting parsing.`),t.parameters=[];let s=/\((.*)\)/s,o=r.detail.match(s);if((!o||typeof o[1]!="string")&&a.debug(`${e}   \u26A0\uFE0F Could not extract content between parentheses from detail: "${r.detail}"`),o&&typeof o[1]=="string"){a.debug(`${e}    \u{1F4CC} paramsMatch: ${o?.[1]}`);let c=o[1].trim();if(a.debug(`${e}    \u{1F4CC} fullParamsString: "${c}"`),c!==""){let x=function(v,f,S){let $=v.trim(),R=[];if($==="")return R;let k=/^\s*(?:(required|covariant)\s+)?((?:[\w$.<>?\[\]\s(),']+?|Function\s*\((?:[^)]*\))?\s*\??))\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/,A=/^\s*(required\s+)?this\.([\w$]+)\s*(?:=.*?)?(?:,|$)/,nn=/^\s*(?:(required|covariant)\s+)?((?:[\w$<>?,.\s\[\]]+\s+)?Function\s*\((?:[^)]*?\))?\s*\??)\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/,G=/^\s*((?:[\w$]+(?:<[\w$,\s<>?]+(?:<[\w$,\s<>?]+>)?\??>)?\??)|(?:(?:[\w$<>?,.\s\[\]]+\s+)?Function\s*\((?:[^)]*?\))?\s*\??)|(?:[\w$.]+))\s*(?:,|$)/;for(;$.length>0;){let W=!1,P;if(P=$.match(A),P&&P[2]){let D=!!P[1],H=P[2].trim();R.push({name:H,type:`self_field:${H}`,isNamed:f,isRequired:f&&D,isOptionalPositional:!1}),W=!0}else P=$.match(nn),P&&P[2]&&P[3]?(R.push({type:P[2].trim().replace(/\s+/g," "),name:P[3].trim(),isNamed:f,isRequired:f&&!!P[1]&&P[1]==="required",isOptionalPositional:S}),W=!0):(P=$.match(k),P&&P[2]&&P[3]&&(R.push({type:P[2].trim().replace(/\s+/g," "),name:P[3].trim(),isNamed:f,isRequired:f&&!!P[1]&&P[1]==="required",isOptionalPositional:S}),W=!0));if(W&&P){let D=P[0].length;!P[0].endsWith(",")&&$.length>D&&$[D]===","&&D++,$=$.substring(D).trim()}else if(P=$.match(G),P&&P[1]){let D=P[1].trim().replace(/\s+/g," "),H;f||S||D.match(/[<>?()]|Function|^void$|^dynamic$|^Never$|^Null$|^Object$|^bool$|^int$|^double$|^num$|^String$/i)?H={type:D,name:void 0,isNamed:f,isOptionalPositional:S,isRequired:f&&$.startsWith("required ")}:H={type:"dynamic",name:D,isNamed:f,isOptionalPositional:S,isRequired:f&&$.startsWith("required ")},R.push(H);let Z=P[0].length;!P[0].endsWith(",")&&$.length>Z&&$[Z]===","&&Z++,$=$.substring(Z).trim()}else{$.trim().length>0&&a.debug(`${e}  Could not continue parsing parameters for ${r.name}. Remaining: '${$}'`);break}}return a.debug(`${e}    \u{1F4CC} Parsed ${R.length} parameters from block${f?"named":S?"optional":"required"}: ${JSON.stringify(R,null,2)}`),R};var i=x;let l=c,d="",u="",g=c.indexOf("{"),p=c.lastIndexOf("}");if(g!==-1&&p>g){let v=c.substring(0,g);v.substring(v.lastIndexOf("[")>v.lastIndexOf("{")?v.lastIndexOf("["):0).includes("}")||(u=c.substring(g+1,p).trim(),l=v.trim())}let h=l.indexOf("["),b=l.lastIndexOf("]");if(h!==-1&&b>h&&(l.substring(h).includes("{")||(d=l.substring(h+1,b).trim(),l=l.substring(0,h).trim())),l.endsWith(",")&&(l=l.substring(0,l.length-1).trim()),l){let v=x(l,!1,!1);a.debug(`${e}    \u{1F4CC} requiredParamsStr -> ${l}`),a.debug(`${e}    \u{1F4CC} parsedRequired -> ${JSON.stringify(v)}`),t.parameters.push(...v)}if(d){let v=x(d,!1,!0);a.debug(`${e}    \u{1F4CC} optionalPositionalStr -> ${d}`),a.debug(`${e}    \u{1F4CC} optionalRequired -> ${JSON.stringify(v)}`),t.parameters.push(...v)}if(u){let v=x(u,!0,!1);a.debug(`${e}    \u{1F4CC} namedParamsStr -> ${u}`),a.debug(`${e}    \u{1F4CC} namedRequired -> ${JSON.stringify(v)}`),t.parameters.push(...v)}a.debug(`${e}  [DEBUG] enrichedSym.parameters now has: ${JSON.stringify(t.parameters)}`),t.parameters.length===0&&a.debug(`${e}    \u26A0\uFE0F enrichedSym.parameters is still empty after parsing`)}}}if(t.parameters&&t.parameters.length>0){for(let s of t.parameters)s.type.startsWith("self_field:")?s.typeRef={name:s.type}:s.typeRef=await nt(s.type,n);a.debug(`${e}  \u21B3 Detail: Resolved types for ${t.parameters.length} parameters in '${r.name}'.`)}if(r.kind!==Te.SymbolKind.Constructor&&!t.returnType){let s=r.detail.replace(/@[\w.]+\s*/g,"").replace(/\b(static|external|async|sync|factory|late|final|const|required)\b\s*/g,"").trim(),o=r.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),c=new RegExp(`^([\\w<>{}\\[\\]\\s.,?()]+?)\\s+${o}\\s*\\(`),l=s.match(c);if(l?.[1]){let d=l[1].trim();d.toLowerCase()!=="void"&&(t.returnType=d,a.debug(`${e}  \u21B3 Detail: Method '${r.name}' extracted return type: ${d}`),t.returnTypeRef=await nt(d,n))}else a.debug(`${e}  \u26A0\uFE0F Could not extract return type for '${r.name}'`)}}if(r.kind===Te.SymbolKind.Constructor&&t.parameters?.length===0&&/^\s*\(\s*\{\s*this\.[\w$]+/.test(r.detail)){let s=/this\.([\w$]+)/g,o=[],c;for(;(c=s.exec(r.detail))!==null;){let l=c[1];o.push({name:l,type:`self_field:${l}`,isNamed:!0,isRequired:!1,isOptionalPositional:!1})}o.length>0&&(t.parameters=o,a.debug(`${e}  \u21B3 Fallback: Inferred ${o.length} this.field parameters for '${r.name}'.`))}Array.isArray(t.parameters)||(t.parameters=[],a.debug(`${e}    \u26A0\uFE0F Forced enrichedSym.parameters = [] because it remained undefined.`)),a.debug(`[DEBUG-ENRICH-DETAIL] Generated params: ${JSON.stringify(t.parameters,null,2)}`)}}function lr(t,e,n){let{fileContent:r}=n,i=(t.kind===Oe||t.kind===_e)&&!t.resolvedType,s=(t.kind===je||t.kind===Le)&&!t.returnType;if(!i&&!s||!t.selectionRange)return;a.debug(`${e}DEBUG_F: Starting regex fallback for '${t.name}'`);let o=n.fileLines??=r.split(`
-`),c=Math.max(0,t.selectionRange.start.line-5),l=Math.min(o.length,t.selectionRange.start.line+1),d=o.slice(c,l).join(`
-`);a.debug(`${e}  DEBUG_F: Evaluating snippet:
-${d}`);let u=ge(t.name),g=null;if(i){let p=new RegExp(`(?:@\\w+(\\([^)]*\\))?\\s*)*(?:\\w+\\s+)*(.+?)\\s+${u}\\s*(?:;|=)`);g=d.match(p),g?.[2]&&(t.resolvedType=g[2].replace(/@\w+(\([^)]*\))?/g,"").trim(),a.debug(`${e}  \u21B3 Regex SUCCESS (Field): Field '${t.name}' has type: ${t.resolvedType}`))}else if(s){let p=new RegExp(`(?:@\\w+(\\([^)]*\\))?\\s*)*(?:static\\s+)?(?:\\w+\\s+)*(.+?)\\s+(?:get\\s+)?${u}\\s*\\(`);if(g=d.match(p),g?.[2]){let h=g[2].replace(/@\w+(\([^)]*\))?/g,"").trim();h.toLowerCase()!=="void"?(t.returnType=h,a.debug(`${e}  \u21B3 Regex SUCCESS (Method): Method '${t.name}' returns: ${t.returnType}`)):t.hoverChecked=!0}}g||a.debug(`${e}  DEBUG_F: Regex found no match for '${t.name}'`)}var U=y(require("vscode"));var be=new Map;function dr(){be.clear(),a.debug("[HoverCache] Cache cleared.")}async function ur(t,e,n){let r=(t.kind===U.SymbolKind.Field||t.kind===U.SymbolKind.Property)&&!t.resolvedType||(t.kind===U.SymbolKind.Method||t.kind===U.SymbolKind.Function)&&!t.returnType||t.kind===U.SymbolKind.Constructor&&(!t.parameters||t.parameters.length===0);if(!t.fileUri||!t.selectionRange||!r){a.debug(`${e}  \u26A0\uFE0F Skipped enrichHover for '${t.name}' (kind: ${t.kind}) -> needsTypeInfo: ${r}`);return}if(t.hoverChecked)return;t.hoverChecked=!0;let{line:i,character:s}=t.selectionRange.start,o=`${t.fileUri}:${i}:${s}`,c;if(be.has(o))c=be.get(o),a.debug(`${e}  [HoverCache HIT] ${o}`);else try{let d=await U.commands.executeCommand("vscode.executeHoverProvider",U.Uri.parse(t.fileUri),t.selectionRange.start),u=d&&d.length>0?d[0]:null;if(!u?.contents?.length){be.set(o,null);return}c=u.contents.map(g=>typeof g=="string"?g:g.value).join(`
-`),be.set(o,c),a.debug(`${e}  \u{1F4E6} [HoverCache SET] ${o}`)}catch(d){a.error(`${e}  \u26A0\uFE0F Error in Hover for ${t.name}: ${d.message}`),be.set(o,null);return}if(!c)return;let l=ge(t.name);if((t.kind===U.SymbolKind.Field||t.kind===U.SymbolKind.Property)&&!t.resolvedType){let d=new RegExp("```dart\\s*(?:[\\w\\s]+\\s)?(.+?)\\s+"+l),u=c.match(d);u?.[1]&&(t.resolvedType=u[1].trim(),a.debug(`${e}  \u21B3 Hover: Field '${t.name}' resolved type: ${t.resolvedType}`))}else if((t.kind===U.SymbolKind.Method||t.kind===U.SymbolKind.Function)&&!t.returnType){let d=new RegExp("```dart\\s*(?:static\\s+)?(.+?)\\s+(?:get\\s+)?[\"'`]?"+l+"[\"'`]?\\s*\\("),u=c.match(d);if(u?.[1]){let g=u[1].trim();g.toLowerCase()!=="void"&&(t.returnType=g,a.debug(`${e}  \u21B3 Hover: Method '${t.name}' return type: ${t.returnType}`))}}else if(t.kind===U.SymbolKind.Constructor&&(!t.parameters||t.parameters.length===0)){a.debug(`${e}  [DEBUG-CONSTRUCTOR] Constructor found: ${t.name}`);let d=/this\.(\w+)/g,u=[...c.matchAll(d)];u.length>0?(t.parameters=u.map(g=>({name:g[1],type:`self_field:${g[1]}`})),a.debug(`${e}  \u21B3 Hover: Constructor '${t.name}' extracted parameters: ${t.parameters.map(g=>g.name).join(", ")}`)):a.debug(`${e}  \u26A0\uFE0F Constructor '${t.name}' without extractable parameters via hover`)}}var fr=5;async function Ai(t,e){let n=[],r=0;async function i(){if(r>=t.length)return;let o=r++;n[o]=await t[o](),await i()}let s=Array.from({length:Math.min(e,t.length)},i);return await Promise.all(s),n}async function zt(t,e,n,r=0,i){let s="  ".repeat(r);if(!t.selectionRange)return a.debug(`${s}\u26A0\uFE0F Symbol '${t.name}' skipped. No selectionRange.`),t;a.debug(`${s}\u{1F50D} Processing: ${t.name} (Kind: ${t.kind})`);let o={...t,fileUri:t.fileUri??e};sr(o,s,e,n);try{await cr(o,s,n)}catch(c){a.debug(`${s}\u26A0\uFE0F Error in detail enrich: ${c instanceof Error?c.message:c}`)}try{lr(o,s,n)}catch(c){a.debug(`${s}\u26A0\uFE0F Error in enrichWithSourceRegexTypes: ${c instanceof Error?c.message:c}`)}try{o.hoverChecked||(await ur(o,s,n),o.hoverChecked=!0)}catch(c){a.debug(`${s}\u26A0\uFE0F Error in hover enrich: ${c instanceof Error?c.message:c}`)}if(o.children&&o.children.length>0){let c=o.kind===pr.SymbolKind.Class?o:i,l=o.children.map(d=>()=>zt(d,o.fileUri,n,r+1,c));a.debug(`${s} Processing ${l.length} children with concurrency limit ${fr}`),o.children=await Ai(l,fr)}return o}var gr=y(require("vscode")),mr=y(require("fs")),Mi=new Set(["extends","with","implements"]);function Fi(t){let e={extends:[],with:[],implements:[]},n=0,r,i="",s=()=>{if(!r){i="";return}let o="",c=0;for(let l of i)l==="<"&&c++,l===">"&&c--,l===","&&c===0?(o.trim()&&e[r].push(o.trim().replace(/<\s+/g,"<")),o=""):o+=l;o.trim()&&e[r].push(o.trim().replace(/<\s+/g,"<")),i=""};for(let o of t.match(/[A-Za-z_$][\w$]*|[<>,]|[^\sA-Za-z_$<>,]+/g)??[]){if(o==="<"&&n++,o===">"&&n--,n===0&&Mi.has(o)){s(),r=o;continue}i+=o===","||o==="<"||o===">"?o:` ${o}`}return s(),e}function Ui(t,e){let n=t.split(/\r?\n/),r="";for(let i=e.start.line;i<n.length&&i<e.start.line+20;i++){let o=(i===e.start.line?n[i].substring(e.start.character):n[i]).replace(/\/\/.*$/,""),c=o.indexOf("{");if(c>=0){r+=" "+o.substring(0,c);break}r+=" "+o}return r.replace(/\s+/g," ").trim()}function hr(t){let e=new Map;for(let n of t){let r,i=()=>{if(r===void 0&&n.file)try{r=mr.readFileSync(n.file,"utf8")}catch{r=""}return r??""},s=o=>{for(let c of o??[]){if(c.kind===gr.SymbolKind.Class){let l=c.detail||(c.range?Ui(i(),c.range):"");l&&e.set(`${n.fileUri}#${c.name}`,Fi(l))}s(c.children)}};s(n.symbols)}return e}var ji=/^\s*(?:import|export)\s+(['"])([^'"]+)\1/;function br(t){let e=[],n=t.split(/\r?\n/);for(let r=0;r<n.length&&e.length<200;r++){let i=n[r];if(/^\s*\/\//.test(i))continue;let s=ji.exec(i);s&&e.push({uri:s[2],line:r,column:i.indexOf(s[2])})}return e}function yr(t){let e=/^name:\s*['"]?([\w.-]+)['"]?\s*(?:#.*)?$/m.exec(t);return e?e[1]:""}var qt=y(require("fs")),re=y(require("path")),vr=require("url");function wr(t,e){let n={},r;try{r=JSON.parse(t)}catch{return n}for(let i of r.packages??[])if(!(!i.name||!i.rootUri))try{let s=i.rootUri.startsWith("file:")?(0,vr.fileURLToPath)(i.rootUri):re.resolve(e,decodeURIComponent(i.rootUri));n[i.name]=re.resolve(s,i.packageUri??"lib")}catch{}return n}function Sr(t,e=qt.existsSync){for(let n of t){let r=re.join(n,"lib");if(e(re.join(r,"core","core.dart")))return r}}function $r(t,e,n,r=qt.existsSync){let i=/^dart:(\w+)$/.exec(t);if(i){if(!n)return;let o=re.join(n,i[1],i[1]+".dart");return r(o)?o:void 0}let s=/^package:([^/]+)\/(.+)$/.exec(t);if(s&&e[s[1]]){let o=re.join(e[s[1]],s[2]);return r(o)?o:void 0}}var Pr=y(require("vscode")),Rr=y(require("path")),ae=y(require("fs")),kr=require("child_process");var B=y(require("path"));function xr(t,e,n=process.platform){let r=n==="win32"?"dart.exe":"dart",i=B.basename(t).toLowerCase();if(!(/\.(bat|cmd|sh)$/.test(i)||B.basename(B.dirname(t)).toLowerCase()==="bin"&&i==="dart"&&e(B.join(B.dirname(t),"cache","dart-sdk","bin",r))))return t;let o=B.join(B.dirname(t),"cache","dart-sdk","bin",r);return e(o)?o:t}function Er(t,e){return t.split(/\r?\n/).map(n=>n.trim()).filter(n=>n!=="").find(e)}function rt(){let e=Pr.workspace.getConfiguration("satori").get("dartSdkPath")?.trim();if(e){if(a.debug(`Checking user configured path: ${e}`),ae.existsSync(e)&&ae.statSync(e).isDirectory()){let n=Rr.join(e,"bin","dart");if(ae.existsSync(n))return a.info(`\u2705 Found Dart SDK at configured path: ${e}`),n}if(ae.existsSync(e))return a.info(`\u2705 Found Dart executable at configured path: ${e}`),e;a.debug(`Configured Dart SDK path not found: ${e}`)}try{let n=process.platform==="win32"?"where dart":"which dart",r=Er((0,kr.execSync)(n,{encoding:"utf-8"}).toString(),ae.existsSync);if(r)return a.info(`\u2705 Found Dart SDK in system PATH: ${r}`),r}catch{a.debug("Dart SDK not found in system PATH")}a.error("\u274C Dart SDK not found")}var Li={godWmc:47,godAtfd:5,godTcc:.33,weights:{coupling:.3,size:.15,cycles:.25,violations:.3}};function ce(t,e,n,r){return typeof t=="number"&&Number.isFinite(t)?Math.min(r,Math.max(n,t)):e}function Ir(t){let e=Li;return{godWmc:ce(t("audit.godClass.wmc"),e.godWmc,1,1e5),godAtfd:ce(t("audit.godClass.atfd"),e.godAtfd,0,1e5),godTcc:ce(t("audit.godClass.tcc"),e.godTcc,0,1),weights:{coupling:ce(t("audit.weights.coupling"),e.weights.coupling,0,1),size:ce(t("audit.weights.size"),e.weights.size,0,1),cycles:ce(t("audit.weights.cycles"),e.weights.cycles,0,1),violations:ce(t("audit.weights.violations"),e.weights.violations,0,1)}}}var le=y(require("fs")),z=y(require("path"));var Tr="satori.json";function Ht(t){let e=z.resolve(t);for(let n=0;n<6;n++){let r=z.join(e,Tr);if(le.existsSync(r))return r;if(le.existsSync(z.join(e,"pubspec.yaml")))return;let i=z.dirname(e);if(i===e)return;e=i}}function Oi(t){let e=r=>{try{return le.readdirSync(r,{withFileTypes:!0}).filter(i=>i.isDirectory()&&!i.name.startsWith(".")).map(i=>i.name)}catch{return[]}},n=e(z.join(t,"lib"));return n.length===1&&n[0]==="src"?{base:"lib/src",folders:e(z.join(t,"lib","src"))}:{base:"lib",folders:n}}function Dr(t){let e=Ht(t);if(!e)return Cr(void 0);try{let n={discoverFolders:()=>Oi(z.dirname(e))};return{...It(le.readFileSync(e,"utf8"),n),file:e}}catch(n){return{...Cr(void 0),problems:[`${Tr} could not be read (${n.message}). The default layers are used.`],file:e}}}function Cr(t){return It(t)}function Nr(t){return{layers:t.layers.map(e=>({id:e.id,label:e.label,description:e.description,color:e.color,icon:e.icon,neutral:e.neutral===!0})),mode:t.mode,allow:t.allow,forbid:t.forbid,neutral:t.neutral,builtin:t.builtin}}var Ar=["files","symbols","relations","types","graph","draw"],_i={files:.03,symbols:.3,relations:.3,types:.12,graph:.2,draw:.05},ye={start:()=>{},progress:()=>{},finish:()=>{}},it=class{phases=new Map;constructor(e){for(let n of Ar)this.phases.set(n,{id:n,label:e[n],status:"pending",done:0,total:0,detail:""})}start(e,n=""){let r=this.phases.get(e);r.status!=="done"&&(r.status="active",r.detail=n)}progress(e,n,r,i){let s=this.phases.get(e);s.status!=="done"&&(s.status="active",s.done=Math.max(0,Math.min(n,r)),s.total=Math.max(0,r),i!==void 0&&(s.detail=i))}finish(e){let n=this.phases.get(e);n.status="done",n.done=n.total,n.detail=""}snapshot(){let e=Ar.map(r=>({...this.phases.get(r)})),n=0;for(let r of e){let i=r.status==="done"?1:r.status==="active"&&r.total>0?r.done/r.total:0;n+=_i[r.id]*i}return{phases:e,overall:Math.min(1,n)}}},st=class{constructor(e,n=150,r=Date.now){this.send=e;this.minGapMs=n;this.now=r}last=0;timer;request(){let e=this.last+this.minGapMs-this.now();e<=0?this.flush():this.timer||(this.timer=setTimeout(()=>this.flush(),e))}flush(){this.timer&&(clearTimeout(this.timer),this.timer=void 0),this.last=this.now(),this.send()}cancel(){this.timer&&(clearTimeout(this.timer),this.timer=void 0)}};var Gi=4;function Wi(t){try{let e=K(t);return e?yr(de.readFileSync(q.default.join(e,"pubspec.yaml"),"utf8")):""}catch{return""}}function Ki(t,e,n){let r={};try{let i=K(t);if(!i)return r;let s=q.default.join(i,".dart_tool","package_config.json"),o={},c=[];if(de.existsSync(s)){let g=de.readFileSync(s,"utf8");o=wr(g,q.default.dirname(s));let p=JSON.parse(g).flutterRoot;p&&c.push(q.default.join(T.Uri.parse(p).fsPath,"bin","cache","dart-sdk"))}let l=rt();l&&c.push(q.default.dirname(q.default.dirname(l)),q.default.join(q.default.dirname(l),"cache","dart-sdk"));let d=Sr(c),u=new Set;Object.values(e).forEach(g=>g.forEach(p=>{(p.uri.startsWith("dart:")||p.uri.startsWith("package:")&&!p.uri.startsWith(`package:${n}/`))&&u.add(p.uri)})),u.forEach(g=>{let p=$r(g,o,d);p&&(r[g]=T.Uri.file(p).toString())})}catch(i){a.debug(`Could not resolve the imports to files: ${i}`)}return r}function Mr(t){return`satori.annotations:${t}`}function Bi(t,e){return t.get(Mr(e),{})}function Fr(t,e,n){return t.update(Mr(e),n)}function zi(t,e){return t.children?.find(n=>n.name===e&&(n.kind===T.SymbolKind.Field||n.kind===T.SymbolKind.Property))}async function Vt(t,e){let n=Date.now(),r=e.reporter??ye;function i(){return T.workspace.getConfiguration("satori").get("language","en")}let s=T.window.createWebviewPanel("astDiagram","AST Diagram",T.ViewColumn.Beside,{enableScripts:!0,localResourceRoots:[T.Uri.joinPath(t.extensionUri,"media")]}),o=qi(),c=["default-src 'none'",`style-src ${s.webview.cspSource} 'unsafe-inline'`,`script-src 'nonce-${o}' ${s.webview.cspSource}`,`img-src data: ${s.webview.cspSource}`].join("; "),l={},d=Dr(e.projectRoot);d.problems.length>0&&(d.problems.forEach(G=>a.info(`satori.json: ${G}`)),T.window.showWarningMessage(`satori.json: ${d.problems[0]}${d.problems.length>1?` (+${d.problems.length-1} more, see the "satori" output)`:""}`));let u,g,p,h="saved analysis";if(e.cached)u=e.cached.graph,Object.assign(l,e.cached.fileImports),g=p=Date.now(),a.info(`Using the saved analysis: ${u.nodes.length} nodes, ${u.edges.length} edges.`);else{let Z=function(E){if(E)for(let I of E)I.parentId&&!H.has(I.parentId)&&a.debug(`\u274C Inconsistency detected: parentId '${I.parentId}' of '${I.name}' does not exist in the uniqueIds set.`),I.children&&Z(I.children)};var nn=Z;a.debug("Starting data enrichment for webview.."),se.clear(),dr();let G=hr(e.files);a.debug(`AST relations detected: ${G.size} classes.`),or(e.files),a.debug("[TypeIndex] Type index built \u2014 starting enrichment.");let W=e.files.map(E=>({...E,fileUri:typeof E.fileUri=="string"&&E.fileUri.startsWith("file:")?E.fileUri:T.Uri.file(E.file).toString()}));r.start("types");let P=await Y(e.files,Gi,async E=>{let I=de.readFileSync(E.file,"utf8"),F=typeof E.fileUri=="string"&&E.fileUri.startsWith("file:")?E.fileUri:T.Uri.file(E.file).toString(),M=br(I);M.length&&(l[F]=M);let O={projectClassRelations:G,fileContent:I,allProjectFilesData:W},N=E.symbols?await Promise.all(E.symbols.map(j=>zt(j,F,O,0,void 0))):[];return{...E,fileUri:F,symbols:N}},(E,I)=>r.progress("types",E,I));r.finish("types"),e.files=P,g=Date.now(),a.debug("\u2705 Deep enrichment of all files completed."),ar(),a.debug("\u2705 Type index cleared."),a.debug("Phase 2: Building project graph model..."),r.start("graph");let D=e.navigation?await e.navigation:null;D&&a.info(`Relationships read from the analysis server: ${D.files} files (start ${D.startMs}ms, analysis ${D.analyzeMs}ms, navigation ${D.navigationMs}ms).`),h=D?"analysis server":"language server",Kt(D?D.index:null),Tt(d.architecture,e.projectRoot),Wt((E,I,F)=>r.progress("graph",I,F,m(`loading.graph.${E}`)));try{u=await rr(e.files,e.projectRoot)}finally{Kt(null),Tt(null),Wt(null)}if(r.finish("graph"),!d.architecture.builtin){let E=u.nodes.filter(F=>F.kind==="class"),I=E.filter(F=>F.data.layer===d.architecture.neutral).length;a.info(`satori.json: ${E.length-I} of ${E.length} classes were placed in a layer; ${I} are in "${d.architecture.neutral}".`)}p=Date.now(),a.debug(`Phase 2: Graph model built. Nodes: ${u.nodes.length}, Edges: ${u.edges.length}`),a.debug("Calculating coupling degrees (in/out degree) of nodes..."),yn(u),a.debug("\u2705 Coupling degrees calculated."),a.debug("Phase 3: Starting resolution of this.fieldName in constructors...");let H=new Set;e.files.forEach(E=>{function I(F){if(F)for(let M of F)M.uniqueId&&H.add(M.uniqueId),M.children&&I(M.children)}I(E.symbols)}),e.files.forEach(E=>{function I(F){if(F)for(let M of F){if(a.debug(`[DEBUG-KIND-CHECK] Symbol: ${M.name}, kind: ${M.kind}, children: ${M.children?.length??0}`),M.kind===T.SymbolKind.Class&&M.children){let O=M;a.debug(`[DEBUG-CLASS] Class detected: ${O.name}`),O.children?.forEach(N=>{a.debug(`[DEBUG-MEMBER] ${O.name}.${N.name||"(anon)"} - kind: ${N.kind}, params: ${N.parameters?.length??0}`),N.kind===T.SymbolKind.Constructor&&(a.debug(`[DEBUG-CONSTRUCTOR] Constructor found: ${N.name}`),(!N.parameters||N.parameters.length===0)&&(N.detail?.includes("this.")?a.debug(`  Constructor '${N.name}' without relevant parameters (self_field)`):a.debug(`  \u26A0\uFE0F Constructor '${N.name}' has no parameters. Missing enrichment?`)),N.parameters&&N.parameters.length>0&&(!N.parentId&&O.uniqueId&&(N.parentId=O.uniqueId,a.debug(`[DEBUG-RELATIONSHIP] Established parent of constructor ${N.name||"(default)"} -> ${O.uniqueId}`)),a.debug(`  [ResolveThisField] Processing constructor ${O.name}.${N.name||"(default)"}`),N.parameters.forEach(j=>{if(j.type?.startsWith("self_field:")){let ie=j.type.substring(11),Q=zi(O,ie);Q?Q.resolvedType?(a.debug(`    \u21B3 Param '${j.name||ie}' (this.${ie}): type updated from '${j.type}' to '${Q.resolvedType}'. Linked def: ${!!Q.resolvedTypeRef?.definition}`),j.type=Q.resolvedType,j.typeRef=Q.resolvedTypeRef?{...Q.resolvedTypeRef}:{name:Q.resolvedType}):(a.debug(`    \u26A0\uFE0F Param '${j.name||ie}' (this.${ie}): field found but no resolvedType in ${O.name}`),j.typeRef={name:j.type}):(a.debug(`    \u274C Param '${j.name||ie}': field '${ie}' NOT found in ${O.name}`),j.typeRef={name:j.type})}})))})}M.children&&I(M.children)}}E.symbols?I(E.symbols):a.debug(`[DEBUG] \u26A0\uFE0F fileData.symbols is empty for: ${E.fileUri}`)}),a.debug("[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId..."),e.files.forEach(E=>Z(E.symbols)),a.debug("[\u2713] Resolution of this.fieldName fields in constructors completed.")}let b=Wi(e.projectRoot),x={projectRoot:e.projectRoot,graph:u,fileImports:l,ownPackage:b,architecture:Nr(d.architecture),auditConfig:Ir(G=>T.workspace.getConfiguration("satori").get(G)),importTargets:Ki(e.projectRoot,l,b)};a.debug("[Sanitize] Starting string sanitization for JSON..."),We(x),a.debug("[Sanitize] String sanitization completed.");let v=Bi(t.workspaceState,e.projectRoot),f=JSON.stringify({...x,annotations:v},(G,W)=>typeof W=="string"?W.replace(/\\/g,"/"):W).replace(/</g,"\\u003c");a.debug(`[DEBUG_JSON] Total length of astJson: ${f.length}`),e.cached||gn(e.files);let S=i();await ee.getInstance().loadTranslations(t.extensionPath,S);let $=ee.getInstance().getByPrefix("trail.","hud.","layer."),R=s.webview.asWebviewUri(T.Uri.joinPath(t.extensionUri,"media")).toString(),k=de.readFileSync(q.default.join(t.extensionUri.fsPath,"media","webviewContent.html"),"utf8");k=k.replace(/__CSP__/,()=>c).replace(/__MEDIA__/g,()=>R).replace(/__NONCE__/g,()=>o).replace(/__AST_JSON_PLACEHOLDER__/g,()=>f).replace(/__TRANSLATIONS__/g,()=>JSON.stringify($).replace(/</g,"\\u003c")),r.start("draw"),s.webview.html=k;let A=Date.now();return{panel:s,graph:u,fileImports:l,timings:{enrichMs:g-n,graphMs:p-g,finishMs:A-p,engine:h}}}function qi(){let t="",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";for(let n=0;n<32;n++)t+=e.charAt(Math.floor(Math.random()*e.length));return t}var _=y(require("fs")),ot=y(require("path")),Jt=y(require("crypto")),Ur=1;function jr(t){let e=Jt.createHash("sha1");return t.map(n=>`${n.path}|${n.size}|${Math.round(n.mtimeMs)}`).sort().forEach(n=>e.update(n+`
-`)),e.digest("hex")}function Lr(t){let e=[];for(let n of t)try{let r=_.statSync(n);e.push({path:n,size:r.size,mtimeMs:r.mtimeMs})}catch{}return e}function Or(t,e){let n=Jt.createHash("sha1").update(e.toLowerCase()).digest("hex").slice(0,16);return ot.join(t,`analysis-${n}.json`)}function _r(t,e,n){try{if(!_.existsSync(t))return null;let r=JSON.parse(_.readFileSync(t,"utf8"));return r.layout!==Ur||r.extensionVersion!==n||r.fingerprint!==e?null:r}catch{return null}}function Gr(t,e,n,r,i){let s={layout:Ur,extensionVersion:n,fingerprint:e,savedAt:Date.now(),graph:r,fileImports:i};_.mkdirSync(ot.dirname(t),{recursive:!0});let o=`${t}.${process.pid}.tmp`;_.writeFileSync(o,JSON.stringify(s)),_.renameSync(o,t)}var lt=y(require("fs")),Br=y(require("path")),zr=y(require("vscode"));var Wr=y(require("child_process")),at=class{constructor(e,n=["language-server","--protocol=analyzer"],r=Wr.spawn){this.executable=e;this.args=n;this.spawnFn=r}child;buffer="";nextId=1;pending=new Map;analysisFinished;analysisFailed;closed=!1;async start(){let e=process.platform==="win32"&&/\.(bat|cmd)$/i.test(this.executable);this.child=this.spawnFn(this.executable,this.args,{stdio:["pipe","pipe","ignore"],shell:e}),this.child.on("error",r=>this.failAll(r)),this.child.on("exit",()=>{this.closed=!0,this.failAll(new Error("the analysis server stopped"))}),this.child.stdout?.on("data",r=>this.onData(r.toString()));let n=await this.request("server.getVersion",{});return String(n.result?.version??"")}async analyze(e,n){let r,i=new Promise((s,o)=>{this.analysisFinished=s,this.analysisFailed=o,r=setTimeout(()=>o(new Error("the analysis server did not finish in "+Math.round(n/1e3)+"s")),n)});try{await this.request("server.setSubscriptions",{subscriptions:["STATUS"]}),await this.request("analysis.setAnalysisRoots",{included:[e],excluded:[]}),await i}finally{r&&clearTimeout(r),this.analysisFinished=void 0,this.analysisFailed=void 0}}async getNavigation(e,n){let i=(await this.request("analysis.getNavigation",{file:e,offset:0,length:n})).result;return{files:i?.files??[],targets:i?.targets??[],regions:i?.regions??[]}}dispose(){this.closed=!0;try{this.child?.kill()}catch{}this.failAll(new Error("the analysis client was closed"))}request(e,n){if(this.closed||!this.child?.stdin)return Promise.reject(new Error("the analysis server is not running"));let r=String(this.nextId++);return new Promise((i,s)=>{this.pending.set(r,{resolve:o=>o.error?s(new Error(`${o.error.code}: ${o.error.message}`)):i(o),reject:s}),this.child.stdin.write(JSON.stringify({id:r,method:e,params:n})+`
-`)})}onData(e){this.buffer+=e;let n;for(;(n=this.buffer.indexOf(`
-`))>=0;){let r=this.buffer.slice(0,n).trim();if(this.buffer=this.buffer.slice(n+1),!r)continue;let i;try{i=JSON.parse(r)}catch{continue}if(i.id!==void 0&&this.pending.has(String(i.id))){let s=this.pending.get(String(i.id));this.pending.delete(String(i.id)),s.resolve(i)}else i.event==="server.status"&&i.params?.analysis&&i.params.analysis.isAnalyzing===!1&&this.analysisFinished?.()}}failAll(e){this.analysisFailed?.(e),this.pending.forEach(n=>n.reject(e)),this.pending.clear()}};function ve(t){let e=t.replace(/\\/g,"/");return/^[a-zA-Z]:/.test(e)?e[0].toLowerCase()+e.slice(1):e}function Hi(t){let e=[0];for(let n=0;n<t.length;n++)t.charCodeAt(n)===10&&e.push(n+1);return e}function Kr(t,e){let n=0,r=t.length-1;for(;n<r;){let i=n+r+1>>1;t[i]<=e?n=i:r=i-1}return{line:n,character:e-t[n]}}var ct=class t{byTarget=new Map;static key(e,n,r){return`${ve(e)}:${n}:${r}`}referencesTo(e,n,r){return this.byTarget.get(t.key(e,n,r))??[]}get size(){return this.byTarget.size}addFile(e,n,r,i,s){let o=Hi(r),c=e.targets.map(l=>i(e.files[l.fileIndex]??""));for(let l of e.regions){let d=r.substr(l.offset,l.length);if(d==="this"||d==="super")continue;let u;for(let g of l.targets){let p=e.targets[g];if(!p||!c[g]||l.offset===p.offset&&e.files[p.fileIndex]!==void 0&&ve(e.files[p.fileIndex])===ve(s))continue;if(!u){let x=Kr(o,l.offset),v=Kr(o,l.offset+l.length);u={uri:n,line:x.line,character:x.character,endLine:v.line,endCharacter:v.character}}let h=t.key(e.files[p.fileIndex],p.startLine-1,p.startColumn-1),b=this.byTarget.get(h);b?b.push(u):this.byTarget.set(h,[u])}}}};var Vi=8,Ji=1200*1e3;async function qr(t,e,n=ye){if(zr.workspace.getConfiguration("satori").get("analysis.engine","auto")==="languageServer")return a.info("Relationships are asked one by one to the language server (satori.analysis.engine)."),n.finish("relations"),null;let i=rt();if(!i)return n.finish("relations"),null;let s=xr(i,lt.existsSync),o=new at(s);try{n.start("relations",m("loading.relations.starting"));let c=Date.now(),l=await o.start();a.debug(`[Navigation] analysis server ${l} started with ${s}`);let d=Date.now();n.start("relations",m("loading.relations.analyzing")),await o.analyze(Br.resolve(t),Ji);let u=Date.now(),g=new Set(e.map(b=>ve(b.fsPath))),p=new ct;await Y(e,Vi,async b=>{let x=lt.readFileSync(b.fsPath,"utf8"),v=await o.getNavigation(b.fsPath,x.length);p.addFile(v,b.toString(),x,f=>g.has(ve(f)),b.fsPath)},(b,x)=>n.progress("relations",b,x,m("loading.relations.reading"))),n.finish("relations");let h=Date.now();return{index:p,files:e.length,startMs:d-c,analyzeMs:u-d,navigationMs:h-u}}catch(c){return a.info(`The analysis server could not be used (${c.message}); asking the language server instead.`),n.finish("relations"),null}finally{o.dispose()}}function Yi(t){let e=Math.floor(t/1e3),n=Math.floor(e/60);return n>0?`${n}m ${e%60}s`:`${e}s`}var dt=class{constructor(e,n,r=Date.now,i=1e3){this.sink=e;this.texts=n;this.now=r;this.state=new it(n.labels),this.startedAt=r(),this.throttle=new st(()=>this.emit(),200,r),this.ticker=setInterval(()=>this.emit(),i),this.emit()}state;throttle;startedAt;lastOverall=0;ticker;start(e,n=""){this.state.start(e,n),this.throttle.request()}progress(e,n,r,i){this.state.progress(e,n,r,i),this.throttle.request()}finish(e){this.state.finish(e),this.throttle.request()}release(){this.throttle.cancel(),this.ticker&&(clearInterval(this.ticker),this.ticker=void 0)}message(){let e=this.state.snapshot(),i=e.phases.filter(c=>c.status==="active").sort((c,l)=>Hr(c)-Hr(l))[0]??e.phases.find(c=>c.status==="pending"),o=[`${Math.round(e.overall*100)}%`];if(i){let c=i.label;i.total>0?c+=` (${i.done}/${i.total})`:i.detail&&(c+=` - ${i.detail}`),o.push(c)}return o.push(`${this.texts.elapsed} ${Yi(this.now()-this.startedAt)}`),o.join(" \xB7 ")}emit(){let e=this.state.snapshot().overall,n=Math.max(0,(e-this.lastOverall)*100);this.lastOverall=Math.max(this.lastOverall,e),this.sink.report({increment:n,message:this.message()})}};function Hr(t){return t.total>0?t.done/t.total:0}var ut=y(require("vscode"));function Vr(t){let e=ut.commands.registerCommand("satori.toggleDebugLogs",()=>{let n=a.isDebug();a.setDebug(!n),ut.window.showInformationMessage(`Debug logs ${n?"disabled":"enabled"}`)});t.subscriptions.push(e)}function Yt(t,e,n){return!t||t.length===0?[]:t.map(r=>{let i=`${n}#${r.name}#${r.kind}`,s={name:r.name,kind:r.kind,detail:r.detail||"",range:r.range,selectionRange:r.selectionRange,fileUri:n,uniqueId:i,parentId:e,children:[]};return s.children=Yt(r.children??[],i,n),s})}var Zt=y(require("fs")),Qt=y(require("vscode")),ft=60,pt=3;function Xt(t){return t.replace(/^(?:\u{1F517}|⚙️?)\s*/u,"")}function Xi(t){let e=t.data.range??t.data.selectionRange;if(!e)return null;let n=Array.isArray(e)?e[0]:e.start,r=Array.isArray(e)?e[1]:e.end;return!n||!r?null:{start:{line:n.line,character:n.character},end:{line:r.line,character:r.character}}}function Zi(t){return t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function Qi(t,e,n,r){let i;try{i=Zt.readFileSync(Qt.Uri.parse(t).fsPath,"utf8").split(/\r?\n/)}catch{return null}if(!Number.isInteger(e)||e<0||e>=i.length)return null;let s=Math.max(0,e-pt-1),o=Math.min(i.length-1,e+pt+1);return{file:t,startLine:s,lines:i.slice(s,o+1),highlightLine:e,jump:{start:{line:e,character:n},end:{line:e,character:n+Math.max(1,r)}},title:i[e].trim()}}function Jr(t,e){if(e.fileUri!==void 0&&e.line!==void 0)return Qi(e.fileUri,e.line,e.column??0,e.length??1);let n=new Map(t.nodes.map(v=>[v.id,v])),r=n.get(e.sourceId??e.nodeId??"");if(!r||!r.data.fileUri)return null;let i=Xi(r);if(!i)return null;let s;try{s=Zt.readFileSync(Qt.Uri.parse(r.data.fileUri).fsPath,"utf8")}catch{return null}let o=s.split(/\r?\n/);if(i.start.line>=o.length)return null;let c=null,l=i.start.character,d=Math.max(1,i.end.line===i.start.line?i.end.character-i.start.character:1),u=Xt(r.label),g=e.targetId?n.get(e.targetId):void 0;if(g){let v=Xt(g.label),f=new RegExp(`\\b${Zi(v)}\\b`),S=Math.min(i.end.line,o.length-1);for(let $=i.start.line;$<=S;$++){let R=o[$];if(R.trimStart().startsWith("//"))continue;let k=f.exec($===i.start.line?R.substring(i.start.character):R);if(k){c=$,l=k.index+($===i.start.line?i.start.character:0),d=v.length;break}}u=`${Xt(r.label)} -> ${v}`}!g&&i.end.line===i.start.line&&(c=i.start.line);let p=Math.min(i.end.line,o.length-1),h=i.start.line,b=p;if(b-h<1&&(h=Math.max(0,h-pt),b=Math.min(o.length-1,b+pt+1)),b-h+1>ft){let v=c??i.start.line;h=Math.max(i.start.line,v-Math.floor(ft/2)),b=Math.min(p,h+ft-1),h=Math.max(i.start.line,b-ft+1)}let x=c??i.start.line;return{file:r.data.fileUri,startLine:h,lines:o.slice(h,b+1),highlightLine:c,jump:{start:{line:x,character:l},end:{line:x,character:l+d}},title:u}}var en=class{mainGraphPanel;projectGraph;stats={webviewReady:!1,snippetsServed:0,relationshipUpdates:0,annotationSaves:0};timings;setGraph(e,n){this.mainGraphPanel=e,this.projectGraph=n,this.stats={webviewReady:!1,snippetsServed:0,relationshipUpdates:0,annotationSaves:0}}clear(){this.mainGraphPanel=void 0,this.projectGraph=void 0,this.stats={webviewReady:!1,snippetsServed:0,relationshipUpdates:0,annotationSaves:0}}getPanel(){return this.mainGraphPanel}getGraph(){return this.projectGraph}};async function es(){let t=w.workspace.workspaceFolders;if(!t||t.length===0){w.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");return}for(let e of t){let n=await w.workspace.findFiles(new w.RelativePattern(e,"pubspec.yaml"),"**/.*",1);if(n.length>0)return a.debug(`\u2705 Found pubspec.yaml at: ${n[0].fsPath}`),a.debug(`\u{1F4C1} Project root: ${e.uri.fsPath}`),e.uri}w.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.")}async function ts(t,e){let n=t.fsPath,r=[],i=e?"lib/**/*.dart":"**/*.dart";try{let d=await w.workspace.findFiles(new w.RelativePattern(t,i),"**/.dart_tool/**");r.push(...d),a.debug(`  \u2022 Pattern '${i}': ${d.length} files`)}catch(d){a.error(`  \u274C Error searching pattern '${i}': ${d.message}`)}if(e){let d=[];try{d=await dn(t),a.debug(`\u{1F50D} Found ${d.length} custom directories`)}catch(u){a.error(`\u274C Error finding custom directories: ${u.message}`)}for(let u of d)try{let g=await w.workspace.findFiles(new w.RelativePattern(u,"**/*.dart"),"**/.*");r.push(...g),a.debug(` \u2022 Custom directory '${ue.default.relative(n,u.fsPath)}': ${g.length} files`)}catch(g){a.error(`  \u274C Error in custom directory ${u.fsPath}: ${g.message}`)}}else a.debug("\u{1F4CA} Skipping custom directory search (not in project root)");let s=Array.from(new Set(r.map(d=>d.toString()))).map(d=>w.Uri.parse(d)),o=w.workspace.getConfiguration("satori").get("analysis.exclude",vn),c=wn(o),l=s.filter(d=>!c(ue.default.relative(n,d.fsPath)));return l.length<s.length&&a.info(`Left out ${s.length-l.length} of ${s.length} Dart files that match satori.analysis.exclude (generated code by default).`),a.debug(`\u{1F4C4} Total unique files found: ${l.length}`),l}async function ns(t,e=ye){let n=0,r=0,i=0,s=0,o=l=>Array.isArray(l)&&l.length>0;e.start("symbols");let c=await Y(t,rs,async l=>{let d=[];try{let u=async()=>await w.commands.executeCommand("vscode.executeDocumentSymbolProvider",l),g=s>=ss?[]:is,p=await Ke(u,o,g);s=p.exhausted?s+1:0;let h=p.result;Array.isArray(h)?h.length===0?i++:n++:(a.debug(`[DIAGNOSTIC] No symbol array for ${ue.default.basename(l.fsPath)}: ${h===null?"null":typeof h}`),h===null?i++:r++),d=Yt(Array.isArray(h)?h:[],void 0,l.toString())}catch(u){a.error(`\u26A0\uFE0F Error getting symbols for ${ue.default.basename(l.fsPath)}: ${u.message}`),r++}return{file:gt(l.fsPath),fileUri:l.toString(),symbols:d}},(l,d)=>e.progress("symbols",l,d));return e.finish("symbols"),a.debug(`\u{1F4CA} Analysis Summary: ${n} analyzed, ${i} empty, ${r} errors, ${c.length} total`),c}var rs=8,is=[250,750],ss=6;async function os(t,e,n){let r=t.fsPath;a.debug(`\u{1F50D} Analyzing project at: ${r}`),a.debug(`\u{1F4CA} Root URI - scheme: ${t.scheme}, fsPath: ${t.fsPath}`),a.debug(`\u{1F4CA} Root URI - toString: ${t.toString()}`);let i=tn.existsSync(ue.default.join(r,"pubspec.yaml"));a.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${i}`);let s=Date.now(),o=new dt(n,{labels:{files:m("loading.phase.files"),symbols:m("loading.phase.symbols"),relations:m("loading.phase.relations"),types:m("loading.phase.types"),graph:m("loading.phase.graph"),draw:m("loading.phase.draw")},elapsed:m("loading.elapsed")});try{return await as(t,e,o)}finally{o.release()}}async function as(t,e,n){let r=t.fsPath,i=tn.existsSync(ue.default.join(r,"pubspec.yaml")),s=Date.now();n.start("files");let o=await ts(t,i),c=Date.now();if(n.finish("files"),o.length===0)return a.info("\u274C No Dart files found in the project."),w.window.showWarningMessage("No Dart files found in the project. Please check your project structure."),null;a.debug("\u{1F4C4} Sample of found files (first 5):"),o.slice(0,5).forEach((f,S)=>{a.debug(`  ${S+1}. ${f.fsPath}`)});let l=w.workspace.getConfiguration("satori").get("cache.enabled",!0),d=String(e.extension.packageJSON.version),u=Or(e.globalStorageUri.fsPath,gt(r)),g=Ht(r),p=jr(Lr([...o.map(f=>f.fsPath),...g?[g]:[]])),h=l?_r(u,p,d):null;if(h){let f=await Vt(e,{projectRoot:gt(r),files:[],cached:{graph:h.graph,fileImports:h.fileImports},reporter:n}),S={files:o.length,discoverMs:c-s,symbolsMs:0,...f.timings,totalMs:Date.now()-s};return a.info("\u23F1 Opened "+S.files+" files from the saved analysis in "+(S.totalMs/1e3).toFixed(1)+"s (saved "+new Date(h.savedAt).toLocaleString()+"; turn off with satori.cache.enabled)"),{panel:f.panel,graph:f.graph,timings:S}}let b=qr(r,o,n),x=await ns(o,n),v=Date.now();x.every(f=>f.symbols.length===0)&&x.length>0&&(a.info("\u26A0\uFE0F No classes/symbols found in any project Dart files."),w.window.showWarningMessage("No classes or symbols found in the project. The diagram may be empty.")),a.debug("\u{1F4E6} Preparing to create webview..."),a.debug(`\u{1F4E6} Project root for webview: ${r}`),a.debug(`\u{1F4E6} Total files for webview: ${x.length}`);try{a.debug("\u{1F680} Calling createWebview function...");let f=await Vt(e,{projectRoot:gt(r),files:x,navigation:b,reporter:n}),{panel:S,graph:$}=f,R={files:x.length,discoverMs:c-s,symbolsMs:v-c,...f.timings,totalMs:Date.now()-s};return a.info(`\u23F1 Analysis of ${R.files} files took ${(R.totalMs/1e3).toFixed(1)}s (find files ${R.discoverMs}ms, symbols ${R.symbolsMs}ms, enrichment ${R.enrichMs}ms, graph ${R.graphMs}ms, page ${R.finishMs}ms)`),l&&$.nodes&&$.nodes.length>0&&setTimeout(()=>{try{Gr(u,p,d,$,f.fileImports),a.info(`\u{1F4BE} Analysis saved for the next time (${u})`)}catch(k){a.error(`Could not save the analysis: ${k.message}`)}},0),a.debug("\u2705 Webview created successfully!"),a.debug(`\u{1F4CA} Graph stats: ${$.nodes?.length||0} nodes, ${$.edges?.length||0} edges`),(!$.nodes||$.nodes.length===0)&&(a.error("\u26A0\uFE0F WARNING: Graph has no nodes!"),w.window.showWarningMessage("The graph was created but contains no nodes. Check the logs for details.")),{panel:S,graph:$,timings:R}}catch(f){return a.error("\u274C CRITICAL ERROR creating webview:"),a.error(`   Message: ${f.message}`),a.error(`   Stack: ${f.stack}`),w.window.showErrorMessage(`Failed to create visualization: ${f.message}`),null}}async function Yr(t,e,n,r=!1){try{let i=w.Uri.parse(t),s=new w.Position(e.line,e.character),o=new w.Position(n.line,n.character),c=new w.Range(s,o),l=w.window.visibleTextEditors.find(g=>g.document.uri.fsPath===i.fsPath&&g.viewColumn===w.ViewColumn.Two);if(l){l.selection=new w.Selection(s,o),l.revealRange(c,w.TextEditorRevealType.InCenter);return}let d=await w.workspace.openTextDocument(i);(await w.window.showTextDocument(d,{viewColumn:w.ViewColumn.Two,preview:!0,preserveFocus:r,selection:c})).revealRange(c,w.TextEditorRevealType.InCenter)}catch(i){a.error(`Could not open or read file: ${t} (${i instanceof Error?i.message:String(i)})`)}}function cs(t,e,n){let r=t.getPanel(),i=t.getGraph();if(!r||!i){a.error("Cannot setup webview handlers: panel or graph is undefined");return}a.debug("Setting up webview message handlers..."),a.debug(`\u{1F4CA} Graph stats for handlers: ${i.nodes?.length||0} nodes, ${i.edges?.length||0} edges`),r.webview.onDidReceiveMessage(async s=>{let o=t.getGraph(),c=t.getPanel();switch(s.command){case"log":a.debug(`[WebView] ${s.args.join(" ")}`);return;case"openClass":if(!s.file||!s.start||!s.end){a.info("Received openClass request without required file data.");return}await Yr(s.file,s.start,s.end);return;case"ready":t.stats.webviewReady=!0;return;case"saveAnnotations":typeof s.projectRoot=="string"&&s.data&&typeof s.data=="object"&&(await Fr(n.workspaceState,s.projectRoot,s.data),t.stats.annotationSaves++);return;case"getSnippet":{if(!o||!c)return;let l=Jr(o,s);t.stats.snippetsServed++,c.webview.postMessage({command:"snippet",requestId:s.requestId,snippet:l}),l&&s.reveal&&await Yr(l.file,l.jump.start,l.jump.end,!0);return}case"showRelationships":{t.stats.relationshipUpdates++;let l=s.data;if(l&&o){let d=o.nodes.find(u=>u.label===l.focusedNodeLabel||u.id===l.focusedNodeId);e.updateDetails({...l,focusedNode:d})}else e.updateDetails(l)}return;case"getImports":{if(!s.nodeId||!o||!c)return;a.debug(`[Backend] WebView requested imports for:${s.nodeId}`);let l=o.nodes.find(d=>d.id===s.nodeId);if(l&&l.data.fileUri){let d=pn(l.data.fileUri);a.debug(`[Backend] Imports found: ${d.join(", ")}. Sending to WebView.`),c.webview.postMessage({command:"displayImports",nodeId:s.nodeId,imports:d})}else a.debug(`[Backend] \u26A0\uFE0F Could not find node or its fileUri for ${s.nodeId}`);return}case"clearRelationships":e.clearDetails();return}},void 0,n.subscriptions),r.onDidDispose(()=>{a.debug("Graph panel closed, clearing details and state."),e.clearDetails(),t.clear()},null,n.subscriptions),a.debug("\u2705 Webview message handlers setup complete")}async function Xr(t){function e(){return w.workspace.getConfiguration("satori").get("language","en")}a.debug("\u{1F680} Satori: starting\u2026");let n=e();await ee.getInstance().loadTranslations(t.extensionPath,n);let r=w.extensions.getExtension("Dart-Code.dart-code");if(!r||!r.isActive){w.window.showErrorMessage("Dart extension is required for Satori to work properly.");return}a.debug("Dart extension detected, using existing language services"),Vr(t);let i=new en,s=new Se(t.extensionUri);t.subscriptions.push(w.window.registerWebviewViewProvider(Se.viewType,s));let o=u=>w.window.withProgress({location:w.ProgressLocation.Notification,title:"Satori",cancellable:!1},async g=>{g.report({increment:0,message:m("progress.starting")});let p=await os(u,t,g);if(!p){a.debug("Analysis returned NULL - ABORTING"),w.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");return}i.setGraph(p.panel,p.graph),i.timings=p.timings,cs(i,s,t),g.report({increment:100,message:m("progress.completed")}),a.debug("Analysis completed successfully")}),c=w.commands.registerCommand("satori.analyzeProject",async()=>{let u=await es();if(!u){a.debug("No Flutter project root found - ABORTING");return}await o(u)});a.info("Command satori.analyzeProject registered"),t.subscriptions.push(c);let l=w.commands.registerCommand("extension.showProjectDiagram",async()=>{let u=await w.window.showOpenDialog({canSelectFolders:!0,canSelectMany:!1,openLabel:"Select project folder"});if(!u?.length){a.debug("No folder selected - ABORTING");return}await o(u[0])});a.info("Command extension.showProjectDiagram registered"),t.subscriptions.push(l);let d=s.resolveWebviewView.bind(s);return s.resolveWebviewView=(u,...g)=>(u.webview.onDidReceiveMessage(async p=>{switch(p.command){case"log":a.debug(`[DetailsView] ${p.args.join(" ")}`);break;case"focusNode":let h=i.getPanel();h?(a.debug("[Extension] Received 'focusNode' from DetailsView. Forwarding to graph."),h.webview.postMessage({command:"setFocusInGraph",nodeId:p.nodeId})):a.debug("[Extension] Error: Received 'focusNode' but graph panel is not open.");break;case"highlightPath":let b=i.getPanel();b&&(a.debug("[Extension] Forwarding 'highlightPath' to graph."),b.webview.postMessage({command:"setPathHighlight",sourceId:p.sourceId,targetId:p.targetId}));break;case"openFile":{let x=i.getGraph();if(!p.nodeId||!x){a.info("Received openFile request without nodeId or graph not loaded.");return}let v=x.nodes.find(f=>f.id===p.nodeId);if(!v||!v.data.fileUri){a.error(`Could not find node or file URI for id: ${p.nodeId}`);return}try{let f=w.Uri.parse(v.data.fileUri),S=await w.workspace.openTextDocument(f);await w.window.showTextDocument(S,{viewColumn:w.ViewColumn.Two,preview:!1,preserveFocus:!1}),a.debug(`Successfully opened file: ${v.data.fileUri}`)}catch(f){a.error(`Error opening file ${v.data.fileUri}: ${f}`),w.window.showErrorMessage(`Could not open file: ${v.label}`)}return}}}),d(u,...g)),{getGraph:()=>i.getGraph(),getStats:()=>({...i.stats,timings:i.timings}),focusNode:u=>i.getPanel()?.webview.postMessage({command:"setFocusInGraph",nodeId:u})}}function gt(t){return t.replace(/\\/g,"/")}0&&(module.exports={activate});
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/extension.ts
+var extension_exports = {};
+__export(extension_exports, {
+  activate: () => activate
+});
+module.exports = __toCommonJS(extension_exports);
+
+// src/ui/extension_lifecycle.ts
+var vscode28 = __toESM(require("vscode"));
+var import_path8 = __toESM(require("path"));
+var fs17 = __toESM(require("fs"));
+
+// src/ui/providers/details_provider.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/utils/localization.ts
+var vscode = __toESM(require("vscode"));
+var fs = __toESM(require("fs"));
+var path = __toESM(require("path"));
+var Localization = class _Localization {
+  static instance;
+  translations = {};
+  static getInstance() {
+    if (!_Localization.instance) {
+      _Localization.instance = new _Localization();
+    }
+    return _Localization.instance;
+  }
+  async loadTranslations(extensionPath, language) {
+    if (!language) {
+      const config = vscode.workspace.getConfiguration("satori");
+      language = config.get("language", "en");
+    }
+    const translationPath = path.join(extensionPath, "localization", `${language}.json`);
+    try {
+      const content = fs.readFileSync(translationPath, "utf8");
+      this.translations = JSON.parse(content);
+    } catch (error) {
+      const fallbackPath = path.join(extensionPath, "localization", "en.json");
+      const content = fs.readFileSync(fallbackPath, "utf8");
+      this.translations = JSON.parse(content);
+    }
+  }
+  getByPrefix(...prefixes) {
+    const result = {};
+    for (const [key, value] of Object.entries(this.translations)) {
+      if (prefixes.some((p) => key.startsWith(p))) {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+  t(key, ...args) {
+    let translation = this.translations[key] || key;
+    args.forEach((arg, index) => {
+      translation = translation.replace(`{${index}}`, arg);
+    });
+    return translation;
+  }
+};
+var t = (key, ...args) => {
+  return Localization.getInstance().t(key, ...args);
+};
+
+// src/ui/providers/details_provider.ts
+var fs2 = __toESM(require("fs"));
+
+// src/utils/logger.ts
+var vscode2 = __toESM(require("vscode"));
+var SimpleLogger = class _SimpleLogger {
+  static instance;
+  outputChannel;
+  debugMode = false;
+  constructor() {
+    this.outputChannel = vscode2.window.createOutputChannel("satori");
+    this.loadDebugConfig();
+  }
+  static getInstance() {
+    if (!_SimpleLogger.instance) {
+      _SimpleLogger.instance = new _SimpleLogger();
+    }
+    return _SimpleLogger.instance;
+  }
+  getOutputChannel() {
+    return this.outputChannel;
+  }
+  loadDebugConfig() {
+    const config = vscode2.workspace.getConfiguration("satori");
+    this.debugMode = config.get("enableDebugLogs", false);
+  }
+  info(message) {
+    this.outputChannel.appendLine(message);
+  }
+  error(message) {
+    this.outputChannel.appendLine(`\u274C ${message}`);
+  }
+  debug(message) {
+    if (this.debugMode) {
+      this.outputChannel.appendLine(`[DEBUG] ${message}`);
+    }
+  }
+  show() {
+    this.outputChannel.show();
+  }
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+    this.info(`\u{1F527} Debug logs ${enabled ? "activados" : "desactivados"}`);
+  }
+  isDebugEnabled() {
+    return this.debugMode;
+  }
+};
+var logger = SimpleLogger.getInstance();
+var log = {
+  info: (message) => logger.info(message),
+  error: (message) => logger.error(message),
+  debug: (message) => logger.debug(message),
+  show: () => logger.show(),
+  setDebug: (enabled) => logger.setDebugMode(enabled),
+  isDebug: () => logger.isDebugEnabled()
+};
+
+// src/ui/providers/details_provider.ts
+var DetailsViewProvider = class {
+  constructor(_extensionUri) {
+    this._extensionUri = _extensionUri;
+  }
+  static viewType = "ast-graph.detailsView";
+  view;
+  resolveWebviewView(webviewView) {
+    this.view = webviewView;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode3.Uri.joinPath(this._extensionUri, "media"), this._extensionUri]
+    };
+    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+  }
+  /**
+   * Updates the details panel with focused node information.
+   * Performs semantic analysis of the node's source code and sends
+   * enriched data including detected responsibilities and patterns.
+   * 
+   * @param data - Focused node data with edges and metadata
+   */
+  updateDetails(data) {
+    if (this.view && data) {
+      const semanticAnalysis = data.focusedNode ? this.analyzeNodeSemantics(data.focusedNode) : null;
+      this.view.webview.postMessage({
+        command: "update",
+        data: {
+          ...data,
+          semantics: semanticAnalysis
+        }
+      });
+    }
+  }
+  analyzeNodeSemantics(node) {
+    if (!node || !node.data?.fileUri) {
+      return null;
+    }
+    try {
+      const sourceCode = this.getSourceCodeForNode(node);
+      return {
+        responsibilities: this.extractResponsibilities(sourceCode, node),
+        decisions: this.extractDecisions(sourceCode, node),
+        validations: this.extractValidations(sourceCode, node),
+        collaborations: this.extractCollaborationPatterns(sourceCode, node)
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+  extractResponsibilities(sourceCode, node) {
+    const responsibilities = [];
+    if (sourceCode.includes("return ") && node.kind === "method") {
+      if (sourceCode.match(/return\s+\w+\.\w+/)) {
+        responsibilities.push(t("responsibilities.transformsData"));
+      }
+      if (sourceCode.match(/return\s+new\s+\w+/)) {
+        responsibilities.push(t("responsibilities.createsObjects"));
+      }
+    }
+    if (sourceCode.includes("setState") || sourceCode.includes("emit(")) {
+      responsibilities.push(t("responsibilities.managesState"));
+    }
+    if (sourceCode.includes("Navigator.") || sourceCode.includes("context.go")) {
+      responsibilities.push(t("responsibilities.controlsNavigation"));
+    }
+    if (sourceCode.match(/http\.|client\.|api\./)) {
+      responsibilities.push(t("responsibilities.communicatesWithServices"));
+    }
+    if (sourceCode.includes("validate") || sourceCode.match(/if\s*\([^)]*\.isEmpty/)) {
+      responsibilities.push(t("responsibilities.validatesInput"));
+    }
+    return responsibilities;
+  }
+  extractDecisions(sourceCode, node) {
+    const decisions = [];
+    const ifMatches = sourceCode.match(/if\s*\([^)]+\)/g) || [];
+    if (ifMatches.length > 0) {
+      decisions.push(t("decisions.conditionalDecisions", ifMatches.length.toString()));
+    }
+    const switchMatches = sourceCode.match(/switch\s*\([^)]+\)/g) || [];
+    if (switchMatches.length > 0) {
+      decisions.push(t("decisions.businessCases", switchMatches.length.toString()));
+    }
+    if (sourceCode.includes("? ") && sourceCode.includes(": ")) {
+      decisions.push(t("decisions.ternaryOperators"));
+    }
+    if (sourceCode.match(/throw\s+\w+Exception/)) {
+      decisions.push(t("decisions.throwsExceptions"));
+    }
+    return decisions;
+  }
+  extractValidations(sourceCode, node) {
+    const validations = [];
+    if (sourceCode.match(/\.isEmpty|\.isNotEmpty/)) {
+      validations.push(t("validations.checksEmpty"));
+    }
+    if (sourceCode.match(/\.length\s*[<>]=?\s*\d/)) {
+      validations.push(t("validations.checksLength"));
+    }
+    if (sourceCode.includes("assert(") || sourceCode.includes("require(")) {
+      validations.push(t("validations.preconditions"));
+    }
+    if (sourceCode.match(/\bnull\b.*check|\bcheck.*\bnull\b/i)) {
+      validations.push(t("validations.preventsNull"));
+    }
+    return validations;
+  }
+  getSourceCodeForNode(node) {
+    if (!node?.data?.fileUri || !node?.data?.range) {
+      return "";
+    }
+    try {
+      const filePath = vscode3.Uri.parse(node.data.fileUri).fsPath;
+      const fileContent = fs2.readFileSync(filePath, "utf8");
+      const lines = fileContent.split(/\r?\n/);
+      const start = node.data.range.start;
+      const end = node.data.range.end;
+      if (start.line >= lines.length || end.line >= lines.length) {
+        return "";
+      }
+      if (start.line === end.line) {
+        return lines[start.line].substring(start.character, end.character);
+      }
+      let text = lines[start.line].substring(start.character);
+      for (let i = start.line + 1; i < end.line; i++) {
+        text += "\n" + lines[i];
+      }
+      text += "\n" + lines[end.line].substring(0, end.character);
+      return text;
+    } catch (error) {
+      return "";
+    }
+  }
+  extractCollaborationPatterns(sourceCode, node) {
+    const patterns = [];
+    const methodCalls = sourceCode.match(/\.\w+\(\)/g);
+    if (methodCalls && methodCalls.length > 3) {
+      patterns.push(t("collaborations.intensiveCollaboration"));
+    }
+    if (sourceCode.includes("await ")) {
+      patterns.push(t("collaborations.coordinatesAsync"));
+    }
+    if (sourceCode.includes("listen") || sourceCode.includes("stream")) {
+      patterns.push(t("collaborations.listensReactively"));
+    }
+    return patterns;
+  }
+  /**
+   * Clears the details panel content by sending clear command
+   * to the webview. Used when focus is lost or diagram is closed.
+   */
+  clearDetails() {
+    if (this.view) {
+      this.view.webview.postMessage({ command: "clear" });
+    }
+  }
+  updateLanguage() {
+    if (this.view) {
+      this.view.webview.html = this._getHtmlForWebview(this.view.webview);
+    }
+  }
+  _getHtmlForWebview(webview) {
+    log.debug(`Looking for details panel HTML file..`);
+    try {
+      const htmlPath = vscode3.Uri.joinPath(this._extensionUri, "media", "detailsView.html");
+      log.debug(`[DEBUG] Path constructed: ${htmlPath.fsPath}`);
+      if (!fs2.existsSync(htmlPath.fsPath)) {
+        log.debug(`File not found! Make sure 'detailsView.html' is in your project root folder.`);
+        return `<h1>Error: detailsView.html not found</h1>`;
+      }
+      log.debug(`[DEBUG] File found. Reading content...`);
+      const translations = {
+        "details.placeholder": t("details.placeholder"),
+        "details.noCollaborations": t("details.noCollaborations"),
+        "details.analysisOf": t("details.analysisOf"),
+        "details.collaborations": t("details.collaborations"),
+        "details.noValidRelations": t("details.noValidRelations"),
+        "details.responsibilities": t("details.responsibilities"),
+        "details.decisions": t("details.decisions"),
+        "details.validations": t("details.validations"),
+        "details.behaviors": t("details.behaviors"),
+        "details.responsibilities.count": t("details.responsibilities.count"),
+        "details.decisions.count": t("details.decisions.count"),
+        "details.validations.count": t("details.validations.count"),
+        "details.behaviors.count": t("details.behaviors.count"),
+        "details.multipleComponents": t("details.multipleComponents"),
+        "verb.extends": t("verb.extends"),
+        "verb.implements": t("verb.implements"),
+        "verb.calls": t("verb.calls"),
+        "verb.readsFrom": t("verb.readsFrom"),
+        "verb.writesTo": t("verb.writesTo"),
+        "verb.instanceOf": t("verb.instanceOf"),
+        "verb.usesAsType": t("verb.usesAsType"),
+        "verb.unknown": t("verb.unknown"),
+        "verb.reactsTo": t("verb.reactsTo"),
+        "verb.showsUser": t("verb.showsUser"),
+        "verb.buildsAndShows": t("verb.buildsAndShows"),
+        "verb.managesState": t("verb.managesState"),
+        "verb.delegates": t("verb.delegates"),
+        "verb.notifies": t("verb.notifies"),
+        "verb.composedOf": t("verb.composedOf"),
+        "verb.formats": t("verb.formats"),
+        "verb.assembles": t("verb.assembles"),
+        "verb.reportsEvent": t("verb.reportsEvent"),
+        "narrative.verb.showsUser": t("narrative.verb.showsUser"),
+        "narrative.verb.readsFrom": t("narrative.verb.readsFrom"),
+        "narrative.verb.buildsAndShows": t("narrative.verb.buildsAndShows"),
+        "narrative.verb.instanceOf": t("narrative.verb.instanceOf"),
+        "narrative.verb.notifies": t("narrative.verb.notifies"),
+        "narrative.verb.delegates": t("narrative.verb.delegates"),
+        "narrative.verb.formats": t("narrative.verb.formats"),
+        "narrative.verb.managesState": t("narrative.verb.managesState"),
+        "narrative.verb.reactsTo": t("narrative.verb.reactsTo"),
+        "narrative.verb.implements": t("narrative.verb.implements"),
+        "narrative.verb.extends": t("narrative.verb.extends"),
+        "narrative.default": t("narrative.default"),
+        "responsibilities.transformsData": t("responsibilities.transformsData"),
+        "responsibilities.createsObjects": t("responsibilities.createsObjects"),
+        "responsibilities.managesState": t("responsibilities.managesState"),
+        "responsibilities.controlsNavigation": t("responsibilities.controlsNavigation"),
+        "responsibilities.communicatesWithServices": t("responsibilities.communicatesWithServices"),
+        "responsibilities.validatesInput": t("responsibilities.validatesInput"),
+        "decisions.conditionalDecisions": t("decisions.conditionalDecisions"),
+        "decisions.businessCases": t("decisions.businessCases"),
+        "decisions.ternaryOperators": t("decisions.ternaryOperators"),
+        "decisions.throwsExceptions": t("decisions.throwsExceptions"),
+        "validations.checksEmpty": t("validations.checksEmpty"),
+        "validations.checksLength": t("validations.checksLength"),
+        "validations.preconditions": t("validations.preconditions"),
+        "validations.preventsNull": t("validations.preventsNull"),
+        "collaborations.intensiveCollaboration": t("collaborations.intensiveCollaboration"),
+        "collaborations.coordinatesAsync": t("collaborations.coordinatesAsync"),
+        "collaborations.listensReactively": t("collaborations.listensReactively")
+      };
+      let html = fs2.readFileSync(htmlPath.fsPath, "utf8");
+      if (html.includes("window.translations || {")) {
+        html = html.replace(
+          "const translations = window.translations || {",
+          `const translations = ${JSON.stringify(translations)} || {`
+        );
+      }
+      return html;
+    } catch (e) {
+      log.debug(`[ERROR] Catastrophic failure loading details view: ${e.message}`);
+      return `<h1>Critical Error: ${e.message}</h1>`;
+    }
+  }
+};
+
+// src/filesystem/directory_scanner.ts
+var vscode5 = __toESM(require("vscode"));
+var path4 = __toESM(require("path"));
+var fs4 = __toESM(require("fs"));
+
+// src/filesystem/project_finder.ts
+var vscode4 = __toESM(require("vscode"));
+var path3 = __toESM(require("path"));
+
+// src/filesystem/pattern_matcher.ts
+var path2 = __toESM(require("path"));
+var fs3 = __toESM(require("fs"));
+function findProjectRootWithPubspec(startPath) {
+  log.debug(`[Project Root] Searching for pubspec.yaml from${startPath}`);
+  try {
+    let currentPath = startPath;
+    const maxLevels = 10;
+    let level = 0;
+    while (level < maxLevels) {
+      const pubspecPath = path2.join(currentPath, "pubspec.yaml");
+      if (fs3.existsSync(pubspecPath)) {
+        log.debug(`\u2705 Found pubspec.yaml in: ${currentPath}`);
+        return currentPath;
+      }
+      const parentPath = path2.dirname(currentPath);
+      if (parentPath === currentPath) {
+        break;
+      }
+      currentPath = parentPath;
+      level++;
+    }
+    log.debug(`\u26A0\uFE0F Could not find pubspec.yaml searching from: ${startPath}`);
+    return null;
+  } catch (err) {
+    log.debug("---");
+    log.debug(`\u274C [Project Root] CRITICAL ERROR while searching for the project root.`);
+    if (err instanceof Error) {
+      log.debug(`   Error message: ${err.message}`);
+    } else {
+      log.debug(`   Unknown error: ${String(err)}`);
+    }
+    log.debug("---");
+    return null;
+  }
+}
+async function findDirectoriesByPattern(globPattern) {
+  const directories = [];
+  const parts = globPattern.split(path2.sep);
+  const basePath = parts[0];
+  if (!fs3.existsSync(basePath)) {
+    return directories;
+  }
+  function searchRecursive(currentPath, remainingParts) {
+    if (remainingParts.length === 0) {
+      if (fs3.existsSync(currentPath) && fs3.statSync(currentPath).isDirectory()) {
+        directories.push(currentPath);
+      }
+      return;
+    }
+    const [nextPart, ...restParts] = remainingParts;
+    if (nextPart === "*") {
+      try {
+        const entries = fs3.readdirSync(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith(".")) {
+            const subPath = path2.join(currentPath, entry.name);
+            searchRecursive(subPath, restParts);
+          }
+        }
+      } catch {
+      }
+    } else {
+      const specificPath = path2.join(currentPath, nextPart);
+      if (fs3.existsSync(specificPath)) {
+        searchRecursive(specificPath, restParts);
+      }
+    }
+  }
+  searchRecursive(basePath, parts.slice(1));
+  return directories;
+}
+
+// src/filesystem/project_finder.ts
+async function searchNestedCustomDirectories(projectRoot, customDirectories) {
+  const commonPatterns = [
+    "packages/*/lib",
+    "modules/*/lib",
+    "features/*/lib",
+    "apps/*/lib",
+    "plugins/*/lib",
+    "shared/*/lib"
+  ];
+  for (const pattern of commonPatterns) {
+    try {
+      const globPattern = path3.join(projectRoot, pattern);
+      const matchingDirs = await findDirectoriesByPattern(globPattern);
+      for (const dir of matchingDirs) {
+        if (await containsDartFiles(dir)) {
+          const parentDir = path3.dirname(dir);
+          const parentUri = vscode4.Uri.file(parentDir);
+          if (!customDirectories.some((existing) => existing.fsPath === parentDir)) {
+            customDirectories.push(parentUri);
+            log.debug(`\u{1F4E6} Modular directory found: ${path3.relative(projectRoot, parentDir)}`);
+          }
+        }
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+}
+
+// src/filesystem/directory_scanner.ts
+async function findCustomDartDirectories(rootUri) {
+  const customDirectories = [];
+  const projectRoot = rootUri.fsPath;
+  const standardDirs = /* @__PURE__ */ new Set([
+    "lib",
+    "test",
+    "example",
+    "tool",
+    "bin",
+    "integration_test",
+    ".dart_tool",
+    "build",
+    ".packages",
+    "node_modules"
+  ]);
+  try {
+    const allEntries = fs4.readdirSync(projectRoot, { withFileTypes: true });
+    for (const entry of allEntries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const dirName = entry.name;
+      if (dirName.startsWith(".") || dirName.startsWith("_") || standardDirs.has(dirName) || dirName === "android" || dirName === "ios" || dirName === "web" || dirName === "windows" || dirName === "macos" || dirName === "linux") {
+        continue;
+      }
+      const fullDirPath = path4.join(projectRoot, dirName);
+      if (await containsDartFiles(fullDirPath)) {
+        const dirUri = vscode5.Uri.file(fullDirPath);
+        customDirectories.push(dirUri);
+        log.debug(`\u{1F50D} Custom directory found: ${dirName}`);
+      }
+    }
+    await searchNestedCustomDirectories(projectRoot, customDirectories);
+  } catch (error) {
+    log.error(`\u26A0\uFE0F Error scanning custom directories: ${error}`);
+  }
+  return customDirectories;
+}
+async function containsDartFiles(dirPath, maxDepth = 3) {
+  if (maxDepth <= 0 || !fs4.existsSync(dirPath)) {
+    return false;
+  }
+  try {
+    const entries = fs4.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".dart")) {
+        return true;
+      }
+      if (entry.isDirectory() && !entry.name.startsWith(".")) {
+        const subDirPath = path4.join(dirPath, entry.name);
+        if (await containsDartFiles(subDirPath, maxDepth - 1)) {
+          return true;
+        }
+      }
+    }
+  } catch (error) {
+    return false;
+  }
+  return false;
+}
+
+// src/packages/package_files.ts
+var fs5 = __toESM(require("fs"));
+var import_path = __toESM(require("path"));
+var vscode6 = __toESM(require("vscode"));
+function findDartFilesInPackage(libPath, maxFiles = 20) {
+  const dartFiles = [];
+  try {
+    let searchRecursive2 = function(currentPath, depth = 0) {
+      if (depth > 3 || dartFiles.length >= maxFiles) {
+        return;
+      }
+      const entries = fs5.readdirSync(currentPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (dartFiles.length >= maxFiles) {
+          break;
+        }
+        if (entry.isFile() && entry.name.endsWith(".dart")) {
+          dartFiles.push(import_path.default.join(currentPath, entry.name));
+        } else if (entry.isDirectory() && !entry.name.startsWith(".")) {
+          searchRecursive2(import_path.default.join(currentPath, entry.name), depth + 1);
+        }
+      }
+    };
+    var searchRecursive = searchRecursive2;
+    searchRecursive2(libPath);
+  } catch (error) {
+  }
+  return dartFiles;
+}
+function extractPackageImportsFromFile(fileUri) {
+  try {
+    const filePath = vscode6.Uri.parse(fileUri).fsPath;
+    const fileContent = fs5.readFileSync(filePath, "utf8");
+    const importRegex = /import\s+['"]package:([\w]+)\//g;
+    const imports = /* @__PURE__ */ new Set();
+    let match;
+    while ((match = importRegex.exec(fileContent)) !== null) {
+      imports.add(match[1]);
+    }
+    return Array.from(imports);
+  } catch (e) {
+    return [];
+  }
+}
+
+// src/ui/webview_creator.ts
+var vscode24 = __toESM(require("vscode"));
+var fs13 = __toESM(require("fs"));
+var import_path7 = __toESM(require("path"));
+
+// src/analysis/validation.ts
+var vscode7 = __toESM(require("vscode"));
+function validateEnrichedData(enrichedFiles) {
+  const symbolMap = /* @__PURE__ */ new Map();
+  function recurse(symbols) {
+    for (const sym of symbols) {
+      if (sym.uniqueId) {
+        symbolMap.set(sym.uniqueId, sym);
+      }
+      if (sym.kind === vscode7.SymbolKind.Class) {
+        log.debug(`[VALIDATE] Class: ${sym.name}`);
+      }
+      if (sym.kind === vscode7.SymbolKind.Constructor) {
+        if (!sym.parameters && sym.detail) {
+          log.debug(`[WARN] Constructor '${sym.name}' has detail but no parameters were extracted.`);
+        }
+        if (sym.parentId) {
+          const parent = symbolMap.get(sym.parentId);
+          if (!parent) {
+            log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
+          } else {
+            if (parent.kind !== vscode7.SymbolKind.Class) {
+              log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not a class (kind: ${parent.kind}, expected: ${vscode7.SymbolKind.Class})`);
+            }
+            if (Array.isArray(sym.parameters) && Array.isArray(parent.children)) {
+              const parentFields = new Set(parent.children.map((c) => c.name));
+              for (const param of sym.parameters) {
+                if (param.name && !parentFields.has(param.name)) {
+                  log.debug(`[WARN] Constructor '${sym.name}' has parameter '${param.name}' not found as property in '${parent.name}'`);
+                }
+              }
+            }
+          }
+        }
+      }
+      if (sym.parentId && !symbolMap.has(sym.parentId)) {
+        log.debug(`[ERROR] parentId '${sym.parentId}' of '${sym.name}' is not among the uniqueIds.`);
+      }
+      if (sym.children) {
+        recurse(sym.children);
+      }
+    }
+  }
+  try {
+    for (const file of enrichedFiles) {
+      recurse(file.symbols);
+    }
+  } catch (err) {
+    log.error(`Error running validateEnrichedData: ${err}`);
+  }
+}
+
+// src/core/constants.ts
+var vscode8 = __toESM(require("vscode"));
+var KIND_CLASS = vscode8.SymbolKind.Class;
+var KIND_ENUM = vscode8.SymbolKind.Enum;
+var KIND_METHOD = vscode8.SymbolKind.Method;
+var KIND_FUNCTION = vscode8.SymbolKind.Function;
+var KIND_CONSTRUCTOR = vscode8.SymbolKind.Constructor;
+var KIND_FIELD = vscode8.SymbolKind.Field;
+var KIND_PROPERTY = vscode8.SymbolKind.Property;
+var KIND_EXTENSION = vscode8.SymbolKind.Namespace;
+var KIND_TYPEDEF = 22;
+
+// src/core/symbol_utils.ts
+function generateGlobalSymbolId(symbol, parentName) {
+  const fileUri = symbol.fileUri || "unknown_uri";
+  let symbolNamePart = symbol.name;
+  const kindPrefix = getKindPrefix(symbol.kind);
+  if (symbol.kind === KIND_CONSTRUCTOR && symbolNamePart === parentName) {
+    symbolNamePart = "_default_";
+  }
+  return parentName ? `${fileUri}#parent:${parentName}#kind:${kindPrefix}#name:${symbolNamePart}` : `${fileUri}#kind:${kindPrefix}#name:${symbolNamePart}`;
+}
+function getKindPrefix(kind) {
+  const map = { 5: "class", 6: "method", 12: "func", 9: "ctor", 8: "field", 7: "prop", 10: "enum", 3: "ext", 22: "typedef" };
+  return map[kind] || `k${kind}`;
+}
+function SymbolKindToString(kind) {
+  const map = {
+    [KIND_CLASS]: "class",
+    [KIND_METHOD]: "method",
+    [KIND_FUNCTION]: "function",
+    [KIND_CONSTRUCTOR]: "constructor",
+    [KIND_FIELD]: "field",
+    [KIND_PROPERTY]: "property",
+    [KIND_ENUM]: "enum",
+    [KIND_TYPEDEF]: "typedef",
+    [KIND_EXTENSION]: "namespace"
+  };
+  return map[kind] || `kind_${kind}`;
+}
+
+// src/core/text_utils.ts
+function parseBaseTypeName(typeString) {
+  if (!typeString) {
+    return void 0;
+  }
+  let currentType = typeString.trim().replace(/\?$/, "");
+  const genericMatch = currentType.match(/^[\w\s]+\s*<(.+)>$/);
+  if (genericMatch?.[1]) {
+    const innerType = parseBaseTypeName(genericMatch[1]);
+    if (innerType) {
+      return innerType;
+    }
+  }
+  return currentType.split(".").pop()?.split(" ").pop() || currentType;
+}
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function stripCommentsAndStrings(code) {
+  return code.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(["'`])(?:\\.|[^\\])*?\1/g, "");
+}
+
+// src/core/json_utils.ts
+function sanitizeStringForJSON(str) {
+  if (typeof str !== "string") {
+    return str;
+  }
+  let sanitized = str.replace(/[\x00-\x07\x0b\x0e-\x1f\x7f]/g, function(char) {
+    return "\\u" + ("0000" + char.charCodeAt(0).toString(16)).slice(-4);
+  });
+  sanitized = sanitized.replace(/\r\n/g, "\\n").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t").replace(/\f/g, "\\f").replace(/\x08/g, "\\b");
+  return sanitized;
+}
+function sanitizeObjectStrings(obj) {
+  if (obj === null || typeof obj !== "object") {
+    return;
+  }
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      const val = obj[i];
+      if (typeof val === "string") {
+        obj[i] = sanitizeStringForJSON(val);
+      } else if (typeof val === "object") {
+        sanitizeObjectStrings(val);
+      }
+    }
+  } else {
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        if (typeof value === "string") {
+          obj[key] = sanitizeStringForJSON(value);
+        } else if (typeof value === "object") {
+          sanitizeObjectStrings(value);
+        }
+      }
+    }
+  }
+}
+
+// src/core/graph_algorithms.ts
+function calculateNodeDegrees(graph) {
+  const nodeMap = new Map(graph.nodes.map((node) => [node.id, node]));
+  for (const node of graph.nodes) {
+    node.inDegree = 0;
+    node.outDegree = 0;
+  }
+  for (const edge of graph.edges) {
+    const sourceNode = nodeMap.get(edge.source);
+    const targetNode = nodeMap.get(edge.target);
+    if (sourceNode) {
+      sourceNode.outDegree++;
+    }
+    if (targetNode) {
+      targetNode.inDegree++;
+    }
+  }
+}
+
+// src/core/concurrency.ts
+var defaultSleep = (ms) => new Promise((resolve4) => setTimeout(resolve4, ms));
+async function retryUntil(operation, isDone, delaysMs, sleep2 = defaultSleep) {
+  let result = await operation();
+  let attempts = 1;
+  for (const delay of delaysMs) {
+    if (isDone(result)) {
+      return { result, attempts, exhausted: false };
+    }
+    await sleep2(delay);
+    result = await operation();
+    attempts++;
+  }
+  return { result, attempts, exhausted: !isDone(result) };
+}
+async function mapLimited(items, limit, fn, onProgress) {
+  const results = new Array(items.length);
+  let next = 0;
+  let done = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index);
+      done++;
+      onProgress?.(done, items.length);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
+  return results;
+}
+
+// src/graph/graph_builder.ts
+var vscode16 = __toESM(require("vscode"));
+
+// src/graph/layer_classifier.ts
+var vscode9 = __toESM(require("vscode"));
+var path6 = __toESM(require("path"));
+
+// src/analysis/state_managers.ts
+var BASES = {
+  bloc: "bloc",
+  cubit: "bloc",
+  hydratedbloc: "bloc",
+  hydratedcubit: "bloc",
+  replaybloc: "bloc",
+  replaycubit: "bloc",
+  changenotifier: "provider",
+  valuenotifier: "provider",
+  statenotifier: "riverpod",
+  notifier: "riverpod",
+  asyncnotifier: "riverpod",
+  autodisposenotifier: "riverpod",
+  autodisposeasyncnotifier: "riverpod",
+  getxcontroller: "getx",
+  getxservice: "getx",
+  rxcontroller: "getx"
+};
+function detectStateManager(relations) {
+  if (!relations) {
+    return void 0;
+  }
+  for (const list of [relations.extends, relations.with, relations.implements]) {
+    for (const rel of list ?? []) {
+      const written = (typeof rel === "string" ? rel : rel.name).split("<")[0].trim();
+      const family = BASES[written.toLowerCase()];
+      if (family) {
+        return { family, base: written };
+      }
+    }
+  }
+  return void 0;
+}
+
+// src/filesystem/exclusions.ts
+var DEFAULT_EXCLUDES = [
+  "**/*.g.dart",
+  "**/*.freezed.dart",
+  "**/*.gr.dart",
+  "**/*.mocks.dart",
+  "**/*.config.dart",
+  "**/*.chopper.dart",
+  "**/*.reflectable.dart",
+  "**/generated/**",
+  "**/.dart_tool/**"
+];
+function globToRegExp(glob) {
+  let out = "";
+  for (let i = 0; i < glob.length; i++) {
+    const ch = glob[i];
+    if (ch === "*") {
+      if (glob[i + 1] === "*") {
+        if (glob[i + 2] === "/") {
+          out += "(?:.*/)?";
+          i += 2;
+        } else {
+          out += ".*";
+          i += 1;
+        }
+      } else {
+        out += "[^/]*";
+      }
+    } else if (ch === "?") {
+      out += "[^/]";
+    } else {
+      out += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`^${out}$`, "i");
+}
+function makeExcluder(patterns) {
+  const regexes = patterns.filter((p) => p.trim() !== "").map(globToRegExp);
+  return (relativePath) => {
+    const normalized = relativePath.replace(/\\/g, "/");
+    return regexes.some((r) => r.test(normalized));
+  };
+}
+
+// src/analysis/architecture_presets.ts
+var COMMON_NEUTRAL = {
+  id: "core",
+  label: "Core",
+  neutral: true,
+  description: "Shared code. Takes no part in the rules.",
+  folders: ["**/core/**", "**/utils/**", "**/shared/**", "**/common/**", "**/helpers/**"]
+};
+var PRESETS = {
+  // The four layers Satori always had, written out so they can be extended.
+  default: {
+    description: "View, State, Service and Model, placed by Satori's own guess. Using a layer above yours is a violation.",
+    layers: [{ id: "view" }, { id: "state" }, { id: "service" }, { id: "model" }, { id: "utility", neutral: true }],
+    mode: "order",
+    allow: [],
+    heuristic: { view: "view", state: "state", service: "service", model: "model", utility: "utility" }
+  },
+  // Presentation and data both depend on the domain; the domain depends on nothing.
+  clean: {
+    description: "Clean Architecture: presentation and data depend on the domain, the domain on nothing.",
+    layers: [
+      {
+        id: "presentation",
+        label: "Presentation",
+        color: "#1e88e5",
+        icon: "layer-view",
+        description: "Screens, widgets and their state. May use the domain, never the data layer directly.",
+        folders: ["**/presentation/**", "**/pages/**", "**/screens/**", "**/views/**", "**/widgets/**", "**/ui/**"],
+        names: ["*Page", "*Screen", "*View"]
+      },
+      {
+        id: "domain",
+        label: "Domain",
+        color: "#8e24aa",
+        description: "Entities and business rules. Depends on nothing else.",
+        folders: ["**/domain/**", "**/entities/**", "**/usecases/**", "**/use_cases/**"],
+        names: ["*UseCase", "*Entity"]
+      },
+      {
+        id: "data",
+        label: "Data",
+        color: "#43a047",
+        icon: "layer-model",
+        description: "Repositories, data sources and DTOs. May use the domain.",
+        folders: ["**/data/**", "**/repositories/**", "**/datasources/**", "**/data_sources/**"],
+        names: ["*Repository*", "*DataSource*", "*Dto"]
+      },
+      COMMON_NEUTRAL
+    ],
+    mode: "allow",
+    allow: [["presentation", "domain"], ["data", "domain"]],
+    heuristic: { view: "presentation", state: "presentation", service: "data", model: "domain", utility: "core" }
+  },
+  // View -> view model -> model, one way.
+  mvvm: {
+    description: "MVVM: views use view models, view models use the model. Never the other way round.",
+    layers: [
+      {
+        id: "view",
+        label: "View",
+        color: "#1e88e5",
+        icon: "layer-view",
+        description: "Screens and widgets. Show what the view model exposes.",
+        folders: ["**/views/**", "**/pages/**", "**/screens/**", "**/widgets/**", "**/ui/**"],
+        extends: ["StatelessWidget", "StatefulWidget"],
+        names: ["*Page", "*Screen", "*View"]
+      },
+      {
+        id: "viewmodel",
+        label: "View model",
+        color: "#fbc02d",
+        icon: "layer-state",
+        description: "State and logic of a screen. Uses the model, knows nothing of widgets.",
+        folders: ["**/viewmodels/**", "**/view_models/**", "**/viewmodel/**", "**/blocs/**", "**/cubits/**", "**/controllers/**", "**/providers/**", "**/state/**"],
+        names: ["*ViewModel", "*Bloc", "*Cubit", "*Controller", "*Notifier"]
+      },
+      {
+        id: "model",
+        label: "Model",
+        color: "#e64a19",
+        icon: "layer-model",
+        description: "Data, repositories and services.",
+        folders: ["**/models/**", "**/repositories/**", "**/services/**", "**/data/**", "**/domain/**"],
+        names: ["*Model", "*Repository*", "*Service"]
+      },
+      COMMON_NEUTRAL
+    ],
+    mode: "order",
+    allow: [],
+    heuristic: { view: "view", state: "viewmodel", service: "model", model: "model", utility: "core" }
+  }
+};
+var LIST_KEYS = ["folders", "names", "extends"];
+function mergeLayers(base, extra) {
+  const merged = base.map((l) => ({ ...l }));
+  const neutralAt = merged.findIndex((l) => l.neutral);
+  for (const item of extra) {
+    if (!item || typeof item !== "object" || typeof item.id !== "string") {
+      continue;
+    }
+    const existing = merged.find((l) => l.id === item.id);
+    if (!existing) {
+      const at = neutralAt >= 0 ? merged.findIndex((l) => l.neutral) : merged.length;
+      merged.splice(at, 0, { ...item });
+      continue;
+    }
+    for (const [key, value] of Object.entries(item)) {
+      if (LIST_KEYS.includes(key) && Array.isArray(value)) {
+        const current = existing[key];
+        existing[key] = [...value, ...current ?? []];
+      } else {
+        existing[key] = value;
+      }
+    }
+  }
+  return merged;
+}
+var ROLES = [
+  { rank: 0, names: /^(views?|pages?|screens?|ui|widgets?|presentation|components?)$/ },
+  { rank: 1, names: /^(view_?models?|blocs?|cubits?|controllers?|providers?|state|states|stores?|notifiers?)$/ },
+  { rank: 2, names: /^(use_?cases?|domain|logic|business|services?|interactors?)$/ },
+  { rank: 3, names: /^(repositor(y|ies)|data|data_?sources?|api|network|remote|local|infra(structure)?)$/ },
+  { rank: 4, names: /^(models?|entit(y|ies)|dtos?)$/ }
+];
+var NEUTRAL_NAMES = /^(core|utils?|shared|common|helpers?|config|configs?|constants?|extensions?|theme|themes?|l10n|generated|assets|routes?|router|di|injection|mixins?)$/;
+var UNKNOWN_RANK = 2.5;
+var MAX_LAYERS = 12;
+function layerId(name) {
+  const id = name.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^[^a-z]+/, "");
+  return id === "" ? "folder" : id.slice(0, 32);
+}
+function layerLabel(name) {
+  const words = name.replace(/[-_]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function layersFromFolders(base, folders) {
+  const used = /* @__PURE__ */ new Set(["core"]);
+  const own = [];
+  const shared = [];
+  for (const name of [...new Set(folders)].sort()) {
+    if (name.startsWith(".")) {
+      continue;
+    }
+    const lower = name.toLowerCase();
+    if (NEUTRAL_NAMES.test(lower)) {
+      shared.push(`${base}/${name}/**`);
+      continue;
+    }
+    if (own.length >= MAX_LAYERS) {
+      shared.push(`${base}/${name}/**`);
+      continue;
+    }
+    let id = layerId(name);
+    for (let i = 2; used.has(id); i++) {
+      id = `${layerId(name).slice(0, 28)}-${i}`;
+    }
+    used.add(id);
+    const role = ROLES.find((r) => r.names.test(lower));
+    own.push({ spec: { id, label: layerLabel(name), folders: [`${base}/${name}/**`] }, rank: role ? role.rank : UNKNOWN_RANK, name });
+  }
+  own.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+  return [
+    ...own.map((o) => o.spec),
+    { id: "core", label: "Core", neutral: true, description: "Shared code and whatever is outside the folders above. Takes no part in the rules.", folders: shared }
+  ];
+}
+
+// src/analysis/architecture_config.ts
+var BUILTIN_LAYER_IDS = ["view", "state", "service", "model", "utility"];
+function defaultArchitecture() {
+  return {
+    layers: [
+      { id: "view" },
+      { id: "state" },
+      { id: "service" },
+      { id: "model" },
+      { id: "utility", neutral: true }
+    ],
+    mode: "order",
+    allow: [],
+    forbid: [],
+    neutral: "utility",
+    overrides: {},
+    heuristic: { view: "view", state: "state", service: "service", model: "model", utility: "utility" },
+    builtin: true
+  };
+}
+var KNOWN_ICONS = ["layer-view", "layer-state", "layer-service", "layer-model", "layer-utility", "layer-generic"];
+var ID = /^[a-z][a-z0-9_-]{0,31}$/;
+var COLOR = /^#[0-9a-fA-F]{6}$/;
+function strings(value) {
+  return Array.isArray(value) ? value.filter((v) => typeof v === "string" && v.trim() !== "") : void 0;
+}
+function pairs(value, known, what, problems) {
+  const out = [];
+  if (value === void 0) {
+    return out;
+  }
+  if (!Array.isArray(value)) {
+    problems.push(`"${what}" must be a list of [from, to] pairs.`);
+    return out;
+  }
+  for (const item of value) {
+    if (Array.isArray(item) && item.length === 2 && typeof item[0] === "string" && typeof item[1] === "string") {
+      if (!known.has(item[0]) || !known.has(item[1])) {
+        problems.push(`"${what}" names a layer that does not exist: ${item[0]} -> ${item[1]}.`);
+      } else {
+        out.push([item[0], item[1]]);
+      }
+    } else {
+      problems.push(`"${what}" has an entry that is not a [from, to] pair.`);
+    }
+  }
+  return out;
+}
+function parseArchitecture(text, context = {}) {
+  if (text === void 0 || text.trim() === "") {
+    return { architecture: defaultArchitecture(), problems: [] };
+  }
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (e) {
+    return { architecture: defaultArchitecture(), problems: [`satori.json is not valid JSON (${e.message}). The default layers are used.`] };
+  }
+  const section = raw && typeof raw === "object" ? raw.architecture : void 0;
+  if (section === void 0) {
+    return { architecture: defaultArchitecture(), problems: [] };
+  }
+  if (!section || typeof section !== "object") {
+    return { architecture: defaultArchitecture(), problems: ['"architecture" must be an object. The default layers are used.'] };
+  }
+  const problems = [];
+  let rawLayers = Array.isArray(section.layers) ? section.layers : [];
+  let presetRules = {};
+  let presetHeuristic;
+  if (section.preset === "folders") {
+    const found = context.discoverFolders?.();
+    if (!found || found.folders.length === 0) {
+      problems.push('"preset": "folders" needs a lib/ folder with subfolders, and none was found.');
+    } else {
+      rawLayers = mergeLayers(layersFromFolders(found.base, found.folders), rawLayers);
+      presetRules = { mode: "none", allow: [] };
+      presetHeuristic = {};
+    }
+  } else if (section.preset !== void 0) {
+    const preset = typeof section.preset === "string" ? PRESETS[section.preset] : void 0;
+    if (!preset) {
+      problems.push(`"preset" must be one of: ${[...Object.keys(PRESETS), "folders"].join(", ")} (got ${JSON.stringify(section.preset)}).`);
+    } else {
+      rawLayers = mergeLayers(preset.layers, rawLayers);
+      presetRules = { mode: preset.mode, allow: preset.allow };
+      presetHeuristic = preset.heuristic;
+    }
+  }
+  if (rawLayers.length === 0) {
+    return { architecture: defaultArchitecture(), problems: [...problems, '"architecture.layers" must be a list with at least one layer, or "architecture.preset" must name one. The default layers are used.'] };
+  }
+  const layers = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of rawLayers) {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || !ID.test(item.id)) {
+      problems.push(`A layer needs an "id" of lowercase letters, digits, "-" or "_" (got ${JSON.stringify(item && item.id)}).`);
+      continue;
+    }
+    if (seen.has(item.id)) {
+      problems.push(`The layer "${item.id}" is written twice; the second one is ignored.`);
+      continue;
+    }
+    seen.add(item.id);
+    const spec = { id: item.id };
+    if (typeof item.label === "string") {
+      spec.label = item.label;
+    }
+    if (typeof item.description === "string") {
+      spec.description = item.description;
+    }
+    if (typeof item.color === "string") {
+      if (COLOR.test(item.color)) {
+        spec.color = item.color.toLowerCase();
+      } else {
+        problems.push(`The colour of "${item.id}" must look like #1e88e5.`);
+      }
+    }
+    if (typeof item.icon === "string") {
+      if (KNOWN_ICONS.includes(item.icon)) {
+        spec.icon = item.icon;
+      } else {
+        problems.push(`The icon of "${item.id}" must be one of: ${KNOWN_ICONS.join(", ")}.`);
+      }
+    }
+    const folders = strings(item.folders);
+    if (folders) {
+      spec.folders = folders;
+    }
+    const ext = strings(item.extends);
+    if (ext) {
+      spec.extends = ext;
+    }
+    const names = strings(item.names);
+    if (names) {
+      spec.names = names;
+    }
+    if (item.neutral === true) {
+      spec.neutral = true;
+    }
+    layers.push(spec);
+  }
+  if (layers.length === 0) {
+    return { architecture: defaultArchitecture(), problems: [...problems, "No valid layer was found. The default layers are used."] };
+  }
+  let neutral = layers.find((l) => l.neutral)?.id;
+  if (!neutral) {
+    const existing = layers.find((l) => l.id === "other");
+    if (existing) {
+      existing.neutral = true;
+    } else {
+      layers.push({ id: "other", label: "Other", neutral: true });
+      seen.add("other");
+    }
+    neutral = "other";
+  }
+  layers.forEach((l) => {
+    if (l.id !== neutral) {
+      delete l.neutral;
+    }
+  });
+  const known = new Set(layers.map((l) => l.id));
+  const fileRules = section.rules && typeof section.rules === "object" ? section.rules : {};
+  const rules = { ...presetRules, ...fileRules };
+  let mode = "order";
+  if (rules.mode === "allow" || rules.mode === "none") {
+    mode = rules.mode;
+  } else if (rules.mode !== void 0 && rules.mode !== "order") {
+    problems.push('"rules.mode" must be "order", "allow" or "none"; "order" is used.');
+  }
+  const overrides2 = {};
+  if (section.overrides && typeof section.overrides === "object") {
+    for (const [name, layer] of Object.entries(section.overrides)) {
+      if (typeof layer === "string" && known.has(layer)) {
+        overrides2[name] = layer;
+      } else {
+        problems.push(`"overrides" puts ${name} in a layer that does not exist (${String(layer)}).`);
+      }
+    }
+  }
+  const heuristic = {};
+  if (section.heuristic === false) {
+  } else if (section.heuristic && typeof section.heuristic === "object") {
+    for (const [from, to] of Object.entries(section.heuristic)) {
+      if (!BUILTIN_LAYER_IDS.includes(from)) {
+        problems.push(`"heuristic" does not know "${from}"; use view, state, service, model or utility.`);
+      } else if (typeof to === "string" && known.has(to)) {
+        heuristic[from] = to;
+      } else {
+        problems.push(`"heuristic" sends ${from} to a layer that does not exist (${String(to)}).`);
+      }
+    }
+  } else if (presetHeuristic) {
+    for (const [from, to] of Object.entries(presetHeuristic)) {
+      if (known.has(to)) {
+        heuristic[from] = to;
+      }
+    }
+  } else {
+    for (const id of BUILTIN_LAYER_IDS) {
+      if (known.has(id)) {
+        heuristic[id] = id;
+      }
+    }
+  }
+  return {
+    architecture: {
+      layers,
+      mode,
+      allow: pairs(rules.allow, known, "rules.allow", problems),
+      forbid: pairs(rules.forbid, known, "rules.forbid", problems),
+      neutral,
+      overrides: overrides2,
+      heuristic,
+      builtin: false
+    },
+    problems
+  };
+}
+function namePattern(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+function layerFor(arch, facts) {
+  const byName = arch.overrides[facts.name];
+  if (byName) {
+    return byName;
+  }
+  const path20 = facts.path.replace(/\\/g, "/");
+  for (const layer of arch.layers) {
+    if ((layer.folders ?? []).some((g) => globToRegExp(g).test(path20))) {
+      return layer.id;
+    }
+  }
+  for (const layer of arch.layers) {
+    if ((layer.extends ?? []).some((e) => facts.parents.includes(e))) {
+      return layer.id;
+    }
+  }
+  for (const layer of arch.layers) {
+    if ((layer.names ?? []).some((p) => namePattern(p).test(facts.name))) {
+      return layer.id;
+    }
+  }
+  return arch.heuristic[facts.guess] ?? arch.neutral;
+}
+
+// src/graph/layer_classifier.ts
+var architecture = null;
+var projectRootPath = "";
+function setArchitecture(arch, projectRoot = "") {
+  architecture = arch;
+  projectRootPath = projectRoot;
+}
+function parentNames(relations) {
+  return [...relations?.extends ?? [], ...relations?.implements ?? [], ...relations?.with ?? []].map((r) => (typeof r === "string" ? r : r.name).split("<")[0].trim());
+}
+function classifyLayer(symbol, relations) {
+  const guess = getArchitecturalLayer(symbol, relations);
+  if (guess === "member" || !architecture || architecture.builtin) {
+    return guess;
+  }
+  const file = symbol.fileUri ? vscode9.Uri.parse(symbol.fileUri).fsPath : "";
+  const relative3 = projectRootPath && file ? path6.relative(projectRootPath, file) : file;
+  return layerFor(architecture, { name: symbol.name, path: relative3, parents: parentNames(relations), guess });
+}
+function getArchitecturalLayer(symbol, relations) {
+  if (symbol.kind !== vscode9.SymbolKind.Class && symbol.kind !== vscode9.SymbolKind.Enum) {
+    return "member";
+  }
+  const name = symbol.name.toLowerCase();
+  const allRelations = [
+    ...relations?.extends || [],
+    ...relations?.implements || [],
+    ...relations?.with || []
+  ].map((r) => (typeof r === "string" ? r : r.name).toLowerCase().split("<")[0]);
+  if (allRelations.includes("statelesswidget") || allRelations.includes("statefulwidget") || allRelations.includes("hookwidget") || allRelations.includes("widget")) {
+    return "view";
+  }
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const hasBuildMethod = symbol.children.some(
+      (c) => c.kind === vscode9.SymbolKind.Method && c.name === "build"
+    );
+    if (hasBuildMethod) {
+      return "view";
+    }
+  }
+  if (allRelations.some(
+    (rel) => rel.includes("widget") || rel.includes("component") || rel.includes("renderobject") || rel.includes("sliver")
+  )) {
+    return "view";
+  }
+  if (name.endsWith("page") || name.endsWith("screen") || name.endsWith("view") || name.endsWith("widget") || name.endsWith("dialog") || name.endsWith("modal") || name.endsWith("bottomsheet") || name.endsWith("drawer")) {
+    return "view";
+  }
+  if (name.includes("page") || name.includes("screen") || name.includes("widget") || name.includes("dialog")) {
+    return "view";
+  }
+  if (detectStateManager(relations)) {
+    return "state";
+  }
+  if (allRelations.includes("changenotifier") || allRelations.includes("statenotifier") || allRelations.includes("bloc") || allRelations.includes("cubit") || allRelations.includes("provider") || allRelations.includes("controller")) {
+    return "state";
+  }
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const hasStateStream = symbol.children.some(
+      (c) => (c.kind === vscode9.SymbolKind.Field || c.kind === vscode9.SymbolKind.Property) && (c.name === "stream" || c.name === "state")
+    );
+    const hasEventMethod = symbol.children.some(
+      (c) => c.kind === vscode9.SymbolKind.Method && (c.name === "add" || c.name === "emit" || c.name === "on")
+    );
+    if (hasStateStream && hasEventMethod) {
+      return "state";
+    }
+  }
+  if (name.endsWith("bloc") || name.endsWith("cubit") || name.endsWith("provider") || name.endsWith("controller") || name.endsWith("manager") || name.endsWith("viewmodel") || name.endsWith("notifier") || name.endsWith("store") || name.endsWith("reducer") || name.endsWith("state")) {
+    return "state";
+  }
+  if (name.includes("bloc") || name.includes("cubit") || name.includes("provider") || name.includes("controller") || name.includes("notifier") || name.includes("state")) {
+    return "state";
+  }
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const methods = symbol.children.filter((c) => c.kind === vscode9.SymbolKind.Method);
+    const asyncMethods = methods.filter(
+      (m) => m.returnType?.toLowerCase().includes("future") || m.returnType?.toLowerCase().includes("stream") || m.name.toLowerCase().includes("async")
+    );
+    if (methods.length > 0 && asyncMethods.length / methods.length >= 0.5) {
+      return "service";
+    }
+  }
+  if (allRelations.some(
+    (rel) => rel.includes("service") || rel.includes("repository") || rel.includes("client") || rel.includes("adapter") || rel.includes("gateway")
+  )) {
+    return "service";
+  }
+  if (name.endsWith("service") || name.endsWith("repository") || name.endsWith("api") || name.endsWith("datasource") || name.endsWith("client") || name.endsWith("gateway") || name.endsWith("adapter") || name.endsWith("helper") || name.endsWith("manager") || name.endsWith("handler")) {
+    return "service";
+  }
+  if (name.includes("service") || name.includes("repository") || name.includes("api") || name.includes("client") || name.includes("gateway") || name.includes("adapter")) {
+    return "service";
+  }
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const methods = symbol.children.filter((c) => c.kind === vscode9.SymbolKind.Method);
+    const fields = symbol.children.filter(
+      (c) => c.kind === vscode9.SymbolKind.Field || c.kind === vscode9.SymbolKind.Property
+    );
+    const businessMethods = methods.filter(
+      (m) => !["toString", "hashcode", "operator==", "copyWith", "toJson", "fromJson"].includes(m.name.toLowerCase())
+    );
+    if (fields.length > 0 && businessMethods.length <= 2) {
+      return "model";
+    }
+  }
+  if (name.endsWith("model") || name.endsWith("entity") || name.endsWith("dto") || name.endsWith("data") || name.endsWith("response") || name.endsWith("request") || name.endsWith("event") || name.endsWith("state") || name.endsWith("vo") || name.endsWith("pojo")) {
+    return "model";
+  }
+  if (name.includes("model") || name.includes("entity") || name.includes("dto") || name.includes("data")) {
+    return "model";
+  }
+  if (symbol.kind === vscode9.SymbolKind.Enum) {
+    return "model";
+  }
+  if (name.endsWith("util") || name.endsWith("utils") || name.endsWith("helper") || name.endsWith("extension") || name.endsWith("mixin") || name.endsWith("constants") || name.endsWith("config") || name.endsWith("settings")) {
+    return "utility";
+  }
+  if (symbol.kind === vscode9.SymbolKind.Class && symbol.children) {
+    const methods = symbol.children.filter((c) => c.kind === vscode9.SymbolKind.Method);
+    const staticMethods = methods.filter(
+      (m) => m.detail?.toLowerCase().includes("static")
+    );
+    if (methods.length > 0 && staticMethods.length / methods.length >= 0.7) {
+      return "utility";
+    }
+  }
+  return "utility";
+}
+
+// src/graph/node_creator.ts
+function createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById, generateGlobalSymbolId2, generatedNodeIds) {
+  function recursive(symbols, parentClass, fileUri) {
+    if (!symbols) {
+      return;
+    }
+    for (const s of symbols) {
+      s.fileUri = s.fileUri || fileUri;
+      const nodeId = generateGlobalSymbolId2(s, parentClass?.name);
+      const parentId = parentClass ? generateGlobalSymbolId2(parentClass, void 0) : void 0;
+      if (parentClass) {
+        log.debug(`[DEBUG-PARENT] ${s.name} has parent${parentClass.name}`);
+        log.debug(`[DEBUG-PARENT-ID] ${s.name} -> parentId: ${parentId}`);
+      } else {
+        log.debug(`[DEBUG-PARENT] ${s.name} has no parent (is top-level)`);
+      }
+      if (!generatedNodeIds.has(nodeId)) {
+        generatedNodeIds.add(nodeId);
+        const layer = classifyLayer(s, s.relations);
+        log.debug(`[DEBUG-RECURSIVE-PARENT] Processing: ${s.name}, parentClass: ${parentClass?.name ?? "none"}`);
+        const stateManager = s.kind === KIND_CLASS ? detectStateManager(s.relations) : void 0;
+        const node = {
+          id: nodeId,
+          label: s.name,
+          kind: SymbolKindToString(s.kind),
+          data: {
+            fileUri: s.fileUri,
+            range: s.range,
+            selectionRange: s.selectionRange,
+            isSDK: !!s.isSDK,
+            access: s.access,
+            layer,
+            ...stateManager ? { stateManager } : {}
+          },
+          parent: parentId
+        };
+        log.debug(`[DEBUG-GRAPH] Agdding node: ${node.label}, Layer: ${layer}, Parent: ${node.parent}`);
+        log.debug(`[DEBUG-KIND] ${s.name} (kind: ${SymbolKindToString(s.kind)})`);
+        projectGraph.nodes.push(node);
+      }
+      symbolMapById.set(nodeId, s);
+      const isContainerSymbol = s.kind === KIND_CLASS || s.kind === KIND_ENUM || (s.children?.length ?? 0) > 0;
+      const nextParent = isContainerSymbol ? s : parentClass;
+      if (s.children) {
+        recursive(s.children, nextParent, s.fileUri);
+      }
+    }
+  }
+  for (const file of enrichedFiles) {
+    recursive(file.symbols, void 0, file.fileUri);
+  }
+}
+
+// src/analysis/source_analyzer.ts
+var vscode10 = __toESM(require("vscode"));
+var fs6 = __toESM(require("fs"));
+var fileContentCache = /* @__PURE__ */ new Map();
+function clearFileContentCache() {
+  fileContentCache.clear();
+  fileLinesCache.clear();
+}
+var fileLinesCache = /* @__PURE__ */ new Map();
+function getFileLines(fileUri) {
+  if (fileLinesCache.has(fileUri)) {
+    return fileLinesCache.get(fileUri);
+  }
+  let lines = null;
+  try {
+    let content = fileContentCache.get(fileUri);
+    if (content === void 0) {
+      content = fs6.readFileSync(vscode10.Uri.parse(fileUri).fsPath, "utf8");
+      fileContentCache.set(fileUri, content);
+    }
+    lines = content.split(/\r?\n/);
+  } catch {
+    lines = null;
+  }
+  fileLinesCache.set(fileUri, lines);
+  return lines;
+}
+function getSourceCodeForSymbol(symbol) {
+  const rangeToUse = symbol.range || symbol.selectionRange;
+  if (!rangeToUse || !symbol.fileUri) {
+    return "";
+  }
+  try {
+    const filePath = vscode10.Uri.parse(symbol.fileUri).fsPath;
+    let fileContent = fileContentCache.get(symbol.fileUri);
+    if (fileContent === void 0) {
+      log.debug(`[Cache MISS] Reading file: ${symbol.fileUri}`);
+      fileContent = fs6.readFileSync(filePath, "utf8");
+      fileContentCache.set(symbol.fileUri, fileContent);
+    } else {
+      log.debug(`[Cache HIT] ${symbol.fileUri}`);
+    }
+    const lines = fileContent.split(/\r?\n/);
+    const start = rangeToUse.start;
+    const end = rangeToUse.end;
+    if (start.line >= lines.length || end.line >= lines.length) {
+      return "";
+    }
+    if (start.line === end.line) {
+      return lines[start.line].substring(start.character, end.character);
+    }
+    let text = lines[start.line].substring(start.character);
+    for (let i = start.line + 1; i < end.line; i++) {
+      text += "\n" + lines[i];
+    }
+    text += "\n" + lines[end.line].substring(0, end.character);
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+// src/analysis/access_classifier.ts
+var ASSIGNMENT = /^(\?\?=|~\/=|>>>=|<<=|>>=|\+=|-=|\*=|\/=|%=|&=|\|=|\^=|=(?![=>]))/;
+var NON_CALL_WORDS = /* @__PURE__ */ new Set(["if", "while", "for", "switch", "catch", "assert", "return", "await", "in", "when"]);
+var THIS_PREFIX = /\bthis\s*\.\s*$/;
+function enclosingGroup(line, position) {
+  let depth = 0;
+  for (let i = position - 1; i >= 0; i--) {
+    const ch = line[i];
+    if (ch === ")") {
+      depth++;
+    } else if (ch === "(") {
+      if (depth > 0) {
+        depth--;
+        continue;
+      }
+      const before = line.slice(0, i).replace(/\s+$/, "");
+      const match = before.match(/[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*(?:<[^()]*>)?$/);
+      if (!match) {
+        return { open: true, callee: null };
+      }
+      const name = match[0].replace(/<.*$/, "").replace(/\s+/g, "");
+      return { open: true, callee: NON_CALL_WORDS.has(name) ? null : name };
+    }
+  }
+  return { open: false, callee: null };
+}
+function isConstructorName(callee, names) {
+  if (!callee) {
+    return false;
+  }
+  return names.indexOf(callee) >= 0 || names.indexOf(callee.split(".")[0]) >= 0;
+}
+function classifyAccess(line, start, end, context = {}) {
+  const before = line.slice(0, start);
+  const after = line.slice(end);
+  const names = context.constructorNames || [];
+  if (names.length && THIS_PREFIX.test(before)) {
+    const head = before.replace(THIS_PREFIX, "");
+    const group = enclosingGroup(line, start);
+    const sameLineHeader = group.open && isConstructorName(group.callee, names) && /^\s*[,)}\]]/.test(after);
+    const ownLineParameter = !group.open && /^\s*(?:(?:required|covariant|final|const)\s+)*(?:[\w$<>?,]+\s+)?$/.test(head) && /^\s*(?:=\s*[^,;)]+)?\s*[,)}\]]?\s*$/.test(after) && !/;\s*$/.test(after);
+    if (sameLineHeader || ownLineParameter) {
+      return ["write"];
+    }
+  }
+  const next = after.replace(/^[!\s]+/, "");
+  const assignment = ASSIGNMENT.exec(next);
+  if (assignment) {
+    return assignment[0] === "=" ? ["write"] : ["read", "write"];
+  }
+  if (/^(\+\+|--)/.test(next) || /(\+\+|--)\s*$/.test(before)) {
+    return ["read", "write"];
+  }
+  const previous = before.replace(THIS_PREFIX, "").replace(/\s+$/, "");
+  const following = after.replace(/^\s+/, "");
+  const isNamedArgument = /[A-Za-z_$][\w$]*\s*:$/.test(previous) && !/\?[^:]*:$/.test(previous);
+  const startsArgument = /[(,]$/.test(previous) || isNamedArgument;
+  if (startsArgument && /^[,)]/.test(following) && enclosingGroup(line, start).callee !== null) {
+    return ["pass"];
+  }
+  return ["read"];
+}
+
+// src/filesystem/path_utils.ts
+var import_path2 = __toESM(require("path"));
+function canonical(p) {
+  const resolved = import_path2.default.resolve(p);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+function isSamePath(a, b) {
+  return canonical(a) === canonical(b);
+}
+function isPathInside(child, parent) {
+  const c = canonical(child);
+  const p = canonical(parent);
+  return c === p || c.startsWith(p.endsWith(import_path2.default.sep) ? p : p + import_path2.default.sep);
+}
+
+// src/lsp/reference_analysis.ts
+var vscode11 = __toESM(require("vscode"));
+
+// src/analysis/hierarchy.ts
+function parentNames2(symbol) {
+  const relations = symbol.relations;
+  if (!relations) {
+    return [];
+  }
+  return [...relations.extends ?? [], ...relations.implements ?? [], ...relations.with ?? []].map((r) => (typeof r === "string" ? r : r.name).split("<")[0].trim()).filter((n) => n !== "");
+}
+var OverrideIndex = class {
+  ownerOfMember = /* @__PURE__ */ new Map();
+  subclassesOf = /* @__PURE__ */ new Map();
+  constructor(classes) {
+    for (const cls of classes) {
+      for (const child of cls.children ?? []) {
+        this.ownerOfMember.set(child, cls);
+      }
+      for (const parent of parentNames2(cls)) {
+        const list = this.subclassesOf.get(parent);
+        if (list) {
+          list.push(cls);
+        } else {
+          this.subclassesOf.set(parent, [cls]);
+        }
+      }
+    }
+  }
+  /** Members with the same name and kind in every class that comes, directly or not, from the member's class. */
+  overridersOf(member) {
+    const owner = this.ownerOfMember.get(member);
+    if (!owner) {
+      return [];
+    }
+    const found = [];
+    const seen = /* @__PURE__ */ new Set([owner]);
+    const queue = [owner];
+    while (queue.length) {
+      const current = queue.shift();
+      for (const sub of this.subclassesOf.get(current.name) ?? []) {
+        if (seen.has(sub)) {
+          continue;
+        }
+        seen.add(sub);
+        queue.push(sub);
+        for (const child of sub.children ?? []) {
+          if (child.name === member.name && child.kind === member.kind) {
+            found.push(child);
+          }
+        }
+      }
+    }
+    return found;
+  }
+};
+
+// src/lsp/reference_analysis.ts
+var nodesByFileCache = null;
+function getNodesByFile(nodes) {
+  if (nodesByFileCache) {
+    return nodesByFileCache;
+  }
+  nodesByFileCache = /* @__PURE__ */ new Map();
+  for (const node of nodes) {
+    const uri = node.data.fileUri;
+    if (!nodesByFileCache.has(uri)) {
+      nodesByFileCache.set(uri, []);
+    }
+    nodesByFileCache.get(uri).push(node);
+  }
+  log.debug(`[RefAnalysis] nodesByFile index built: ${nodesByFileCache.size} files`);
+  return nodesByFileCache;
+}
+function clearNodesByFileCache() {
+  nodesByFileCache = null;
+  referencesCache.clear();
+  emptyAnswerStreak = 0;
+  log.debug(`[RefAnalysis] nodesByFile + references cache cleared.`);
+}
+var referencesCache = /* @__PURE__ */ new Map();
+var navigationIndex = null;
+var uriParseCache = /* @__PURE__ */ new Map();
+var overrides = null;
+var onPassProgress = null;
+function setPassProgress(fn) {
+  onPassProgress = fn;
+}
+function setNavigationIndex(index) {
+  navigationIndex = index;
+  uriParseCache.clear();
+  if (!index) {
+    overrides = null;
+  }
+}
+function setNavigationHierarchy(classes) {
+  overrides = navigationIndex ? new OverrideIndex(classes) : null;
+}
+function usagesOf(symbol) {
+  const at = (s) => s.selectionRange && s.fileUri ? navigationIndex.referencesTo(vscode11.Uri.parse(s.fileUri).fsPath, s.selectionRange.start.line, s.selectionRange.start.character) : [];
+  const usages = [...at(symbol)];
+  for (const other of overrides?.overridersOf(symbol) ?? []) {
+    usages.push(...at(other));
+  }
+  if (symbol.kind === vscode11.SymbolKind.Class) {
+    for (const child of symbol.children ?? []) {
+      if (child.kind === vscode11.SymbolKind.Constructor) {
+        usages.push(...at(child));
+      }
+    }
+  }
+  return usages;
+}
+function locationsFromIndex(symbol) {
+  const usages = usagesOf(symbol);
+  if (usages.length === 0) {
+    return null;
+  }
+  return usages.map((u) => {
+    let uri = uriParseCache.get(u.uri);
+    if (!uri) {
+      uri = vscode11.Uri.parse(u.uri);
+      uriParseCache.set(u.uri, uri);
+    }
+    return new vscode11.Location(uri, new vscode11.Range(u.line, u.character, u.endLine, u.endCharacter));
+  });
+}
+var EMPTY_ANSWER_RETRY_DELAYS_MS = [250, 750, 1500];
+var MAX_EMPTY_STREAK = 8;
+var emptyAnswerStreak = 0;
+async function getReferencesForSymbol(symbol) {
+  if (navigationIndex) {
+    return locationsFromIndex(symbol);
+  }
+  const { line, character } = symbol.selectionRange.start;
+  const cacheKey = `${symbol.fileUri}:${line}:${character}`;
+  if (referencesCache.has(cacheKey)) {
+    const cached = referencesCache.get(cacheKey);
+    log.debug(`[RefCache HIT] '${symbol.name}' -> ${cached?.length ?? 0} refs`);
+    return cached;
+  }
+  try {
+    const ask = async () => await vscode11.commands.executeCommand(
+      "vscode.executeReferenceProvider",
+      vscode11.Uri.parse(symbol.fileUri),
+      symbol.selectionRange.start
+    );
+    const hasReferences = (r) => !!r && r.length > 0;
+    const delays = emptyAnswerStreak >= MAX_EMPTY_STREAK ? [] : EMPTY_ANSWER_RETRY_DELAYS_MS;
+    const outcome = await retryUntil(ask, hasReferences, delays);
+    emptyAnswerStreak = outcome.exhausted ? emptyAnswerStreak + 1 : 0;
+    if (outcome.attempts > 1) {
+      log.debug(`[LSP] '${symbol.name}' needed ${outcome.attempts} attempts${outcome.exhausted ? " and still returned nothing" : ""}`);
+    }
+    const references = outcome.result;
+    const result = hasReferences(references) ? references : null;
+    referencesCache.set(cacheKey, result);
+    log.debug(`[LSP] \u2705 Found ${result?.length ?? 0} references for '${symbol.name}' [cached]`);
+    return result;
+  } catch (err) {
+    referencesCache.set(cacheKey, null);
+    log.error(`[GraphBuilder] \u26A0\uFE0F LSP error for '${symbol.name}'`);
+    return null;
+  }
+}
+async function tryAddReadsFromEdge(projectGraph, sourceNode, targetNode, targetSymbol, sourceCodeText, createEdge) {
+  const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+  if (!cleanedSource.includes(targetSymbol.name)) {
+    log.debug(`[LSP] Skipping '${targetSymbol.name}' \u2014 not found in source of '${sourceNode.label}'`);
+    return;
+  }
+  const references = await getReferencesForSymbol(targetSymbol);
+  if (!references) {
+    log.debug(`[LSP]  No references found for '${targetSymbol.name}'`);
+    return;
+  }
+  const nodesByFile = getNodesByFile(projectGraph.nodes);
+  for (const ref of references) {
+    const container = findEnclosingFunctionOrMethodNode(nodesByFile, {
+      uri: ref.uri.toString(),
+      range: ref.range
+    });
+    if (container) {
+      log.debug(`[LSP] Reference found within function: ${container.label}`);
+    }
+    if (container && container.id === sourceNode.id) {
+      log.debug(`[LSP] \u{1F3AF} READS_FROM: '${sourceNode.label}' -> '${targetNode.label}'`);
+      createEdge(sourceNode.id, targetNode.id, "READS_FROM");
+      return;
+    }
+  }
+  log.debug(`[LSP] \u{1F9ED} No reference found within container '${sourceNode.label}'`);
+}
+var FIELD_KINDS = /* @__PURE__ */ new Set(["field", "property", "variable", "constant"]);
+var ACCESS_LABEL = {
+  read: "READS_FROM",
+  write: "WRITES_TO",
+  pass: "PASSES_AS_ARGUMENT"
+};
+var REFERENCE_CONCURRENCY = 6;
+async function addFieldAccessEdges(projectGraph, symbolMapById, usedIdentifiers, projectRoot, createEdge) {
+  const nodesById = new Map(projectGraph.nodes.map((n) => [n.id, n]));
+  const nodesByFile = getNodesByFile(projectGraph.nodes);
+  const candidates = projectGraph.nodes.filter((n) => {
+    const symbol = symbolMapById.get(n.id);
+    if (!FIELD_KINDS.has(n.kind) || !symbol || !symbol.selectionRange || !symbol.fileUri) {
+      return false;
+    }
+    if (!usedIdentifiers.has(symbol.name)) {
+      return false;
+    }
+    return !projectRoot || isPathInside(vscode11.Uri.parse(n.data.fileUri).fsPath, projectRoot);
+  });
+  log.debug(`[FieldAccess] ${candidates.length} fields to check of ${projectGraph.nodes.filter((n) => FIELD_KINDS.has(n.kind)).length}`);
+  const found = await mapLimited(candidates, REFERENCE_CONCURRENCY, async (field) => {
+    const symbol = symbolMapById.get(field.id);
+    const references = await getReferencesForSymbol(symbol);
+    const kindsByContainer = /* @__PURE__ */ new Map();
+    for (const ref of references ?? []) {
+      if (ref.range.start.line !== ref.range.end.line) {
+        continue;
+      }
+      const container = findEnclosingCodeNode(nodesByFile, ref.uri.toString(), ref.range.start.line);
+      if (!container || container.id === field.id) {
+        continue;
+      }
+      const lines = getFileLines(ref.uri.toString());
+      const text = lines?.[ref.range.start.line];
+      if (text === void 0) {
+        continue;
+      }
+      const owner = container.parent ? nodesById.get(container.parent) : void 0;
+      const constructorNames = container.kind === "constructor" ? [container.label, owner?.label].filter((n) => !!n) : void 0;
+      const kinds = classifyAccess(text, ref.range.start.character, ref.range.end.character, { constructorNames });
+      const set = kindsByContainer.get(container.id) ?? /* @__PURE__ */ new Set();
+      kinds.forEach((k) => set.add(k));
+      kindsByContainer.set(container.id, set);
+    }
+    return kindsByContainer;
+  }, (done, total) => onPassProgress?.("fields", done, total));
+  let created = 0;
+  candidates.forEach((field, i) => {
+    found[i].forEach((kinds, containerId) => {
+      ["read", "write", "pass"].forEach((kind) => {
+        if (kinds.has(kind)) {
+          createEdge(containerId, field.id, ACCESS_LABEL[kind]);
+          created++;
+        }
+      });
+    });
+  });
+  log.debug(`[FieldAccess] ${created} field access edges created`);
+}
+async function addAmbiguousCallEdges(projectGraph, symbolMapById, candidates, createEdge) {
+  const idBySymbol = /* @__PURE__ */ new Map();
+  symbolMapById.forEach((symbol, id) => idBySymbol.set(symbol, id));
+  const nodesByFile = getNodesByFile(projectGraph.nodes);
+  const list = Array.from(candidates).filter((s) => s.selectionRange && s.fileUri && idBySymbol.has(s));
+  log.debug(`[CallResolution] ${list.length} methods share their name with another one; asking the language server`);
+  const callers = await mapLimited(list, REFERENCE_CONCURRENCY, async (symbol) => {
+    const targetId = idBySymbol.get(symbol);
+    const found = /* @__PURE__ */ new Set();
+    for (const ref of await getReferencesForSymbol(symbol) ?? []) {
+      if (ref.range.start.line !== ref.range.end.line) {
+        continue;
+      }
+      const container = findEnclosingCodeNode(nodesByFile, ref.uri.toString(), ref.range.start.line);
+      if (!container || container.id === targetId) {
+        continue;
+      }
+      const text = getFileLines(ref.uri.toString())?.[ref.range.start.line];
+      if (text !== void 0 && /^\s*(?:<[^()]*>)?\s*\(/.test(text.slice(ref.range.end.character))) {
+        found.add(container.id);
+      }
+    }
+    return found;
+  }, (done, total) => onPassProgress?.("calls", done, total));
+  let created = 0;
+  list.forEach((symbol, i) => {
+    callers[i].forEach((callerId) => {
+      createEdge(callerId, idBySymbol.get(symbol), "CALLS");
+      created++;
+    });
+  });
+  log.debug(`[CallResolution] ${created} call edges created from ${list.length} ambiguous methods`);
+}
+function findEnclosingCodeNode(nodesByFile, uri, line) {
+  return (nodesByFile.get(uri) ?? []).find((n) => {
+    const range = n.data.range;
+    return (n.kind === "method" || n.kind === "function" || n.kind === "constructor") && range !== void 0 && range.start.line <= line && range.end.line >= line;
+  });
+}
+function findEnclosingFunctionOrMethodNode(nodesByFile, ref) {
+  const nodesInFile = nodesByFile.get(ref.uri) ?? [];
+  const pos = ref.range.start;
+  return nodesInFile.find((n) => {
+    const range = n.data.range;
+    return (n.kind === "method" || n.kind === "function") && range !== void 0 && range.start.line <= pos.line && range.end.line >= pos.line;
+  });
+}
+
+// src/analysis/signature.ts
+function methodBody(source) {
+  let depth = 0;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "(") {
+      depth++;
+    } else if (ch === ")") {
+      depth--;
+      if (depth === 0) {
+        const rest = source.slice(i + 1);
+        return /^\s*;/.test(rest) ? "" : rest;
+      }
+    } else if (depth === 0 && (ch === "{" || ch === "=" && source[i + 1] === ">")) {
+      return source.slice(i);
+    } else if (depth === 0 && ch === ";") {
+      return "";
+    }
+  }
+  return "";
+}
+
+// src/analysis/complexity.ts
+function cyclomaticComplexity(source) {
+  const keywords = source.match(/\b(?:if|for|while|case|catch)\b/g)?.length ?? 0;
+  const logical = source.match(/&&|\|\|/g)?.length ?? 0;
+  const coalesce = source.match(/\?\?/g)?.length ?? 0;
+  const ternary = source.match(/\s\?(?![?.\[])/g)?.length ?? 0;
+  return 1 + keywords + logical + coalesce + ternary;
+}
+
+// src/analysis/observers.ts
+var OBSERVER_PATTERNS = [
+  // Widgets that rebuild or react: the first type argument is the holder.
+  /\b(?:BlocBuilder|BlocListener|BlocConsumer|BlocSelector|Consumer|Selector|ValueListenableBuilder)\s*<\s*([A-Z]\w*)/g,
+  // context.read<T>() / context.watch<T>() / context.select<T, R>()
+  /\bcontext\s*\.\s*(?:read|watch|select)\s*<\s*([A-Z]\w*)/g,
+  // BlocProvider.of<T>(context), Provider.of<T>(context), RepositoryProvider.of<T>(context)
+  /\b(?:BlocProvider|RepositoryProvider|Provider)\s*\.\s*of\s*<\s*([A-Z]\w*)/g,
+  // GetX
+  /\bGet\s*\.\s*(?:find|put|lazyPut)\s*<\s*([A-Z]\w*)/g
+];
+function observedTypeNames(source) {
+  const found = /* @__PURE__ */ new Set();
+  for (const pattern of OBSERVER_PATTERNS) {
+    for (const match of source.matchAll(pattern)) {
+      found.add(match[1]);
+    }
+  }
+  return Array.from(found);
+}
+
+// src/graph/edge_creator.ts
+var vscode12 = __toESM(require("vscode"));
+async function createGraphEdgesFromSymbols(projectGraph, symbolMapById, createEdge, projectRoot, generatedNodeIds, cachedPackages) {
+  log.debug(`[GraphBuilder] Creating edges...`);
+  setNavigationHierarchy(Array.from(symbolMapById.values()).filter((s) => s.kind === vscode12.SymbolKind.Class));
+  const classNodeIndex = /* @__PURE__ */ new Map();
+  for (const node of projectGraph.nodes) {
+    if (node.kind === "class" && !classNodeIndex.has(node.label)) {
+      classNodeIndex.set(node.label, node);
+    }
+  }
+  const symbolNameIndex = /* @__PURE__ */ new Map();
+  for (const enriched of symbolMapById.values()) {
+    const name = enriched.name;
+    if (!symbolNameIndex.has(name)) {
+      symbolNameIndex.set(name, []);
+    }
+    symbolNameIndex.get(name).push(enriched);
+  }
+  const nodeBySymbol = /* @__PURE__ */ new Map();
+  for (const node of projectGraph.nodes) {
+    const sym = symbolMapById.get(node.id);
+    if (sym) {
+      nodeBySymbol.set(sym, node);
+    }
+  }
+  const symbolPatterns = /* @__PURE__ */ new Map();
+  for (const name of symbolNameIndex.keys()) {
+    symbolPatterns.set(name, new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`));
+  }
+  log.debug(`[EdgeCreator] Pre-compiled ${symbolPatterns.size} RegExp patterns.`);
+  const usedIdentifiers = /* @__PURE__ */ new Set();
+  const ambiguousCallTargets = /* @__PURE__ */ new Set();
+  for (const sourceNode of projectGraph.nodes) {
+    const sourceSymbol = symbolMapById.get(sourceNode.id);
+    if (!sourceSymbol) {
+      continue;
+    }
+    if (sourceSymbol.relations) {
+      sourceSymbol.relations.extends?.forEach((ext) => {
+        const parentName = typeof ext === "string" ? ext : ext.name;
+        const baseName = parentName.split("<")[0].trim();
+        const targetNode = classNodeIndex.get(baseName);
+        if (targetNode) {
+          createEdge(sourceNode.id, targetNode.id, "EXTENDS");
+        }
+      });
+      sourceSymbol.relations.implements?.forEach((impl) => {
+        const interfaceName = typeof impl === "string" ? impl : impl.name;
+        const baseName = interfaceName.split("<")[0].trim();
+        const targetNode = classNodeIndex.get(baseName);
+        if (targetNode) {
+          createEdge(sourceNode.id, targetNode.id, "IMPLEMENTS");
+        }
+      });
+    }
+    if (sourceNode.kind === "method" || sourceNode.kind === "function" || sourceNode.kind === "constructor") {
+      const sourceCodeText = getSourceCodeForSymbol(sourceSymbol);
+      if (!sourceCodeText) {
+        continue;
+      }
+      const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+      for (const word of cleanedSource.matchAll(/[A-Za-z_$][\w$]*/g)) {
+        usedIdentifiers.add(word[0]);
+      }
+      const body = methodBody(cleanedSource);
+      sourceNode.data.complexity = cyclomaticComplexity(body);
+      for (const holder of observedTypeNames(body)) {
+        const holderNode = classNodeIndex.get(holder);
+        if (holderNode && holderNode.id !== sourceNode.id) {
+          createEdge(sourceNode.id, holderNode.id, "OBSERVES");
+        }
+      }
+      const mentionedNames = [];
+      for (const [name, pattern] of symbolPatterns) {
+        if (pattern.test(body)) {
+          mentionedNames.push(name);
+        }
+      }
+      for (const targetName of mentionedNames) {
+        const targetSymbols = symbolNameIndex.get(targetName);
+        const callableTargets = targetSymbols.filter((s) => {
+          const n = nodeBySymbol.get(s);
+          return n && (n.kind === "method" || n.kind === "function");
+        });
+        for (const targetSymbol of targetSymbols) {
+          const targetNode = nodeBySymbol.get(targetSymbol);
+          if (!targetNode || sourceNode.id === targetNode.id) {
+            continue;
+          }
+          if (targetNode.kind === "method" || targetNode.kind === "function") {
+            if (callableTargets.length === 1) {
+              createEdge(sourceNode.id, targetNode.id, "CALLS");
+            } else {
+              ambiguousCallTargets.add(targetSymbol);
+            }
+          } else {
+            await tryAddReadsFromEdge(
+              projectGraph,
+              sourceNode,
+              targetNode,
+              targetSymbol,
+              sourceCodeText,
+              createEdge
+            );
+          }
+        }
+      }
+    }
+  }
+  await addAmbiguousCallEdges(projectGraph, symbolMapById, ambiguousCallTargets, createEdge);
+  await addFieldAccessEdges(projectGraph, symbolMapById, usedIdentifiers, projectRoot, createEdge);
+}
+
+// src/packages/package_discovery.ts
+var import_path4 = __toESM(require("path"));
+var vscode13 = __toESM(require("vscode"));
+var fs8 = __toESM(require("fs"));
+
+// src/packages/package_analyzer.ts
+var fs7 = __toESM(require("fs"));
+var import_path3 = __toESM(require("path"));
+function analyzeExternalPackage(packageName, packagePath, rawData, projectRootPath2) {
+  log.debug(` -> Analyzing details of package '${packageName}'...`);
+  if (!fs7.existsSync(packagePath)) {
+    log.debug(`    -> ERROR: Package path does not exist: ${packagePath}`);
+    return null;
+  }
+  try {
+    const packageInfo = {
+      name: packageName,
+      path: packagePath,
+      version: rawData.version || "unknown",
+      type: determinePackageType(packageName, packagePath, projectRootPath2),
+      dartFiles: [],
+      hasLibFolder: false,
+      isFlutterPackage: false,
+      description: ""
+    };
+    log.debug(`    -> Classified as: '${packageInfo.type}'`);
+    const libPath = import_path3.default.join(packagePath, "lib");
+    packageInfo.hasLibFolder = fs7.existsSync(libPath);
+    const packagePubspecPath = import_path3.default.join(packagePath, "pubspec.yaml");
+    if (fs7.existsSync(packagePubspecPath)) {
+      try {
+        const pubspecContent = fs7.readFileSync(packagePubspecPath, "utf8");
+        packageInfo.isFlutterPackage = pubspecContent.includes("sdk: flutter");
+        const descMatch = pubspecContent.match(/description:\s*(.+)/);
+        if (descMatch) {
+          packageInfo.description = descMatch[1].trim().replace(/['"]/g, "");
+        }
+      } catch (e) {
+        log.debug(`    -> INFO: Could not read pubspec.yaml for package ${packageName}.`);
+      }
+    }
+    if (packageInfo.hasLibFolder) {
+      packageInfo.dartFiles = findDartFilesInPackage(libPath);
+      log.debug(`    -> Found ${packageInfo.dartFiles.length} .dart files in its 'lib' folder.`);
+    }
+    return packageInfo;
+  } catch (error) {
+    log.error(`\u274C CRITICAL ERROR analyzing package ${packageName}:`);
+    if (error instanceof Error) {
+      log.error(`   Mensaje: ${error.message}`);
+    } else {
+      log.error(`   Unknown error: ${String(error)}`);
+    }
+    return null;
+  }
+}
+function determinePackageType(packageName, packagePath, projectRootPath2) {
+  let actualProjectRoot = projectRootPath2 || null;
+  if (!actualProjectRoot) {
+    actualProjectRoot = findProjectRootWithPubspec(packagePath) || findProjectRootWithPubspec(process.cwd());
+  }
+  if (actualProjectRoot && isPathInside(packagePath, actualProjectRoot)) {
+    return "custom";
+  }
+  if (actualProjectRoot) {
+    try {
+      const mainPubspecPath = import_path3.default.join(actualProjectRoot, "pubspec.yaml");
+      if (fs7.existsSync(mainPubspecPath)) {
+        const pubspecContent = fs7.readFileSync(mainPubspecPath, "utf8");
+        const pathDependencyRegex = new RegExp(`${packageName}:\\s*\\n\\s*path:\\s*`, "m");
+        if (pathDependencyRegex.test(pubspecContent)) {
+          return "custom";
+        }
+        const devDependencyRegex = new RegExp(`dev_dependencies:[\\s\\S]*?${packageName}:\\s*`, "m");
+        if (devDependencyRegex.test(pubspecContent)) {
+          return "custom";
+        }
+      }
+    } catch (error) {
+      log.error(`[Debug] Error leyendo pubspec.yaml principal: ${error}`);
+    }
+  }
+  const flutterOfficialPackages = [
+    "flutter",
+    "flutter_test",
+    "flutter_web_plugins",
+    "flutter_driver",
+    "integration_test",
+    "flutter_localizations",
+    "material",
+    "cupertino"
+  ];
+  if (flutterOfficialPackages.includes(packageName) || packageName.startsWith("flutter_")) {
+    return "flutter_official";
+  }
+  if (packagePath.includes("dart-sdk") || packagePath.includes("flutter/bin/cache/dart-sdk")) {
+    return "sdk";
+  }
+  return "third_party";
+}
+
+// src/packages/package_discovery.ts
+function findAllPackages(searchStartPath) {
+  log.debug(`
+--- [Debug] Starting findAllPackages ---`);
+  const allPackages = [];
+  const projectRoot = findProjectRootWithPubspec(searchStartPath);
+  if (!projectRoot) {
+    log.debug("\u26A0\uFE0F [Debug] Project root with pubspec.yaml not found. Ending search.");
+    return allPackages;
+  }
+  log.debug(`[Debug] Project root found at: ${projectRoot}`);
+  const packageConfigPath = import_path4.default.join(projectRoot, ".dart_tool", "package_config.json");
+  if (!fs8.existsSync(packageConfigPath)) {
+    log.debug(`\u26A0\uFE0F [Debug].dart_tool/package_config.json file not found. Cannot determine packages.`);
+    return allPackages;
+  }
+  log.debug(`[Debug] Analyzing ${packageConfigPath}...`);
+  try {
+    const packageConfig = JSON.parse(fs8.readFileSync(packageConfigPath, "utf8"));
+    if (packageConfig.packages && Array.isArray(packageConfig.packages)) {
+      log.debug(`   -> Found ${packageConfig.packages.length} packages in file.`);
+      for (const pkg of packageConfig.packages) {
+        if (!pkg.name || !pkg.rootUri) {
+          log.debug(`   -> Skipping package without name or rootUri: ${JSON.stringify(pkg)}`);
+          continue;
+        }
+        log.debug(`
+   --- Processing package:  ${pkg.name} ---`);
+        log.debug(`   original URI: ${pkg.rootUri}`);
+        let packagePath;
+        if (pkg.rootUri.startsWith("file://")) {
+          packagePath = vscode13.Uri.parse(pkg.rootUri).fsPath;
+        } else {
+          const dartToolDir = import_path4.default.dirname(packageConfigPath);
+          packagePath = import_path4.default.resolve(dartToolDir, pkg.rootUri);
+        }
+        log.debug(` Resolved Path: ${packagePath}`);
+        const packageInfo = analyzeExternalPackage(pkg.name, packagePath, pkg, projectRoot);
+        if (packageInfo) {
+          allPackages.push(packageInfo);
+          log.debug(`   -> Package added: ${packageInfo.name} (Type: ${packageInfo.type})`);
+        }
+      }
+    }
+  } catch (error) {
+    log.error(`\u274C [Debug]CRITICAL ERROR reading package_config.json`);
+    if (error instanceof Error) {
+      log.error(`   Mensaje: ${error.message}`);
+    } else {
+      log.error(`   Unknown error: ${String(error)}`);
+    }
+  }
+  log.info(`
+[Debug] \u2705 Search completed. Found ${allPackages.length} packages total (external and local)`);
+  log.info(`--- [Debug] End of findAllPackages ---
+`);
+  return allPackages;
+}
+
+// src/packages/graph_integration/container_nodes.ts
+var vscode14 = __toESM(require("vscode"));
+function packagesNeedingContainers(packages, projectRootPath2) {
+  if (!projectRootPath2) {
+    return packages;
+  }
+  return packages.filter((pkg) => !isSamePath(pkg.path, projectRootPath2));
+}
+function createPackageContainerNodes(externalPackages, projectGraph, generatedNodeIds) {
+  log.debug(`[PackageContainers] Creating container nodes for${externalPackages.length} paquetes...`);
+  for (const pkg of externalPackages) {
+    const containerNodeId = `package_container:${pkg.name}`;
+    if (!generatedNodeIds.has(containerNodeId)) {
+      generatedNodeIds.add(containerNodeId);
+      const fakeRange = new vscode14.Range(
+        new vscode14.Position(0, 0),
+        new vscode14.Position(0, pkg.name.length)
+      );
+      const containerNode = {
+        id: containerNodeId,
+        label: pkg.name,
+        kind: "package_container",
+        data: {
+          fileUri: `file:///packages/${pkg.name}`,
+          range: fakeRange,
+          selectionRange: fakeRange,
+          access: "public",
+          isSDK: pkg.type === "sdk",
+          layer: "utility",
+          source: {
+            type: "external_package",
+            packageName: pkg.name,
+            packageVersion: pkg.version,
+            packageType: pkg.type
+          },
+          packageName: pkg.name,
+          packageVersion: pkg.version,
+          packageType: pkg.type
+        },
+        parent: void 0,
+        inDegree: 0,
+        outDegree: 0
+      };
+      projectGraph.nodes.push(containerNode);
+      log.debug(` \u2705 Container created: ${pkg.name} (${pkg.type})`);
+    }
+  }
+  log.debug(`[PackageContainers] \u2705 ${projectGraph.nodes.filter((n) => n.kind === "package_container").length} package containers created`);
+}
+
+// src/packages/graph_integration/dependency_edges.ts
+function createInterPackageDependencyEdges(projectGraph, externalPackages, createEdge) {
+  log.debug(`[InterPackageDeps] Analyzing dependencies between packages...`);
+  const nodeMap = /* @__PURE__ */ new Map();
+  for (const node of projectGraph.nodes) {
+    nodeMap.set(node.id, node);
+  }
+  const packageContainerMap = /* @__PURE__ */ new Map();
+  for (const pkg of externalPackages) {
+    packageContainerMap.set(pkg.name, `package_container:${pkg.name}`);
+  }
+  let interPackageEdges = 0;
+  for (const edge of projectGraph.edges) {
+    const sourceNode = nodeMap.get(edge.source);
+    const targetNode = nodeMap.get(edge.target);
+    if (!sourceNode || !targetNode) {
+      continue;
+    }
+    const sourcePackage = sourceNode.data.source?.packageName;
+    const targetPackage = targetNode.data.source?.packageName;
+    if (sourcePackage && targetPackage && sourcePackage !== targetPackage) {
+      const sourceContainerId = packageContainerMap.get(sourcePackage);
+      const targetContainerId = packageContainerMap.get(targetPackage);
+      if (sourceContainerId && targetContainerId) {
+        createEdge(sourceContainerId, targetContainerId, "USES_AS_TYPE");
+        interPackageEdges++;
+        log.debug(`   Dependency: ${sourcePackage} -> ${targetPackage}`);
+      }
+    }
+    if (!sourcePackage && targetPackage) {
+      const targetContainerId = packageContainerMap.get(targetPackage);
+      if (targetContainerId) {
+        createEdge("project_root", targetContainerId, "USES_AS_TYPE");
+      }
+    }
+  }
+  log.debug(`  \u2705 ${interPackageEdges} inter-package dependencies created`);
+}
+
+// src/packages/source_detector.ts
+var import_path5 = __toESM(require("path"));
+var vscode15 = __toESM(require("vscode"));
+function determineFileSource(fileUri, allPackages) {
+  try {
+    if (!fileUri) {
+      return { type: "project" };
+    }
+    const filePath = vscode15.Uri.parse(fileUri).fsPath;
+    const posixFilePath = filePath.replace(/\\/g, "/");
+    if (posixFilePath.includes("dart-sdk/lib") || posixFilePath.includes("flutter/bin/cache/dart-sdk")) {
+      return { type: "sdk", packageType: "sdk" };
+    }
+    for (const pkg of allPackages) {
+      if (isPathInside(filePath, pkg.path)) {
+        return {
+          type: pkg.type === "custom" ? "project" : "external_package",
+          packageName: pkg.name,
+          packageVersion: pkg.version,
+          packageType: pkg.type,
+          relativePath: import_path5.default.relative(pkg.path, filePath)
+        };
+      }
+    }
+    return { type: "project" };
+  } catch (error) {
+    log.error(`\u274C ERROR in determineFileSource when processing URI: "${fileUri}"`);
+    if (error instanceof Error) {
+      log.error(`   -> Message:${error.message}`);
+    }
+    return { type: "project" };
+  }
+}
+
+// src/packages/graph_integration/node_assignment.ts
+function assignNodesToPackageContainers(projectGraph, externalPackages) {
+  log.debug(`[PackageAssignment] Assigning nodes to package containers...`);
+  let assignedCount = 0;
+  let projectNodesCount = 0;
+  for (const node of projectGraph.nodes) {
+    if (node.kind === "package_container") {
+      continue;
+    }
+    const fileSource = determineFileSource(node.data.fileUri, externalPackages);
+    node.data.source = fileSource;
+    if (fileSource.type === "external_package" && fileSource.packageName) {
+      const containerNodeId = `package_container:${fileSource.packageName}`;
+      node.parent = containerNodeId;
+      assignedCount++;
+      node.label = `\u{1F517} ${node.label}`;
+      log.debug(`    \u{1F4E6} ${node.label} -> ${fileSource.packageName}`);
+    } else if (fileSource.type === "sdk") {
+      node.label = `\u2699\uFE0F ${node.label}`;
+    } else if (fileSource.type === "project") {
+      projectNodesCount++;
+    }
+  }
+  log.debug(`  \u2705 Assignment completed:`);
+  log.debug(`    \u2022 Project nodes: ${projectNodesCount}`);
+  log.debug(`    \u2022 External package nodes: ${assignedCount}`);
+}
+
+// src/packages/graph_integration/integration.ts
+async function integrateExternalPackages(projectGraph, projectRoot, generatedNodeIds, createEdge, cachedPackages) {
+  log.debug(`[ExternalPackages] \u{1F50D} Integrating external packages..`);
+  const externalPackages = cachedPackages ?? findAllPackages(projectRoot);
+  if (externalPackages.length === 0) {
+    log.debug(`[ExternalPackages] No relevant external packages found`);
+    return;
+  }
+  createPackageContainerNodes(
+    packagesNeedingContainers(externalPackages, findProjectRootWithPubspec(projectRoot)),
+    projectGraph,
+    generatedNodeIds
+  );
+  assignNodesToPackageContainers(projectGraph, externalPackages);
+  createInterPackageDependencyEdges(projectGraph, externalPackages, createEdge);
+  log.debug(`[ExternalPackages] \u2705 External package integration completed`);
+}
+
+// src/graph/graph_builder.ts
+var import_path6 = __toESM(require("path"));
+async function buildGraphModel(enrichedFiles, projectRoot) {
+  clearFileContentCache();
+  clearNodesByFileCache();
+  const projectGraph = { nodes: [], edges: [] };
+  const generatedNodeIds = /* @__PURE__ */ new Set();
+  const symbolMapById = /* @__PURE__ */ new Map();
+  let edgeIdCounter = 0;
+  const edgeCounts = {};
+  const edgeSet = /* @__PURE__ */ new Set();
+  const createEdge = (sourceId, targetId, label) => {
+    if (!sourceId || !targetId || sourceId === targetId) {
+      return;
+    }
+    if (!generatedNodeIds.has(sourceId) || !generatedNodeIds.has(targetId)) {
+      return;
+    }
+    const edgeKey = `${sourceId}|${targetId}|${label}`;
+    if (edgeSet.has(edgeKey)) {
+      return;
+    }
+    edgeSet.add(edgeKey);
+    projectGraph.edges.push({ id: `e${edgeIdCounter++}`, source: sourceId, target: targetId, label });
+    if (label) {
+      edgeCounts[label] = (edgeCounts[label] || 0) + 1;
+    }
+  };
+  log.debug(`[GraphBuilder] Creating nodes...`);
+  createGraphNodesFromSymbols(enrichedFiles, projectGraph, symbolMapById, generateGlobalSymbolId, generatedNodeIds);
+  log.debug(`  -> ${projectGraph.nodes.length} nodes created.`);
+  log.debug(`[GraphBuilder] Calling findAllPackages once...`);
+  const allPackages = projectRoot ? findAllPackages(projectRoot) : [];
+  log.debug(`[GraphBuilder] Found ${allPackages.length} packages`);
+  if (projectRoot) {
+    log.debug(`[GraphBuilder] Extracting symbols from external packages...`);
+    const externalSymbols = await extractSymbolsFromExternalPackages(projectRoot, allPackages);
+    for (const [id, symbol] of externalSymbols) {
+      symbolMapById.set(id, symbol);
+    }
+    if (externalSymbols.size > 0) {
+      createGraphNodesFromSymbols(
+        [{ fileUri: "external_packages", symbols: Array.from(externalSymbols.values()) }],
+        projectGraph,
+        symbolMapById,
+        generateGlobalSymbolId,
+        generatedNodeIds
+      );
+      log.debug(`-> ${externalSymbols.size} external symbols added`);
+    }
+  }
+  await createGraphEdgesFromSymbols(
+    projectGraph,
+    symbolMapById,
+    createEdge,
+    projectRoot,
+    generatedNodeIds,
+    allPackages
+  );
+  log.debug(`[GraphBuilder] Edge breakdown: ${JSON.stringify(edgeCounts)}`);
+  log.debug(`  -> Final total edges: ${projectGraph.edges.length}`);
+  if (projectRoot && allPackages.length > 0) {
+    log.debug(`[GraphBuilder] \u{1F4E6} Integrating external packages...`);
+    const nodesBefore = projectGraph.nodes.length;
+    await integrateExternalPackages(
+      projectGraph,
+      projectRoot,
+      generatedNodeIds,
+      createEdge,
+      allPackages
+    );
+    const packageContainers = projectGraph.nodes.filter((n) => n.kind === "package_container");
+    log.debug(`[GraphBuilder] \u2705 Nodes before: ${nodesBefore}, after: ${projectGraph.nodes.length}`);
+    log.debug(`    \u2022 Package containers: ${packageContainers.map((p) => p.label).join(", ")}`);
+  }
+  clearFileContentCache();
+  clearNodesByFileCache();
+  return projectGraph;
+}
+function getRelevantExternalPackages(packages) {
+  return packages.filter(
+    (pkg) => pkg.type === "third_party" || pkg.type === "custom" || pkg.type === "flutter_official" && !["flutter", "flutter_test"].includes(pkg.name)
+  );
+}
+async function extractSymbolsFromExternalPackages(projectRoot, allPackages) {
+  const externalSymbols = /* @__PURE__ */ new Map();
+  const relevantPackages = getRelevantExternalPackages(allPackages);
+  for (const pkg of relevantPackages) {
+    if (!pkg.hasLibFolder || pkg.dartFiles.length === 0) {
+      continue;
+    }
+    const mainFiles = pkg.dartFiles.filter((file) => {
+      const fileName = import_path6.default.basename(file, ".dart");
+      return fileName === pkg.name || fileName === "main" || file.endsWith(`lib/${pkg.name}.dart`);
+    }).slice(0, 1);
+    for (const dartFile of mainFiles) {
+      try {
+        const fileUri = vscode16.Uri.file(dartFile);
+        const symbols = await vscode16.commands.executeCommand(
+          "vscode.executeDocumentSymbolProvider",
+          fileUri
+        );
+      } catch (error) {
+        log.debug(`Skipping external file: ${dartFile}`);
+      }
+    }
+  }
+  return externalSymbols;
+}
+
+// src/utils/caches.ts
+var resolvedTypesCache = /* @__PURE__ */ new Map();
+
+// src/analysis/symbol_processor.ts
+var vscode21 = __toESM(require("vscode"));
+
+// src/analysis/enrichment/basic_enrichment.ts
+var vscode17 = __toESM(require("vscode"));
+function enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies) {
+  log.debug(`${logPrefix}  [Basic Info] Enriching  '${enrichedSym.name}'...`);
+  enrichedSym.fileUri = enrichedSym.fileUri || currentFileUri;
+  enrichedSym.isSDK = !!enrichedSym.fileUri?.includes("/dart-sdk/lib/");
+  enrichedSym.access = enrichedSym.name.startsWith("_") ? "private" : "public";
+  log.debug(`${logPrefix}    \u21B3 Final fileUri: ${enrichedSym.fileUri}`);
+  log.debug(`${logPrefix}    \u21B3 Access: ${enrichedSym.access}, Is SDK: ${enrichedSym.isSDK}`);
+  if (enrichedSym.parentId) {
+    log.debug(`${logPrefix}   \u21B3 parentId: ${enrichedSym.parentId}`);
+  }
+  if (enrichedSym.kind === vscode17.SymbolKind.Class) {
+    const classKey = `${enrichedSym.fileUri}#${enrichedSym.name.split("<")[0].trim()}`;
+    log.debug(`${logPrefix}    \u21B3 It's a class. Searching relationships with key:  "${classKey}"`);
+    const relations = dependencies.projectClassRelations.get(classKey);
+    if (relations) {
+      const logMessage = [
+        `Extends: ${relations.extends?.join(", ") || "none"}`,
+        `Implements: ${relations.implements?.join(", ") || "none"}`,
+        `With: ${relations.with?.join(", ") || "none"}`
+      ].join("; ");
+      log.debug(`${logPrefix}    \u21B3 \u2705 SUCCESS: Inheritance relationships found. ${logMessage}`);
+      if (!enrichedSym.relations) {
+        enrichedSym.relations = {};
+      }
+      enrichedSym.relations.extends = relations.extends;
+      enrichedSym.relations.implements = relations.implements;
+      enrichedSym.relations.with = relations.with;
+    } else {
+      log.debug(`${logPrefix} \u21B3 INFO: No pre-calculated inheritance relationships found for this class.`);
+    }
+  }
+}
+
+// src/analysis/enrichment/detail_enrichment.ts
+var vscode19 = __toESM(require("vscode"));
+
+// src/analysis/enrichment/type-resolver.ts
+var vscode18 = __toESM(require("vscode"));
+var _typeIndex = null;
+function buildTypeIndex(allProjectFilesData) {
+  _typeIndex = /* @__PURE__ */ new Map();
+  for (const file of allProjectFilesData) {
+    for (const symbol of file.symbols) {
+      if (symbol.kind === vscode18.SymbolKind.Class || symbol.kind === vscode18.SymbolKind.Enum || symbol.kind === 22) {
+        if (!_typeIndex.has(symbol.name)) {
+          _typeIndex.set(symbol.name, symbol);
+        }
+      }
+    }
+  }
+  log.debug(`[TypeIndex] Built index with ${_typeIndex.size} types.`);
+}
+function clearTypeIndex() {
+  _typeIndex = null;
+  log.debug(`[TypeIndex] Index cleared.`);
+}
+async function resolveTypeByName(typeName, dependencies) {
+  const baseTypeName = parseBaseTypeName(typeName);
+  if (!baseTypeName) {
+    return void 0;
+  }
+  if (resolvedTypesCache.has(typeName)) {
+    log.debug(` [Cache HIT] ${typeName}`);
+    return resolvedTypesCache.get(typeName);
+  }
+  let foundSymbol;
+  if (_typeIndex) {
+    foundSymbol = _typeIndex.get(baseTypeName);
+    log.debug(`\u{1F5C2}\uFE0F [Index ${foundSymbol ? "HIT" : "MISS"}] ${baseTypeName}`);
+  } else {
+    log.debug(`\u26A0\uFE0F [TypeIndex] Index not built, falling back to linear search for '${baseTypeName}'`);
+    for (const file of dependencies.allProjectFilesData) {
+      for (const symbol of file.symbols) {
+        if ((symbol.kind === vscode18.SymbolKind.Class || symbol.kind === vscode18.SymbolKind.Enum || symbol.kind === 22) && symbol.name === baseTypeName) {
+          foundSymbol = symbol;
+          break;
+        }
+      }
+      if (foundSymbol) {
+        break;
+      }
+    }
+  }
+  if (foundSymbol) {
+    const result = {
+      name: typeName,
+      definition: {
+        name: foundSymbol.name,
+        kind: foundSymbol.kind,
+        fileUri: foundSymbol.fileUri,
+        selectionRange: foundSymbol.selectionRange,
+        isSDK: !!foundSymbol.isSDK
+      }
+    };
+    resolvedTypesCache.set(typeName, result);
+    log.debug(`\u{1F4E6} [Cache SET] ${typeName}`);
+    return result;
+  }
+  const fallbackResult = { name: typeName };
+  resolvedTypesCache.set(typeName, fallbackResult);
+  return fallbackResult;
+}
+
+// src/analysis/enrichment/detail_enrichment.ts
+async function enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies) {
+  const symbol = enrichedSym;
+  if (!symbol.detail || typeof symbol.detail !== "string") {
+    return;
+  }
+  log.debug(`[DEBUG-ENRICH-DETAIL] Enriching ${symbol.name}, detail: ${symbol.detail}`);
+  log.debug(`${logPrefix}  [DEBUG] symbol.kind: ${symbol.kind}, symbol.detail: ${symbol.detail}`);
+  log.debug(`${logPrefix}  [Type Detail] Analyzing detail: "${symbol.detail}"`);
+  if ((symbol.kind === vscode19.SymbolKind.Field || symbol.kind === vscode19.SymbolKind.Property) && !enrichedSym.resolvedType) {
+    const fieldTypeMatch = symbol.detail.match(
+      /^\s*(?:(?:@[\w.]+\s*)*(?:late|final|const|static|required|covariant)\s+)*([\w<>\[\]\{\},?().\s]+?)\s+[\w$]+\s*(?:=.*)?$/
+    );
+    if (fieldTypeMatch?.[1]) {
+      enrichedSym.resolvedType = fieldTypeMatch[1].trim();
+      log.debug(`${logPrefix}  \u21B3 Detail: Campo '${symbol.name}' tipo extra\xEDdo: ${enrichedSym.resolvedType}`);
+      enrichedSym.resolvedTypeRef = await resolveTypeByName(enrichedSym.resolvedType, dependencies);
+    }
+  } else if (/\(.*\)/s.test(symbol.detail)) {
+    log.debug(`${logPrefix}  [DEBUG] Evaluating enrichedSym.parameters, current value: ${JSON.stringify(enrichedSym.parameters)}`);
+    if (!Array.isArray(enrichedSym.parameters) || enrichedSym.parameters.length === 0) {
+      log.debug(`${logPrefix}  [DEBUG] enrichedSym.parameters is undefined or empty. Starting parsing.`);
+      enrichedSym.parameters = [];
+      const paramsContentRegex = /\((.*)\)/s;
+      const paramsMatch = symbol.detail.match(paramsContentRegex);
+      if (!paramsMatch || typeof paramsMatch[1] !== "string") {
+        log.debug(`${logPrefix}   \u26A0\uFE0F Could not extract content between parentheses from detail: "${symbol.detail}"`);
+      }
+      if (paramsMatch && typeof paramsMatch[1] === "string") {
+        log.debug(`${logPrefix}    \u{1F4CC} paramsMatch: ${paramsMatch?.[1]}`);
+        let fullParamsString = paramsMatch[1].trim();
+        log.debug(`${logPrefix}    \u{1F4CC} fullParamsString: "${fullParamsString}"`);
+        if (fullParamsString !== "") {
+          let parseIndividualParamList2 = function(paramSubString, areNamed, areOptionalPositional) {
+            let remaining = paramSubString.trim();
+            const parsedParams = [];
+            if (remaining === "") {
+              return parsedParams;
+            }
+            const singleParamRegex = /^\s*(?:(required|covariant)\s+)?((?:[\w$.<>?\[\]\s(),']+?|Function\s*\((?:[^)]*\))?\s*\??))\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/;
+            const thisFieldWithOptionalRequiredRegex = /^\s*(required\s+)?this\.([\w$]+)\s*(?:=.*?)?(?:,|$)/;
+            const functionTypeParamRegex = /^\s*(?:(required|covariant)\s+)?((?:[\w$<>?,.\s\[\]]+\s+)?Function\s*\((?:[^)]*?\))?\s*\??)\s+([\w$]+)\s*(?:=.*?)?(?:,|$)/;
+            const typeOrNameOnlyRegex = /^\s*((?:[\w$]+(?:<[\w$,\s<>?]+(?:<[\w$,\s<>?]+>)?\??>)?\??)|(?:(?:[\w$<>?,.\s\[\]]+\s+)?Function\s*\((?:[^)]*?\))?\s*\??)|(?:[\w$.]+))\s*(?:,|$)/;
+            while (remaining.length > 0) {
+              let parsedThisIteration = false;
+              let pMatch;
+              pMatch = remaining.match(thisFieldWithOptionalRequiredRegex);
+              if (pMatch && pMatch[2]) {
+                const isRequiredForThis = !!pMatch[1];
+                const fieldName = pMatch[2].trim();
+                parsedParams.push({
+                  name: fieldName,
+                  type: `self_field:${fieldName}`,
+                  isNamed: areNamed,
+                  isRequired: areNamed && isRequiredForThis,
+                  isOptionalPositional: false
+                });
+                parsedThisIteration = true;
+              } else {
+                pMatch = remaining.match(functionTypeParamRegex);
+                if (pMatch && pMatch[2] && pMatch[3]) {
+                  parsedParams.push({
+                    type: pMatch[2].trim().replace(/\s+/g, " "),
+                    name: pMatch[3].trim(),
+                    isNamed: areNamed,
+                    isRequired: areNamed && !!pMatch[1] && pMatch[1] === "required",
+                    isOptionalPositional: areOptionalPositional
+                  });
+                  parsedThisIteration = true;
+                } else {
+                  pMatch = remaining.match(singleParamRegex);
+                  if (pMatch && pMatch[2] && pMatch[3]) {
+                    parsedParams.push({
+                      type: pMatch[2].trim().replace(/\s+/g, " "),
+                      name: pMatch[3].trim(),
+                      isNamed: areNamed,
+                      isRequired: areNamed && !!pMatch[1] && pMatch[1] === "required",
+                      isOptionalPositional: areOptionalPositional
+                    });
+                    parsedThisIteration = true;
+                  }
+                }
+              }
+              if (parsedThisIteration && pMatch) {
+                let consumedLength = pMatch[0].length;
+                if (!pMatch[0].endsWith(",") && remaining.length > consumedLength && remaining[consumedLength] === ",") {
+                  consumedLength++;
+                }
+                remaining = remaining.substring(consumedLength).trim();
+              } else {
+                pMatch = remaining.match(typeOrNameOnlyRegex);
+                if (pMatch && pMatch[1]) {
+                  const potentialTypeOrName = pMatch[1].trim().replace(/\s+/g, " ");
+                  let paramToAdd;
+                  if (areNamed || areOptionalPositional || potentialTypeOrName.match(/[<>?()]|Function|^void$|^dynamic$|^Never$|^Null$|^Object$|^bool$|^int$|^double$|^num$|^String$/i)) {
+                    paramToAdd = { type: potentialTypeOrName, name: void 0, isNamed: areNamed, isOptionalPositional: areOptionalPositional, isRequired: areNamed && remaining.startsWith("required ") };
+                  } else {
+                    paramToAdd = { type: "dynamic", name: potentialTypeOrName, isNamed: areNamed, isOptionalPositional: areOptionalPositional, isRequired: areNamed && remaining.startsWith("required ") };
+                  }
+                  parsedParams.push(paramToAdd);
+                  let consumedLength = pMatch[0].length;
+                  if (!pMatch[0].endsWith(",") && remaining.length > consumedLength && remaining[consumedLength] === ",") {
+                    consumedLength++;
+                  }
+                  remaining = remaining.substring(consumedLength).trim();
+                } else {
+                  if (remaining.trim().length > 0) {
+                    log.debug(`${logPrefix}  Could not continue parsing parameters for ${symbol.name}. Remaining: '${remaining}'`);
+                  }
+                  break;
+                }
+              }
+            }
+            log.debug(`${logPrefix}    \u{1F4CC} Parsed ${parsedParams.length} parameters from block${areNamed ? "named" : areOptionalPositional ? "optional" : "required"}: ${JSON.stringify(parsedParams, null, 2)}`);
+            return parsedParams;
+          };
+          var parseIndividualParamList = parseIndividualParamList2;
+          let requiredParamsStr = fullParamsString;
+          let optionalPositionalStr = "";
+          let namedParamsStr = "";
+          const namedStartIndex = fullParamsString.indexOf("{");
+          const namedEndIndex = fullParamsString.lastIndexOf("}");
+          if (namedStartIndex !== -1 && namedEndIndex > namedStartIndex) {
+            const partBeforeNamed = fullParamsString.substring(0, namedStartIndex);
+            if (!partBeforeNamed.substring(partBeforeNamed.lastIndexOf("[") > partBeforeNamed.lastIndexOf("{") ? partBeforeNamed.lastIndexOf("[") : 0).includes("}")) {
+              namedParamsStr = fullParamsString.substring(namedStartIndex + 1, namedEndIndex).trim();
+              requiredParamsStr = partBeforeNamed.trim();
+            }
+          }
+          const optionalStartIndex = requiredParamsStr.indexOf("[");
+          const optionalEndIndex = requiredParamsStr.lastIndexOf("]");
+          if (optionalStartIndex !== -1 && optionalEndIndex > optionalStartIndex) {
+            if (!requiredParamsStr.substring(optionalStartIndex).includes("{")) {
+              optionalPositionalStr = requiredParamsStr.substring(optionalStartIndex + 1, optionalEndIndex).trim();
+              requiredParamsStr = requiredParamsStr.substring(0, optionalStartIndex).trim();
+            }
+          }
+          if (requiredParamsStr.endsWith(",")) {
+            requiredParamsStr = requiredParamsStr.substring(0, requiredParamsStr.length - 1).trim();
+          }
+          if (requiredParamsStr) {
+            const parsedRequired = parseIndividualParamList2(requiredParamsStr, false, false);
+            log.debug(`${logPrefix}    \u{1F4CC} requiredParamsStr -> ${requiredParamsStr}`);
+            log.debug(`${logPrefix}    \u{1F4CC} parsedRequired -> ${JSON.stringify(parsedRequired)}`);
+            enrichedSym.parameters.push(...parsedRequired);
+          }
+          if (optionalPositionalStr) {
+            const optionalRequired = parseIndividualParamList2(optionalPositionalStr, false, true);
+            log.debug(`${logPrefix}    \u{1F4CC} optionalPositionalStr -> ${optionalPositionalStr}`);
+            log.debug(`${logPrefix}    \u{1F4CC} optionalRequired -> ${JSON.stringify(optionalRequired)}`);
+            enrichedSym.parameters.push(...optionalRequired);
+          }
+          if (namedParamsStr) {
+            const namedRequired = parseIndividualParamList2(namedParamsStr, true, false);
+            log.debug(`${logPrefix}    \u{1F4CC} namedParamsStr -> ${namedParamsStr}`);
+            log.debug(`${logPrefix}    \u{1F4CC} namedRequired -> ${JSON.stringify(namedRequired)}`);
+            enrichedSym.parameters.push(...namedRequired);
+          }
+          log.debug(`${logPrefix}  [DEBUG] enrichedSym.parameters now has: ${JSON.stringify(enrichedSym.parameters)}`);
+          if (enrichedSym.parameters.length === 0) {
+            log.debug(`${logPrefix}    \u26A0\uFE0F enrichedSym.parameters is still empty after parsing`);
+          }
+        }
+      }
+    }
+    if (enrichedSym.parameters && enrichedSym.parameters.length > 0) {
+      for (const param of enrichedSym.parameters) {
+        if (!param.type.startsWith("self_field:")) {
+          param.typeRef = await resolveTypeByName(param.type, dependencies);
+        } else {
+          param.typeRef = { name: param.type };
+        }
+      }
+      log.debug(`${logPrefix}  \u21B3 Detail: Resolved types for ${enrichedSym.parameters.length} parameters in '${symbol.name}'.`);
+    }
+    if (symbol.kind !== vscode19.SymbolKind.Constructor && !enrichedSym.returnType) {
+      const normalizedDetail = symbol.detail.replace(/@[\w.]+\s*/g, "").replace(/\b(static|external|async|sync|factory|late|final|const|required)\b\s*/g, "").trim();
+      const escapedName = symbol.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const returnTypeRegex = new RegExp(
+        `^([\\w<>{}\\[\\]\\s.,?()]+?)\\s+${escapedName}\\s*\\(`
+      );
+      const match = normalizedDetail.match(returnTypeRegex);
+      if (match?.[1]) {
+        const returnType = match[1].trim();
+        if (returnType.toLowerCase() !== "void") {
+          enrichedSym.returnType = returnType;
+          log.debug(`${logPrefix}  \u21B3 Detail: Method '${symbol.name}' extracted return type: ${returnType}`);
+          enrichedSym.returnTypeRef = await resolveTypeByName(returnType, dependencies);
+        }
+      } else {
+        log.debug(`${logPrefix}  \u26A0\uFE0F Could not extract return type for '${symbol.name}'`);
+      }
+    }
+  }
+  if (symbol.kind === vscode19.SymbolKind.Constructor && enrichedSym.parameters?.length === 0 && /^\s*\(\s*\{\s*this\.[\w$]+/.test(symbol.detail)) {
+    const fallbackThisRegex = /this\.([\w$]+)/g;
+    const fallbackParams = [];
+    let match;
+    while ((match = fallbackThisRegex.exec(symbol.detail)) !== null) {
+      const fieldName = match[1];
+      fallbackParams.push({
+        name: fieldName,
+        type: `self_field:${fieldName}`,
+        isNamed: true,
+        isRequired: false,
+        isOptionalPositional: false
+      });
+    }
+    if (fallbackParams.length > 0) {
+      enrichedSym.parameters = fallbackParams;
+      log.debug(`${logPrefix}  \u21B3 Fallback: Inferred ${fallbackParams.length} this.field parameters for '${symbol.name}'.`);
+    }
+  }
+  if (!Array.isArray(enrichedSym.parameters)) {
+    enrichedSym.parameters = [];
+    log.debug(`${logPrefix}    \u26A0\uFE0F Forced enrichedSym.parameters = [] because it remained undefined.`);
+  }
+  log.debug(`[DEBUG-ENRICH-DETAIL] Generated params: ${JSON.stringify(enrichedSym.parameters, null, 2)}`);
+}
+
+// src/analysis/enrichment/regex_enrichment.ts
+function enrichWithSourceRegexTypes(enrichedSym, logPrefix, dependencies) {
+  const { fileContent } = dependencies;
+  const needsType = (enrichedSym.kind === KIND_FIELD || enrichedSym.kind === KIND_PROPERTY) && !enrichedSym.resolvedType;
+  const needsReturn = (enrichedSym.kind === KIND_METHOD || enrichedSym.kind === KIND_FUNCTION) && !enrichedSym.returnType;
+  if (!needsType && !needsReturn || !enrichedSym.selectionRange) {
+    return;
+  }
+  log.debug(`${logPrefix}DEBUG_F: Starting regex fallback for '${enrichedSym.name}'`);
+  const lines = dependencies.fileLines ??= fileContent.split("\n");
+  const startLine = Math.max(0, enrichedSym.selectionRange.start.line - 5);
+  const endLine = Math.min(lines.length, enrichedSym.selectionRange.start.line + 1);
+  const codeSnippet = lines.slice(startLine, endLine).join("\n");
+  log.debug(`${logPrefix}  DEBUG_F: Evaluating snippet:
+${codeSnippet}`);
+  const escapedSymName = escapeRegExp(enrichedSym.name);
+  let match = null;
+  if (needsType) {
+    const fieldRegex = new RegExp(
+      `(?:@\\w+(\\([^)]*\\))?\\s*)*(?:\\w+\\s+)*(.+?)\\s+${escapedSymName}\\s*(?:;|=)`
+    );
+    match = codeSnippet.match(fieldRegex);
+    if (match?.[2]) {
+      enrichedSym.resolvedType = match[2].replace(/@\w+(\([^)]*\))?/g, "").trim();
+      log.debug(`${logPrefix}  \u21B3 Regex SUCCESS (Field): Field '${enrichedSym.name}' has type: ${enrichedSym.resolvedType}`);
+    }
+  } else if (needsReturn) {
+    const methodRegex = new RegExp(
+      `(?:@\\w+(\\([^)]*\\))?\\s*)*(?:static\\s+)?(?:\\w+\\s+)*(.+?)\\s+(?:get\\s+)?${escapedSymName}\\s*\\(`
+    );
+    match = codeSnippet.match(methodRegex);
+    if (match?.[2]) {
+      const potentialReturn = match[2].replace(/@\w+(\([^)]*\))?/g, "").trim();
+      if (potentialReturn.toLowerCase() !== "void") {
+        enrichedSym.returnType = potentialReturn;
+        log.debug(`${logPrefix}  \u21B3 Regex SUCCESS (Method): Method '${enrichedSym.name}' returns: ${enrichedSym.returnType}`);
+      } else {
+        enrichedSym.hoverChecked = true;
+      }
+    }
+  }
+  if (!match) {
+    log.debug(`${logPrefix}  DEBUG_F: Regex found no match for '${enrichedSym.name}'`);
+  }
+}
+
+// src/lsp/hover_enrichment.ts
+var vscode20 = __toESM(require("vscode"));
+var hoverCache = /* @__PURE__ */ new Map();
+function clearHoverCache() {
+  hoverCache.clear();
+  log.debug(`[HoverCache] Cache cleared.`);
+}
+async function enrichWithHoverTypes(enrichedSym, logPrefix, dependencies) {
+  const needsTypeInfo = (enrichedSym.kind === vscode20.SymbolKind.Field || enrichedSym.kind === vscode20.SymbolKind.Property) && !enrichedSym.resolvedType || (enrichedSym.kind === vscode20.SymbolKind.Method || enrichedSym.kind === vscode20.SymbolKind.Function) && !enrichedSym.returnType || enrichedSym.kind === vscode20.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0);
+  if (!enrichedSym.fileUri || !enrichedSym.selectionRange || !needsTypeInfo) {
+    log.debug(`${logPrefix}  \u26A0\uFE0F Skipped enrichHover for '${enrichedSym.name}' (kind: ${enrichedSym.kind}) -> needsTypeInfo: ${needsTypeInfo}`);
+    return;
+  }
+  if (enrichedSym.hoverChecked) {
+    return;
+  }
+  enrichedSym.hoverChecked = true;
+  const { line, character } = enrichedSym.selectionRange.start;
+  const positionKey = `${enrichedSym.fileUri}:${line}:${character}`;
+  let contentString;
+  if (hoverCache.has(positionKey)) {
+    contentString = hoverCache.get(positionKey);
+    log.debug(`${logPrefix}  [HoverCache HIT] ${positionKey}`);
+  } else {
+    try {
+      const hoverResultArray = await vscode20.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        vscode20.Uri.parse(enrichedSym.fileUri),
+        enrichedSym.selectionRange.start
+      );
+      const hoverResult = hoverResultArray && hoverResultArray.length > 0 ? hoverResultArray[0] : null;
+      if (!hoverResult?.contents?.length) {
+        hoverCache.set(positionKey, null);
+        return;
+      }
+      contentString = hoverResult.contents.map(
+        (content) => typeof content === "string" ? content : content.value
+      ).join("\n");
+      hoverCache.set(positionKey, contentString);
+      log.debug(`${logPrefix}  \u{1F4E6} [HoverCache SET] ${positionKey}`);
+    } catch (e) {
+      log.error(`${logPrefix}  \u26A0\uFE0F Error in Hover for ${enrichedSym.name}: ${e.message}`);
+      hoverCache.set(positionKey, null);
+      return;
+    }
+  }
+  if (!contentString) {
+    return;
+  }
+  const escapedSymName = escapeRegExp(enrichedSym.name);
+  if ((enrichedSym.kind === vscode20.SymbolKind.Field || enrichedSym.kind === vscode20.SymbolKind.Property) && !enrichedSym.resolvedType) {
+    const fieldRegex = new RegExp("```dart\\s*(?:[\\w\\s]+\\s)?(.+?)\\s+" + escapedSymName);
+    const match = contentString.match(fieldRegex);
+    if (match?.[1]) {
+      enrichedSym.resolvedType = match[1].trim();
+      log.debug(`${logPrefix}  \u21B3 Hover: Field '${enrichedSym.name}' resolved type: ${enrichedSym.resolvedType}`);
+    }
+  } else if ((enrichedSym.kind === vscode20.SymbolKind.Method || enrichedSym.kind === vscode20.SymbolKind.Function) && !enrichedSym.returnType) {
+    const methodRegex = new RegExp("```dart\\s*(?:static\\s+)?(.+?)\\s+(?:get\\s+)?[\"'`]?" + escapedSymName + "[\"'`]?\\s*\\(");
+    const match = contentString.match(methodRegex);
+    if (match?.[1]) {
+      const returnType = match[1].trim();
+      if (returnType.toLowerCase() !== "void") {
+        enrichedSym.returnType = returnType;
+        log.debug(`${logPrefix}  \u21B3 Hover: Method '${enrichedSym.name}' return type: ${enrichedSym.returnType}`);
+      }
+    }
+  } else if (enrichedSym.kind === vscode20.SymbolKind.Constructor && (!enrichedSym.parameters || enrichedSym.parameters.length === 0)) {
+    log.debug(`${logPrefix}  [DEBUG-CONSTRUCTOR] Constructor found: ${enrichedSym.name}`);
+    const paramRegex = /this\.(\w+)/g;
+    const matches = [...contentString.matchAll(paramRegex)];
+    if (matches.length > 0) {
+      enrichedSym.parameters = matches.map((match) => ({
+        name: match[1],
+        type: `self_field:${match[1]}`
+      }));
+      log.debug(`${logPrefix}  \u21B3 Hover: Constructor '${enrichedSym.name}' extracted parameters: ${enrichedSym.parameters.map((p) => p.name).join(", ")}`);
+    } else {
+      log.debug(`${logPrefix}  \u26A0\uFE0F Constructor '${enrichedSym.name}' without extractable parameters via hover`);
+    }
+  }
+}
+
+// src/analysis/symbol_processor.ts
+var LSP_CONCURRENCY_LIMIT = 5;
+async function withConcurrencyLimit(tasks, limit) {
+  const results = [];
+  let index = 0;
+  async function runNext() {
+    if (index >= tasks.length) {
+      return;
+    }
+    const current = index++;
+    results[current] = await tasks[current]();
+    await runNext();
+  }
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, runNext);
+  await Promise.all(workers);
+  return results;
+}
+async function processSymbolRecursiveLSP(symbolToProcess, currentFileUri, dependencies, depth = 0, parentEnrichedSymbol) {
+  const logPrefix = "  ".repeat(depth);
+  if (!symbolToProcess.selectionRange) {
+    log.debug(`${logPrefix}\u26A0\uFE0F Symbol '${symbolToProcess.name}' skipped. No selectionRange.`);
+    return symbolToProcess;
+  }
+  log.debug(`${logPrefix}\u{1F50D} Processing: ${symbolToProcess.name} (Kind: ${symbolToProcess.kind})`);
+  const enrichedSym = {
+    ...symbolToProcess,
+    fileUri: symbolToProcess.fileUri ?? currentFileUri
+  };
+  enrichWithBasicInfo(enrichedSym, logPrefix, currentFileUri, dependencies);
+  try {
+    await enrichWithTypesFromDetail(enrichedSym, logPrefix, dependencies);
+  } catch (e) {
+    log.debug(`${logPrefix}\u26A0\uFE0F Error in detail enrich: ${e instanceof Error ? e.message : e}`);
+  }
+  try {
+    enrichWithSourceRegexTypes(enrichedSym, logPrefix, dependencies);
+  } catch (e) {
+    log.debug(`${logPrefix}\u26A0\uFE0F Error in enrichWithSourceRegexTypes: ${e instanceof Error ? e.message : e}`);
+  }
+  try {
+    if (!enrichedSym.hoverChecked) {
+      await enrichWithHoverTypes(enrichedSym, logPrefix, dependencies);
+      enrichedSym.hoverChecked = true;
+    }
+  } catch (e) {
+    log.debug(`${logPrefix}\u26A0\uFE0F Error in hover enrich: ${e instanceof Error ? e.message : e}`);
+  }
+  if (enrichedSym.children && enrichedSym.children.length > 0) {
+    const parentForNextRecursion = enrichedSym.kind === vscode21.SymbolKind.Class ? enrichedSym : parentEnrichedSymbol;
+    const tasks = enrichedSym.children.map(
+      (child) => () => processSymbolRecursiveLSP(
+        child,
+        enrichedSym.fileUri,
+        dependencies,
+        depth + 1,
+        parentForNextRecursion
+      )
+    );
+    log.debug(`${logPrefix} Processing ${tasks.length} children with concurrency limit ${LSP_CONCURRENCY_LIMIT}`);
+    enrichedSym.children = await withConcurrencyLimit(tasks, LSP_CONCURRENCY_LIMIT);
+  }
+  return enrichedSym;
+}
+
+// src/analysis/class_relations.ts
+var vscode22 = __toESM(require("vscode"));
+var fs9 = __toESM(require("fs"));
+var CLAUSE_KEYWORDS = /* @__PURE__ */ new Set(["extends", "with", "implements"]);
+function parseInheritanceClauses(header) {
+  const result = { extends: [], with: [], implements: [] };
+  let depth = 0;
+  let current;
+  let buffer = "";
+  const flush = () => {
+    if (!current) {
+      buffer = "";
+      return;
+    }
+    let item = "";
+    let itemDepth = 0;
+    for (const ch of buffer) {
+      if (ch === "<") {
+        itemDepth++;
+      }
+      if (ch === ">") {
+        itemDepth--;
+      }
+      if (ch === "," && itemDepth === 0) {
+        if (item.trim()) {
+          result[current].push(item.trim().replace(/<\s+/g, "<"));
+        }
+        item = "";
+      } else {
+        item += ch;
+      }
+    }
+    if (item.trim()) {
+      result[current].push(item.trim().replace(/<\s+/g, "<"));
+    }
+    buffer = "";
+  };
+  for (const token of header.match(/[A-Za-z_$][\w$]*|[<>,]|[^\sA-Za-z_$<>,]+/g) ?? []) {
+    if (token === "<") {
+      depth++;
+    }
+    if (token === ">") {
+      depth--;
+    }
+    if (depth === 0 && CLAUSE_KEYWORDS.has(token)) {
+      flush();
+      current = token;
+      continue;
+    }
+    buffer += token === "," || token === "<" || token === ">" ? token : ` ${token}`;
+  }
+  flush();
+  return result;
+}
+function extractClassHeader(content, range) {
+  const lines = content.split(/\r?\n/);
+  let header = "";
+  for (let i = range.start.line; i < lines.length && i < range.start.line + 20; i++) {
+    const raw = i === range.start.line ? lines[i].substring(range.start.character) : lines[i];
+    const line = raw.replace(/\/\/.*$/, "");
+    const brace = line.indexOf("{");
+    if (brace >= 0) {
+      header += " " + line.substring(0, brace);
+      break;
+    }
+    header += " " + line;
+  }
+  return header.replace(/\s+/g, " ").trim();
+}
+function buildClassRelationsFromSymbols(filesData) {
+  const relations = /* @__PURE__ */ new Map();
+  for (const fileData of filesData) {
+    let content;
+    const readContent = () => {
+      if (content === void 0 && fileData.file) {
+        try {
+          content = fs9.readFileSync(fileData.file, "utf8");
+        } catch {
+          content = "";
+        }
+      }
+      return content ?? "";
+    };
+    const visit = (symbols) => {
+      for (const symbol of symbols ?? []) {
+        if (symbol.kind === vscode22.SymbolKind.Class) {
+          const header = symbol.detail || (symbol.range ? extractClassHeader(readContent(), symbol.range) : "");
+          if (header) {
+            relations.set(`${fileData.fileUri}#${symbol.name}`, parseInheritanceClauses(header));
+          }
+        }
+        visit(symbol.children);
+      }
+    };
+    visit(fileData.symbols);
+  }
+  return relations;
+}
+
+// src/analysis/imports.ts
+var DIRECTIVE = /^\s*(?:import|export)\s+(['"])([^'"]+)\1/;
+var MAX_IMPORTS_PER_FILE = 200;
+function parseImports(content) {
+  const found = [];
+  const lines = content.split(/\r?\n/);
+  for (let line = 0; line < lines.length && found.length < MAX_IMPORTS_PER_FILE; line++) {
+    const text = lines[line];
+    if (/^\s*\/\//.test(text)) {
+      continue;
+    }
+    const match = DIRECTIVE.exec(text);
+    if (match) {
+      found.push({ uri: match[2], line, column: text.indexOf(match[2]) });
+    }
+  }
+  return found;
+}
+function parsePubspecName(content) {
+  const match = /^name:\s*['"]?([\w.-]+)['"]?\s*(?:#.*)?$/m.exec(content);
+  return match ? match[1] : "";
+}
+
+// src/packages/import_targets.ts
+var fs10 = __toESM(require("fs"));
+var path12 = __toESM(require("path"));
+var import_url = require("url");
+function readPackageLibDirs(packageConfigJson, configDir) {
+  const result = {};
+  let config;
+  try {
+    config = JSON.parse(packageConfigJson);
+  } catch {
+    return result;
+  }
+  for (const pkg of config.packages ?? []) {
+    if (!pkg.name || !pkg.rootUri) {
+      continue;
+    }
+    try {
+      const root = pkg.rootUri.startsWith("file:") ? (0, import_url.fileURLToPath)(pkg.rootUri) : path12.resolve(configDir, decodeURIComponent(pkg.rootUri));
+      result[pkg.name] = path12.resolve(root, pkg.packageUri ?? "lib");
+    } catch {
+    }
+  }
+  return result;
+}
+function findSdkLibDir(candidates, exists = fs10.existsSync) {
+  for (const candidate of candidates) {
+    const lib = path12.join(candidate, "lib");
+    if (exists(path12.join(lib, "core", "core.dart"))) {
+      return lib;
+    }
+  }
+  return void 0;
+}
+function resolveImportFile(uri, libDirs, sdkLibDir, exists = fs10.existsSync) {
+  const dart = /^dart:(\w+)$/.exec(uri);
+  if (dart) {
+    if (!sdkLibDir) {
+      return void 0;
+    }
+    const file = path12.join(sdkLibDir, dart[1], dart[1] + ".dart");
+    return exists(file) ? file : void 0;
+  }
+  const pkg = /^package:([^/]+)\/(.+)$/.exec(uri);
+  if (pkg && libDirs[pkg[1]]) {
+    const file = path12.join(libDirs[pkg[1]], pkg[2]);
+    return exists(file) ? file : void 0;
+  }
+  return void 0;
+}
+
+// src/lsp/dart_sdk.ts
+var vscode23 = __toESM(require("vscode"));
+var path14 = __toESM(require("path"));
+var fs11 = __toESM(require("fs"));
+var import_child_process = require("child_process");
+
+// src/lsp/dart_executable.ts
+var path13 = __toESM(require("path"));
+function realDartExecutable(found, exists, platform = process.platform) {
+  const exe = platform === "win32" ? "dart.exe" : "dart";
+  const base = path13.basename(found).toLowerCase();
+  const isLauncher = /\.(bat|cmd|sh)$/.test(base) || path13.basename(path13.dirname(found)).toLowerCase() === "bin" && base === "dart" && exists(path13.join(path13.dirname(found), "cache", "dart-sdk", "bin", exe));
+  if (!isLauncher) {
+    return found;
+  }
+  const fromFlutter = path13.join(path13.dirname(found), "cache", "dart-sdk", "bin", exe);
+  return exists(fromFlutter) ? fromFlutter : found;
+}
+function firstExistingPath(output, exists) {
+  return output.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "").find(exists);
+}
+
+// src/lsp/dart_sdk.ts
+function findDartSdk() {
+  const cfg = vscode23.workspace.getConfiguration("satori");
+  const userPath = cfg.get("dartSdkPath")?.trim();
+  if (userPath) {
+    log.debug(`Checking user configured path: ${userPath}`);
+    if (fs11.existsSync(userPath) && fs11.statSync(userPath).isDirectory()) {
+      const dartExecutable = path14.join(userPath, "bin", "dart");
+      if (fs11.existsSync(dartExecutable)) {
+        log.info(`\u2705 Found Dart SDK at configured path: ${userPath}`);
+        return dartExecutable;
+      }
+    }
+    if (fs11.existsSync(userPath)) {
+      log.info(`\u2705 Found Dart executable at configured path: ${userPath}`);
+      return userPath;
+    }
+    log.debug(`Configured Dart SDK path not found: ${userPath}`);
+  }
+  try {
+    const cmd = process.platform === "win32" ? "where dart" : "which dart";
+    const dartPath = firstExistingPath((0, import_child_process.execSync)(cmd, { encoding: "utf-8" }).toString(), fs11.existsSync);
+    if (dartPath) {
+      log.info(`\u2705 Found Dart SDK in system PATH: ${dartPath}`);
+      return dartPath;
+    }
+  } catch (error) {
+    log.debug("Dart SDK not found in system PATH");
+  }
+  log.error("\u274C Dart SDK not found");
+  return void 0;
+}
+
+// src/analysis/audit_config.ts
+var DEFAULT_AUDIT_CONFIG = {
+  godWmc: 47,
+  godAtfd: 5,
+  godTcc: 0.33,
+  weights: { coupling: 0.3, size: 0.15, cycles: 0.25, violations: 0.3 }
+};
+function bounded(value, fallback, min, max) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+function readAuditConfig(get) {
+  const d = DEFAULT_AUDIT_CONFIG;
+  return {
+    godWmc: bounded(get("audit.godClass.wmc"), d.godWmc, 1, 1e5),
+    godAtfd: bounded(get("audit.godClass.atfd"), d.godAtfd, 0, 1e5),
+    godTcc: bounded(get("audit.godClass.tcc"), d.godTcc, 0, 1),
+    weights: {
+      coupling: bounded(get("audit.weights.coupling"), d.weights.coupling, 0, 1),
+      size: bounded(get("audit.weights.size"), d.weights.size, 0, 1),
+      cycles: bounded(get("audit.weights.cycles"), d.weights.cycles, 0, 1),
+      violations: bounded(get("audit.weights.violations"), d.weights.violations, 0, 1)
+    }
+  };
+}
+
+// src/analysis/architecture_file.ts
+var fs12 = __toESM(require("fs"));
+var path15 = __toESM(require("path"));
+var ARCHITECTURE_FILE = "satori.json";
+function findArchitectureFile(start) {
+  let dir = path15.resolve(start);
+  for (let i = 0; i < 6; i++) {
+    const candidate = path15.join(dir, ARCHITECTURE_FILE);
+    if (fs12.existsSync(candidate)) {
+      return candidate;
+    }
+    if (fs12.existsSync(path15.join(dir, "pubspec.yaml"))) {
+      return void 0;
+    }
+    const parent = path15.dirname(dir);
+    if (parent === dir) {
+      return void 0;
+    }
+    dir = parent;
+  }
+  return void 0;
+}
+function discoverFolders(projectDir) {
+  const list = (dir) => {
+    try {
+      return fs12.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name);
+    } catch {
+      return [];
+    }
+  };
+  const lib = list(path15.join(projectDir, "lib"));
+  if (lib.length === 1 && lib[0] === "src") {
+    return { base: "lib/src", folders: list(path15.join(projectDir, "lib", "src")) };
+  }
+  return { base: "lib", folders: lib };
+}
+function loadArchitecture(start) {
+  const file = findArchitectureFile(start);
+  if (!file) {
+    return parseResult(void 0);
+  }
+  try {
+    const context = { discoverFolders: () => discoverFolders(path15.dirname(file)) };
+    return { ...parseArchitecture(fs12.readFileSync(file, "utf8"), context), file };
+  } catch (e) {
+    return { ...parseResult(void 0), problems: [`${ARCHITECTURE_FILE} could not be read (${e.message}). The default layers are used.`], file };
+  }
+}
+function parseResult(text) {
+  return parseArchitecture(text);
+}
+function viewArchitecture(a) {
+  return {
+    layers: a.layers.map((l) => ({ id: l.id, label: l.label, description: l.description, color: l.color, icon: l.icon, neutral: l.neutral === true })),
+    mode: a.mode,
+    allow: a.allow,
+    forbid: a.forbid,
+    neutral: a.neutral,
+    builtin: a.builtin
+  };
+}
+
+// src/ui/loading_state.ts
+var PHASE_ORDER = ["files", "symbols", "relations", "types", "graph", "draw"];
+var WEIGHT = { files: 0.03, symbols: 0.3, relations: 0.3, types: 0.12, graph: 0.2, draw: 0.05 };
+var silentReporter = { start: () => void 0, progress: () => void 0, finish: () => void 0 };
+var LoadingState = class {
+  phases = /* @__PURE__ */ new Map();
+  constructor(labels) {
+    for (const id of PHASE_ORDER) {
+      this.phases.set(id, { id, label: labels[id], status: "pending", done: 0, total: 0, detail: "" });
+    }
+  }
+  start(id, detail = "") {
+    const phase = this.phases.get(id);
+    if (phase.status === "done") {
+      return;
+    }
+    phase.status = "active";
+    phase.detail = detail;
+  }
+  progress(id, done, total, detail) {
+    const phase = this.phases.get(id);
+    if (phase.status === "done") {
+      return;
+    }
+    phase.status = "active";
+    phase.done = Math.max(0, Math.min(done, total));
+    phase.total = Math.max(0, total);
+    if (detail !== void 0) {
+      phase.detail = detail;
+    }
+  }
+  finish(id) {
+    const phase = this.phases.get(id);
+    phase.status = "done";
+    phase.done = phase.total;
+    phase.detail = "";
+  }
+  snapshot() {
+    const phases = PHASE_ORDER.map((id) => ({ ...this.phases.get(id) }));
+    let overall = 0;
+    for (const phase of phases) {
+      const fraction2 = phase.status === "done" ? 1 : phase.status === "active" && phase.total > 0 ? phase.done / phase.total : 0;
+      overall += WEIGHT[phase.id] * fraction2;
+    }
+    return { phases, overall: Math.min(1, overall) };
+  }
+};
+var Throttle = class {
+  constructor(send, minGapMs = 150, now = Date.now) {
+    this.send = send;
+    this.minGapMs = minGapMs;
+    this.now = now;
+  }
+  last = 0;
+  timer;
+  request() {
+    const wait = this.last + this.minGapMs - this.now();
+    if (wait <= 0) {
+      this.flush();
+    } else if (!this.timer) {
+      this.timer = setTimeout(() => this.flush(), wait);
+    }
+  }
+  flush() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = void 0;
+    }
+    this.last = this.now();
+    this.send();
+  }
+  cancel() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = void 0;
+    }
+  }
+};
+
+// src/ui/webview_creator.ts
+var ENRICH_FILE_CONCURRENCY = 4;
+function readOwnPackageName(projectRoot) {
+  try {
+    const root = findProjectRootWithPubspec(projectRoot);
+    return root ? parsePubspecName(fs13.readFileSync(import_path7.default.join(root, "pubspec.yaml"), "utf8")) : "";
+  } catch {
+    return "";
+  }
+}
+function resolveImportTargets(projectRoot, fileImports, ownPackage) {
+  const targets = {};
+  try {
+    const root = findProjectRootWithPubspec(projectRoot);
+    if (!root) {
+      return targets;
+    }
+    const configPath = import_path7.default.join(root, ".dart_tool", "package_config.json");
+    let libDirs = {};
+    const candidates = [];
+    if (fs13.existsSync(configPath)) {
+      const json = fs13.readFileSync(configPath, "utf8");
+      libDirs = readPackageLibDirs(json, import_path7.default.dirname(configPath));
+      const flutterRoot = JSON.parse(json).flutterRoot;
+      if (flutterRoot) {
+        candidates.push(import_path7.default.join(vscode24.Uri.parse(flutterRoot).fsPath, "bin", "cache", "dart-sdk"));
+      }
+    }
+    const dart = findDartSdk();
+    if (dart) {
+      candidates.push(import_path7.default.dirname(import_path7.default.dirname(dart)), import_path7.default.join(import_path7.default.dirname(dart), "cache", "dart-sdk"));
+    }
+    const sdkLib = findSdkLibDir(candidates);
+    const wanted = /* @__PURE__ */ new Set();
+    Object.values(fileImports).forEach((list) => list.forEach((i) => {
+      if (i.uri.startsWith("dart:") || i.uri.startsWith("package:") && !i.uri.startsWith(`package:${ownPackage}/`)) {
+        wanted.add(i.uri);
+      }
+    }));
+    wanted.forEach((uri) => {
+      const file = resolveImportFile(uri, libDirs, sdkLib);
+      if (file) {
+        targets[uri] = vscode24.Uri.file(file).toString();
+      }
+    });
+  } catch (error) {
+    log.debug(`Could not resolve the imports to files: ${error}`);
+  }
+  return targets;
+}
+function annotationsKey(projectRoot) {
+  return `satori.annotations:${projectRoot}`;
+}
+function loadAnnotations(memento, projectRoot) {
+  return memento.get(annotationsKey(projectRoot), {});
+}
+function saveAnnotations(memento, projectRoot, data) {
+  return memento.update(annotationsKey(projectRoot), data);
+}
+function findClassFieldSymbol(classSymbol, fieldName) {
+  return classSymbol.children?.find(
+    (f) => f.name === fieldName && (f.kind === vscode24.SymbolKind.Field || f.kind === vscode24.SymbolKind.Property)
+  );
+}
+async function createWebview(context, data) {
+  const startedAt = Date.now();
+  const reporter = data.reporter ?? silentReporter;
+  function getLanguage() {
+    const config = vscode24.workspace.getConfiguration("satori");
+    return config.get("language", "en");
+  }
+  const panel = vscode24.window.createWebviewPanel(
+    "astDiagram",
+    "AST Diagram",
+    vscode24.ViewColumn.Beside,
+    {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode24.Uri.joinPath(context.extensionUri, "media")
+      ]
+    }
+  );
+  const nonce = getNonce();
+  const csp = [
+    `default-src 'none'`,
+    `style-src ${panel.webview.cspSource} 'unsafe-inline'`,
+    `script-src 'nonce-${nonce}' ${panel.webview.cspSource}`,
+    `img-src data: ${panel.webview.cspSource}`
+  ].join("; ");
+  const fileImports = {};
+  const loadedArchitecture = loadArchitecture(data.projectRoot);
+  if (loadedArchitecture.problems.length > 0) {
+    loadedArchitecture.problems.forEach((p) => log.info(`satori.json: ${p}`));
+    void vscode24.window.showWarningMessage(`satori.json: ${loadedArchitecture.problems[0]}${loadedArchitecture.problems.length > 1 ? ` (+${loadedArchitecture.problems.length - 1} more, see the "satori" output)` : ""}`);
+  }
+  let projectGraph;
+  let enrichedAt;
+  let graphBuiltAt;
+  let engine = "saved analysis";
+  if (data.cached) {
+    projectGraph = data.cached.graph;
+    Object.assign(fileImports, data.cached.fileImports);
+    enrichedAt = graphBuiltAt = Date.now();
+    log.info(`Using the saved analysis: ${projectGraph.nodes.length} nodes, ${projectGraph.edges.length} edges.`);
+  } else {
+    let validateParentIds2 = function(symbols) {
+      if (!symbols) {
+        return;
+      }
+      for (const sym of symbols) {
+        if (sym.parentId && !existingUniqueIds.has(sym.parentId)) {
+          log.debug(`\u274C Inconsistency detected: parentId '${sym.parentId}' of '${sym.name}' does not exist in the uniqueIds set.`);
+        }
+        if (sym.children) {
+          validateParentIds2(sym.children);
+        }
+      }
+    };
+    var validateParentIds = validateParentIds2;
+    log.debug("Starting data enrichment for webview..");
+    resolvedTypesCache.clear();
+    clearHoverCache();
+    const projectClassRelations = buildClassRelationsFromSymbols(data.files);
+    log.debug(`AST relations detected: ${projectClassRelations.size} classes.`);
+    buildTypeIndex(data.files);
+    log.debug("[TypeIndex] Type index built \u2014 starting enrichment.");
+    const allProjectFilesData = data.files.map((df) => ({
+      ...df,
+      fileUri: typeof df.fileUri === "string" && df.fileUri.startsWith("file:") ? df.fileUri : vscode24.Uri.file(df.file).toString()
+    }));
+    reporter.start("types");
+    const processedFiles = await mapLimited(data.files, ENRICH_FILE_CONCURRENCY, async (f_item) => {
+      const fileContent = fs13.readFileSync(f_item.file, "utf8");
+      const fileUriString = typeof f_item.fileUri === "string" && f_item.fileUri.startsWith("file:") ? f_item.fileUri : vscode24.Uri.file(f_item.file).toString();
+      const imports = parseImports(fileContent);
+      if (imports.length) {
+        fileImports[fileUriString] = imports;
+      }
+      const enrichmentDeps = {
+        projectClassRelations,
+        fileContent,
+        allProjectFilesData
+      };
+      const processedSymbols = f_item.symbols ? await Promise.all(f_item.symbols.map(
+        (sym) => processSymbolRecursiveLSP(sym, fileUriString, enrichmentDeps, 0, void 0)
+      )) : [];
+      return { ...f_item, fileUri: fileUriString, symbols: processedSymbols };
+    }, (done, total) => reporter.progress("types", done, total));
+    reporter.finish("types");
+    data.files = processedFiles;
+    enrichedAt = Date.now();
+    log.debug("\u2705 Deep enrichment of all files completed.");
+    clearTypeIndex();
+    log.debug("\u2705 Type index cleared.");
+    log.debug("Phase 2: Building project graph model...");
+    reporter.start("graph");
+    const navigation = data.navigation ? await data.navigation : null;
+    if (navigation) {
+      log.info(`Relationships read from the analysis server: ${navigation.files} files (start ${navigation.startMs}ms, analysis ${navigation.analyzeMs}ms, navigation ${navigation.navigationMs}ms).`);
+    }
+    engine = navigation ? "analysis server" : "language server";
+    setNavigationIndex(navigation ? navigation.index : null);
+    setArchitecture(loadedArchitecture.architecture, data.projectRoot);
+    setPassProgress((pass, done, total) => reporter.progress("graph", done, total, t(`loading.graph.${pass}`)));
+    try {
+      projectGraph = await buildGraphModel(data.files, data.projectRoot);
+    } finally {
+      setNavigationIndex(null);
+      setArchitecture(null);
+      setPassProgress(null);
+    }
+    reporter.finish("graph");
+    if (!loadedArchitecture.architecture.builtin) {
+      const classes = projectGraph.nodes.filter((n) => n.kind === "class");
+      const neutral = classes.filter((n) => n.data.layer === loadedArchitecture.architecture.neutral).length;
+      log.info(`satori.json: ${classes.length - neutral} of ${classes.length} classes were placed in a layer; ${neutral} are in "${loadedArchitecture.architecture.neutral}".`);
+    }
+    graphBuiltAt = Date.now();
+    log.debug(`Phase 2: Graph model built. Nodes: ${projectGraph.nodes.length}, Edges: ${projectGraph.edges.length}`);
+    log.debug("Calculating coupling degrees (in/out degree) of nodes...");
+    calculateNodeDegrees(projectGraph);
+    log.debug("\u2705 Coupling degrees calculated.");
+    log.debug("Phase 3: Starting resolution of this.fieldName in constructors...");
+    const existingUniqueIds = /* @__PURE__ */ new Set();
+    data.files.forEach((fileData) => {
+      function collectUniqueIds(symbols) {
+        if (!symbols) {
+          return;
+        }
+        for (const s of symbols) {
+          if (s.uniqueId) {
+            existingUniqueIds.add(s.uniqueId);
+          }
+          if (s.children) {
+            collectUniqueIds(s.children);
+          }
+        }
+      }
+      collectUniqueIds(fileData.symbols);
+    });
+    data.files.forEach((fileData) => {
+      function findClassAndResolveThisFieldsRecursive(symbols) {
+        if (!symbols) {
+          return;
+        }
+        for (const s of symbols) {
+          log.debug(`[DEBUG-KIND-CHECK] Symbol: ${s.name}, kind: ${s.kind}, children: ${s.children?.length ?? 0}`);
+          if (s.kind === vscode24.SymbolKind.Class && s.children) {
+            const classSymbol = s;
+            log.debug(`[DEBUG-CLASS] Class detected: ${classSymbol.name}`);
+            classSymbol.children?.forEach((member) => {
+              log.debug(`[DEBUG-MEMBER] ${classSymbol.name}.${member.name || "(anon)"} - kind: ${member.kind}, params: ${member.parameters?.length ?? 0}`);
+              if (member.kind === vscode24.SymbolKind.Constructor) {
+                log.debug(`[DEBUG-CONSTRUCTOR] Constructor found: ${member.name}`);
+                if (!member.parameters || member.parameters.length === 0) {
+                  if (member.detail?.includes("this.")) {
+                    log.debug(`  Constructor '${member.name}' without relevant parameters (self_field)`);
+                  } else {
+                    log.debug(`  \u26A0\uFE0F Constructor '${member.name}' has no parameters. Missing enrichment?`);
+                  }
+                }
+                if (member.parameters && member.parameters.length > 0) {
+                  if (!member.parentId && classSymbol.uniqueId) {
+                    member.parentId = classSymbol.uniqueId;
+                    log.debug(`[DEBUG-RELATIONSHIP] Established parent of constructor ${member.name || "(default)"} -> ${classSymbol.uniqueId}`);
+                  }
+                  log.debug(`  [ResolveThisField] Processing constructor ${classSymbol.name}.${member.name || "(default)"}`);
+                  member.parameters.forEach((param) => {
+                    if (param.type?.startsWith("self_field:")) {
+                      const fieldName = param.type.substring("self_field:".length);
+                      const fieldSymbol = findClassFieldSymbol(classSymbol, fieldName);
+                      if (fieldSymbol) {
+                        if (fieldSymbol.resolvedType) {
+                          log.debug(`    \u21B3 Param '${param.name || fieldName}' (this.${fieldName}): type updated from '${param.type}' to '${fieldSymbol.resolvedType}'. Linked def: ${!!fieldSymbol.resolvedTypeRef?.definition}`);
+                          param.type = fieldSymbol.resolvedType;
+                          param.typeRef = fieldSymbol.resolvedTypeRef ? { ...fieldSymbol.resolvedTypeRef } : { name: fieldSymbol.resolvedType };
+                        } else {
+                          log.debug(`    \u26A0\uFE0F Param '${param.name || fieldName}' (this.${fieldName}): field found but no resolvedType in ${classSymbol.name}`);
+                          param.typeRef = { name: param.type };
+                        }
+                      } else {
+                        log.debug(`    \u274C Param '${param.name || fieldName}': field '${fieldName}' NOT found in ${classSymbol.name}`);
+                        param.typeRef = { name: param.type };
+                      }
+                    }
+                  });
+                }
+              }
+            });
+          }
+          if (s.children) {
+            findClassAndResolveThisFieldsRecursive(s.children);
+          }
+        }
+      }
+      if (fileData.symbols) {
+        findClassAndResolveThisFieldsRecursive(fileData.symbols);
+      } else {
+        log.debug(`[DEBUG] \u26A0\uFE0F fileData.symbols is empty for: ${fileData.fileUri}`);
+      }
+    });
+    log.debug(`[DEBUG-VALIDATE] Verifying consistency of parentId \u2194 uniqueId...`);
+    data.files.forEach((fileData) => validateParentIds2(fileData.symbols));
+    log.debug("[\u2713] Resolution of this.fieldName fields in constructors completed.");
+  }
+  const ownPackage = readOwnPackageName(data.projectRoot);
+  const dataForWebview = {
+    projectRoot: data.projectRoot,
+    graph: projectGraph,
+    fileImports,
+    ownPackage,
+    architecture: viewArchitecture(loadedArchitecture.architecture),
+    auditConfig: readAuditConfig((key) => vscode24.workspace.getConfiguration("satori").get(key)),
+    importTargets: resolveImportTargets(data.projectRoot, fileImports, ownPackage)
+  };
+  log.debug("[Sanitize] Starting string sanitization for JSON...");
+  sanitizeObjectStrings(dataForWebview);
+  log.debug("[Sanitize] String sanitization completed.");
+  const savedAnnotations = loadAnnotations(context.workspaceState, data.projectRoot);
+  const astJson = JSON.stringify({ ...dataForWebview, annotations: savedAnnotations }, (key, value) => {
+    if (typeof value === "string") {
+      return value.replace(/\\/g, "/");
+    }
+    return value;
+  }).replace(/</g, "\\u003c");
+  log.debug(`[DEBUG_JSON] Total length of astJson: ${astJson.length}`);
+  if (!data.cached) {
+    validateEnrichedData(data.files);
+  }
+  const language = getLanguage();
+  await Localization.getInstance().loadTranslations(context.extensionPath, language);
+  const translations = Localization.getInstance().getByPrefix("trail.", "hud.", "layer.");
+  const mediaUri = panel.webview.asWebviewUri(vscode24.Uri.joinPath(context.extensionUri, "media")).toString();
+  let html = fs13.readFileSync(
+    import_path7.default.join(context.extensionUri.fsPath, "media", "webviewContent.html"),
+    "utf8"
+  );
+  html = html.replace(/__CSP__/, () => csp).replace(/__MEDIA__/g, () => mediaUri).replace(/__NONCE__/g, () => nonce).replace(/__AST_JSON_PLACEHOLDER__/g, () => astJson).replace(/__TRANSLATIONS__/g, () => JSON.stringify(translations).replace(/</g, "\\u003c"));
+  reporter.start("draw");
+  panel.webview.html = html;
+  const finishedAt = Date.now();
+  return {
+    panel,
+    graph: projectGraph,
+    fileImports,
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt, engine }
+  };
+}
+function getNonce() {
+  let text = "";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return text;
+}
+
+// src/analysis/graph_cache.ts
+var fs14 = __toESM(require("fs"));
+var path17 = __toESM(require("path"));
+var crypto = __toESM(require("crypto"));
+
+// src/analysis/analysis_health.ts
+var MIN_SHARE_WITH_SYMBOLS = 0.5;
+function symbolsLookComplete(stats) {
+  return stats.files > 0 && stats.withSymbols / stats.files >= MIN_SHARE_WITH_SYMBOLS;
+}
+function isHealthy(stats) {
+  return stats.classes > 0 && symbolsLookComplete(stats);
+}
+function likelyCauses(facts) {
+  const causes = [];
+  if (!facts.workspaceTrusted) {
+    causes.push({ id: "untrusted", args: [] });
+  }
+  if (!facts.dartExtensionActive) {
+    causes.push({ id: "dartInactive", args: [] });
+  }
+  if (!facts.isProjectRoot) {
+    causes.push({ id: "noPubspec", args: [] });
+  } else if (!facts.hasPackageConfig) {
+    causes.push({ id: "noPackageConfig", args: [] });
+  }
+  if (facts.leftOutBySatori > 0) {
+    causes.push({ id: "leftOut", args: [String(facts.leftOutBySatori)] });
+  }
+  causes.push({ id: "warming", args: [] });
+  return causes;
+}
+
+// src/analysis/graph_cache.ts
+var CACHE_LAYOUT = 2;
+function fingerprintOf(stamps) {
+  const hash = crypto.createHash("sha1");
+  stamps.map((s) => `${s.path}|${s.size}|${Math.round(s.mtimeMs)}`).sort().forEach((line) => hash.update(line + "\n"));
+  return hash.digest("hex");
+}
+function stampFiles(files) {
+  const stamps = [];
+  for (const file of files) {
+    try {
+      const st = fs14.statSync(file);
+      stamps.push({ path: file, size: st.size, mtimeMs: st.mtimeMs });
+    } catch {
+    }
+  }
+  return stamps;
+}
+function cacheFileFor(storageDir, projectRoot) {
+  const key = crypto.createHash("sha1").update(projectRoot.toLowerCase()).digest("hex").slice(0, 16);
+  return path17.join(storageDir, `analysis-${key}.json`);
+}
+function readCachedAnalysis(file, fingerprint, extensionVersion) {
+  try {
+    if (!fs14.existsSync(file)) {
+      return null;
+    }
+    const cached = JSON.parse(fs14.readFileSync(file, "utf8"));
+    if (cached.layout !== CACHE_LAYOUT || cached.extensionVersion !== extensionVersion || cached.fingerprint !== fingerprint) {
+      return null;
+    }
+    if (!cached.stats || !isHealthy(cached.stats)) {
+      return null;
+    }
+    return cached;
+  } catch {
+    return null;
+  }
+}
+function writeCachedAnalysis(file, fingerprint, extensionVersion, graph, fileImports, stats) {
+  const entry = { layout: CACHE_LAYOUT, extensionVersion, fingerprint, savedAt: Date.now(), stats, graph, fileImports };
+  fs14.mkdirSync(path17.dirname(file), { recursive: true });
+  const temp = `${file}.${process.pid}.tmp`;
+  fs14.writeFileSync(temp, JSON.stringify(entry));
+  fs14.renameSync(temp, file);
+}
+function clearCachedAnalyses(storageDir) {
+  let removed = 0;
+  let names = [];
+  try {
+    names = fs14.readdirSync(storageDir);
+  } catch {
+    return 0;
+  }
+  for (const name of names) {
+    if (/^analysis-[0-9a-f]+\.json(\.\d+\.tmp)?$/.test(name)) {
+      try {
+        fs14.unlinkSync(path17.join(storageDir, name));
+        removed++;
+      } catch {
+      }
+    }
+  }
+  return removed;
+}
+
+// src/analysis/navigation_runner.ts
+var fs15 = __toESM(require("fs"));
+var path18 = __toESM(require("path"));
+var vscode25 = __toESM(require("vscode"));
+
+// src/lsp/analysis_server.ts
+var cp = __toESM(require("child_process"));
+var DartAnalysisClient = class {
+  constructor(executable, args = ["language-server", "--protocol=analyzer"], spawnFn = cp.spawn) {
+    this.executable = executable;
+    this.args = args;
+    this.spawnFn = spawnFn;
+  }
+  child;
+  buffer = "";
+  nextId = 1;
+  pending = /* @__PURE__ */ new Map();
+  analysisFinished;
+  analysisFailed;
+  closed = false;
+  /** Starts the server and checks that it answers. */
+  async start() {
+    const needsShell = process.platform === "win32" && /\.(bat|cmd)$/i.test(this.executable);
+    this.child = this.spawnFn(this.executable, this.args, { stdio: ["pipe", "pipe", "ignore"], shell: needsShell });
+    this.child.on("error", (err) => this.failAll(err));
+    this.child.on("exit", () => {
+      this.closed = true;
+      this.failAll(new Error("the analysis server stopped"));
+    });
+    this.child.stdout?.on("data", (chunk) => this.onData(chunk.toString()));
+    const reply = await this.request("server.getVersion", {});
+    return String(reply.result?.version ?? "");
+  }
+  /** Points the server at a project and waits until it has finished analysing it. */
+  async analyze(root, timeoutMs) {
+    let timer;
+    const finished = new Promise((resolve4, reject) => {
+      this.analysisFinished = resolve4;
+      this.analysisFailed = reject;
+      timer = setTimeout(() => reject(new Error("the analysis server did not finish in " + Math.round(timeoutMs / 1e3) + "s")), timeoutMs);
+    });
+    try {
+      await this.request("server.setSubscriptions", { subscriptions: ["STATUS"] });
+      await this.request("analysis.setAnalysisRoots", { included: [root], excluded: [] });
+      await finished;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      this.analysisFinished = void 0;
+      this.analysisFailed = void 0;
+    }
+  }
+  /** Where every identifier of `file` points to. */
+  async getNavigation(file, length) {
+    const reply = await this.request("analysis.getNavigation", { file, offset: 0, length });
+    const result = reply.result;
+    return { files: result?.files ?? [], targets: result?.targets ?? [], regions: result?.regions ?? [] };
+  }
+  dispose() {
+    this.closed = true;
+    try {
+      this.child?.kill();
+    } catch {
+    }
+    this.failAll(new Error("the analysis client was closed"));
+  }
+  request(method, params) {
+    if (this.closed || !this.child?.stdin) {
+      return Promise.reject(new Error("the analysis server is not running"));
+    }
+    const id = String(this.nextId++);
+    return new Promise((resolve4, reject) => {
+      this.pending.set(id, {
+        resolve: (message) => message.error ? reject(new Error(`${message.error.code}: ${message.error.message}`)) : resolve4(message),
+        reject
+      });
+      this.child.stdin.write(JSON.stringify({ id, method, params }) + "\n");
+    });
+  }
+  onData(text) {
+    this.buffer += text;
+    let newline;
+    while ((newline = this.buffer.indexOf("\n")) >= 0) {
+      const line = this.buffer.slice(0, newline).trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      if (!line) {
+        continue;
+      }
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (message.id !== void 0 && this.pending.has(String(message.id))) {
+        const pending = this.pending.get(String(message.id));
+        this.pending.delete(String(message.id));
+        pending.resolve(message);
+      } else if (message.event === "server.status" && message.params?.analysis && message.params.analysis.isAnalyzing === false) {
+        this.analysisFinished?.();
+      }
+    }
+  }
+  failAll(error) {
+    this.analysisFailed?.(error);
+    this.pending.forEach((p) => p.reject(error));
+    this.pending.clear();
+  }
+};
+
+// src/analysis/navigation_index.ts
+function normalizePath(p) {
+  const slashes = p.replace(/\\/g, "/");
+  return /^[a-zA-Z]:/.test(slashes) ? slashes[0].toLowerCase() + slashes.slice(1) : slashes;
+}
+function lineStarts(text) {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
+}
+function positionAt(starts, offset) {
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = low + high + 1 >> 1;
+    if (starts[mid] <= offset) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return { line: low, character: offset - starts[low] };
+}
+var NavigationIndex = class _NavigationIndex {
+  byTarget = /* @__PURE__ */ new Map();
+  static key(path20, line, character) {
+    return `${normalizePath(path20)}:${line}:${character}`;
+  }
+  /** The uses of the symbol declared at this position (0-based) of this file, or an empty list. */
+  referencesTo(path20, line, character) {
+    return this.byTarget.get(_NavigationIndex.key(path20, line, character)) ?? [];
+  }
+  get size() {
+    return this.byTarget.size;
+  }
+  /**
+   * Adds what one file says about its identifiers.
+   * @param usageUri URI of the file the navigation belongs to
+   * @param text the file's contents, to turn offsets into lines and columns
+   * @param keepTarget decides which declarations are worth remembering (the project's own files)
+   * @param selfPath path of the file the navigation belongs to, to tell a declaration from a use of it
+   */
+  addFile(result, usageUri, text, keepTarget, selfPath) {
+    const starts = lineStarts(text);
+    const keep = result.targets.map((t2) => keepTarget(result.files[t2.fileIndex] ?? ""));
+    for (const region of result.regions) {
+      const word = text.substr(region.offset, region.length);
+      if (word === "this" || word === "super") {
+        continue;
+      }
+      let usage;
+      for (const index of region.targets) {
+        const target = result.targets[index];
+        if (!target || !keep[index]) {
+          continue;
+        }
+        if (region.offset === target.offset && result.files[target.fileIndex] !== void 0 && normalizePath(result.files[target.fileIndex]) === normalizePath(selfPath)) {
+          continue;
+        }
+        if (!usage) {
+          const start = positionAt(starts, region.offset);
+          const end = positionAt(starts, region.offset + region.length);
+          usage = { uri: usageUri, line: start.line, character: start.character, endLine: end.line, endCharacter: end.character };
+        }
+        const key = _NavigationIndex.key(result.files[target.fileIndex], target.startLine - 1, target.startColumn - 1);
+        const list = this.byTarget.get(key);
+        if (list) {
+          list.push(usage);
+        } else {
+          this.byTarget.set(key, [usage]);
+        }
+      }
+    }
+  }
+};
+
+// src/analysis/navigation_runner.ts
+var REQUESTS_IN_FLIGHT = 8;
+var ANALYSIS_TIMEOUT_MS = 20 * 60 * 1e3;
+async function buildNavigationIndex(projectRoot, files, reporter = silentReporter) {
+  const engine = vscode25.workspace.getConfiguration("satori").get("analysis.engine", "auto");
+  if (engine === "languageServer") {
+    log.info("Relationships are asked one by one to the language server (satori.analysis.engine).");
+    reporter.finish("relations");
+    return null;
+  }
+  const found = findDartSdk();
+  if (!found) {
+    reporter.finish("relations");
+    return null;
+  }
+  const dart = realDartExecutable(found, fs15.existsSync);
+  const client = new DartAnalysisClient(dart);
+  try {
+    reporter.start("relations", t("loading.relations.starting"));
+    const t0 = Date.now();
+    const version = await client.start();
+    log.debug(`[Navigation] analysis server ${version} started with ${dart}`);
+    const t1 = Date.now();
+    reporter.start("relations", t("loading.relations.analyzing"));
+    await client.analyze(path18.resolve(projectRoot), ANALYSIS_TIMEOUT_MS);
+    const t2 = Date.now();
+    const projectFiles = new Set(files.map((u) => normalizePath(u.fsPath)));
+    const index = new NavigationIndex();
+    await mapLimited(files, REQUESTS_IN_FLIGHT, async (uri) => {
+      const text = fs15.readFileSync(uri.fsPath, "utf8");
+      const result = await client.getNavigation(uri.fsPath, text.length);
+      index.addFile(result, uri.toString(), text, (p) => projectFiles.has(normalizePath(p)), uri.fsPath);
+    }, (done, total) => reporter.progress("relations", done, total, t("loading.relations.reading")));
+    reporter.finish("relations");
+    const t3 = Date.now();
+    return { index, files: files.length, startMs: t1 - t0, analyzeMs: t2 - t1, navigationMs: t3 - t2 };
+  } catch (error) {
+    log.info(`The analysis server could not be used (${error.message}); asking the language server instead.`);
+    reporter.finish("relations");
+    return null;
+  } finally {
+    client.dispose();
+  }
+}
+
+// src/ui/progress_reporter.ts
+function formatElapsed(ms) {
+  const seconds = Math.floor(ms / 1e3);
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
+}
+var NotificationReporter = class {
+  constructor(sink, texts, now = Date.now, tickMs = 1e3) {
+    this.sink = sink;
+    this.texts = texts;
+    this.now = now;
+    this.state = new LoadingState(texts.labels);
+    this.startedAt = now();
+    this.throttle = new Throttle(() => this.emit(), 200, now);
+    this.ticker = setInterval(() => this.emit(), tickMs);
+    this.emit();
+  }
+  state;
+  throttle;
+  startedAt;
+  lastOverall = 0;
+  ticker;
+  start(id, detail = "") {
+    this.state.start(id, detail);
+    this.throttle.request();
+  }
+  progress(id, done, total, detail) {
+    this.state.progress(id, done, total, detail);
+    this.throttle.request();
+  }
+  finish(id) {
+    this.state.finish(id);
+    this.throttle.request();
+  }
+  /** Stops the clock; call it when the analysis ends, however it ends. */
+  release() {
+    this.throttle.cancel();
+    if (this.ticker) {
+      clearInterval(this.ticker);
+      this.ticker = void 0;
+    }
+  }
+  /** The message for the current state. */
+  message() {
+    const snapshot = this.state.snapshot();
+    const active = snapshot.phases.filter((p) => p.status === "active");
+    const slowest = active.sort((a, b) => fraction(a) - fraction(b))[0];
+    const current = slowest ?? snapshot.phases.find((p) => p.status === "pending");
+    const percent = `${Math.round(snapshot.overall * 100)}%`;
+    const parts = [percent];
+    if (current) {
+      let text = current.label;
+      if (current.total > 0) {
+        text += ` (${current.done}/${current.total})`;
+      } else if (current.detail) {
+        text += ` - ${current.detail}`;
+      }
+      parts.push(text);
+    }
+    parts.push(`${this.texts.elapsed} ${formatElapsed(this.now() - this.startedAt)}`);
+    return parts.join(" \xB7 ");
+  }
+  emit() {
+    const overall = this.state.snapshot().overall;
+    const increment = Math.max(0, (overall - this.lastOverall) * 100);
+    this.lastOverall = Math.max(this.lastOverall, overall);
+    this.sink.report({ increment, message: this.message() });
+  }
+};
+function fraction(p) {
+  return p.total > 0 ? p.done / p.total : 0;
+}
+
+// src/ui/command_registry.ts
+var vscode26 = __toESM(require("vscode"));
+function registerDebugCommands(context) {
+  const toggleDebugCommand = vscode26.commands.registerCommand(
+    "satori.toggleDebugLogs",
+    () => {
+      const currentState = log.isDebug();
+      log.setDebug(!currentState);
+      vscode26.window.showInformationMessage(
+        `Debug logs ${!currentState ? "enabled" : "disabled"}`
+      );
+    }
+  );
+  context.subscriptions.push(toggleDebugCommand);
+}
+
+// src/analysis/symbol_transformer.ts
+function transformLspSymbols(lspSymbols, parentId, fileUri) {
+  if (!lspSymbols || lspSymbols.length === 0) {
+    return [];
+  }
+  return lspSymbols.map((s) => {
+    const uniqueId = `${fileUri}#${s.name}#${s.kind}`;
+    const enriched = {
+      name: s.name,
+      kind: s.kind,
+      detail: s.detail || "",
+      range: s.range,
+      selectionRange: s.selectionRange,
+      fileUri,
+      uniqueId,
+      parentId,
+      children: []
+    };
+    enriched.children = transformLspSymbols(s.children ?? [], uniqueId, fileUri);
+    return enriched;
+  });
+}
+
+// src/analysis/snippet.ts
+var fs16 = __toESM(require("fs"));
+var vscode27 = __toESM(require("vscode"));
+var MAX_LINES = 60;
+var CONTEXT = 3;
+function stripDecor(label) {
+  return label.replace(/^(?:\u{1F517}|⚙️?)\s*/u, "");
+}
+function rangeOf(node) {
+  const raw = node.data.range ?? node.data.selectionRange;
+  if (!raw) {
+    return null;
+  }
+  const start = Array.isArray(raw) ? raw[0] : raw.start;
+  const end = Array.isArray(raw) ? raw[1] : raw.end;
+  if (!start || !end) {
+    return null;
+  }
+  return { start: { line: start.line, character: start.character }, end: { line: end.line, character: end.character } };
+}
+function escapeRegExp2(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function buildLineSnippet(fileUri, line, column, length) {
+  let fileLines;
+  try {
+    fileLines = fs16.readFileSync(vscode27.Uri.parse(fileUri).fsPath, "utf8").split(/\r?\n/);
+  } catch {
+    return null;
+  }
+  if (!Number.isInteger(line) || line < 0 || line >= fileLines.length) {
+    return null;
+  }
+  const from = Math.max(0, line - CONTEXT - 1);
+  const to = Math.min(fileLines.length - 1, line + CONTEXT + 1);
+  return {
+    file: fileUri,
+    startLine: from,
+    lines: fileLines.slice(from, to + 1),
+    highlightLine: line,
+    jump: { start: { line, character: column }, end: { line, character: column + Math.max(1, length) } },
+    title: fileLines[line].trim()
+  };
+}
+function buildSnippet(graph, request) {
+  if (request.fileUri !== void 0 && request.line !== void 0) {
+    return buildLineSnippet(request.fileUri, request.line, request.column ?? 0, request.length ?? 1);
+  }
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const primary = byId.get(request.sourceId ?? request.nodeId ?? "");
+  if (!primary || !primary.data.fileUri) {
+    return null;
+  }
+  const range = rangeOf(primary);
+  if (!range) {
+    return null;
+  }
+  let content;
+  try {
+    content = fs16.readFileSync(vscode27.Uri.parse(primary.data.fileUri).fsPath, "utf8");
+  } catch {
+    return null;
+  }
+  const fileLines = content.split(/\r?\n/);
+  if (range.start.line >= fileLines.length) {
+    return null;
+  }
+  let highlightLine = null;
+  let highlightColumn = range.start.character;
+  let matchLength = Math.max(1, range.end.line === range.start.line ? range.end.character - range.start.character : 1);
+  let title = stripDecor(primary.label);
+  const target = request.targetId ? byId.get(request.targetId) : void 0;
+  if (target) {
+    const name = stripDecor(target.label);
+    const pattern = new RegExp(`\\b${escapeRegExp2(name)}\\b`);
+    const lastLine = Math.min(range.end.line, fileLines.length - 1);
+    for (let i = range.start.line; i <= lastLine; i++) {
+      const text = fileLines[i];
+      if (text.trimStart().startsWith("//")) {
+        continue;
+      }
+      const match = pattern.exec(i === range.start.line ? text.substring(range.start.character) : text);
+      if (match) {
+        highlightLine = i;
+        highlightColumn = match.index + (i === range.start.line ? range.start.character : 0);
+        matchLength = name.length;
+        break;
+      }
+    }
+    title = `${stripDecor(primary.label)} -> ${name}`;
+  }
+  if (!target && range.end.line === range.start.line) {
+    highlightLine = range.start.line;
+  }
+  const lastLineOfSymbol = Math.min(range.end.line, fileLines.length - 1);
+  let from = range.start.line;
+  let to = lastLineOfSymbol;
+  if (to - from < 1) {
+    from = Math.max(0, from - CONTEXT);
+    to = Math.min(fileLines.length - 1, to + CONTEXT + 1);
+  }
+  if (to - from + 1 > MAX_LINES) {
+    const anchor = highlightLine ?? range.start.line;
+    from = Math.max(range.start.line, anchor - Math.floor(MAX_LINES / 2));
+    to = Math.min(lastLineOfSymbol, from + MAX_LINES - 1);
+    from = Math.max(range.start.line, to - MAX_LINES + 1);
+  }
+  const jumpLine = highlightLine ?? range.start.line;
+  return {
+    file: primary.data.fileUri,
+    startLine: from,
+    lines: fileLines.slice(from, to + 1),
+    highlightLine,
+    jump: {
+      start: { line: jumpLine, character: highlightColumn },
+      end: { line: jumpLine, character: highlightColumn + matchLength }
+    },
+    title
+  };
+}
+
+// src/ui/extension_lifecycle.ts
+var ExtensionState = class {
+  mainGraphPanel;
+  projectGraph;
+  stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
+  timings;
+  /**
+   * Sets the webview panel and project graph in the global state.
+   *
+   * @param panel - Webview panel that displays the graph visualization
+   * @param graph - Graph data model with the project's nodes and edges
+   */
+  setGraph(panel, graph) {
+    this.mainGraphPanel = panel;
+    this.projectGraph = graph;
+    this.stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
+  }
+  /**
+   * Clears the global state, releasing references to the panel and graph.
+   * Typically called when the visualization panel is closed.
+   */
+  clear() {
+    this.mainGraphPanel = void 0;
+    this.projectGraph = void 0;
+    this.stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
+  }
+  /**
+   * Gets the active webview panel of the graph.
+   * 
+   * @returns Webview panel if active, undefined otherwise
+   */
+  getPanel() {
+    return this.mainGraphPanel;
+  }
+  /**
+   * Gets the current project graph data model.
+   * 
+   * @returns Project graph model if available, undefined otherwise
+   */
+  getGraph() {
+    return this.projectGraph;
+  }
+};
+async function findFlutterProjectRoot() {
+  const workspaceFolders = vscode28.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    vscode28.window.showErrorMessage("No workspace folder found. Please open a Flutter project.");
+    return void 0;
+  }
+  for (const folder of workspaceFolders) {
+    const pubspecFiles = await vscode28.workspace.findFiles(
+      new vscode28.RelativePattern(folder, "pubspec.yaml"),
+      "**/.*",
+      1
+    );
+    if (pubspecFiles.length > 0) {
+      log.debug(`\u2705 Found pubspec.yaml at: ${pubspecFiles[0].fsPath}`);
+      log.debug(`\u{1F4C1} Project root: ${folder.uri.fsPath}`);
+      return folder.uri;
+    }
+  }
+  vscode28.window.showErrorMessage("No Flutter project found. Make sure pubspec.yaml exists in your workspace.");
+  return void 0;
+}
+async function discoverDartFiles(rootUri, isProjectRoot) {
+  const root = rootUri.fsPath;
+  const uris = [];
+  const pattern = isProjectRoot ? "lib/**/*.dart" : "**/*.dart";
+  try {
+    const files = await vscode28.workspace.findFiles(
+      new vscode28.RelativePattern(rootUri, pattern),
+      "**/.dart_tool/**"
+    );
+    uris.push(...files);
+    log.debug(`  \u2022 Pattern '${pattern}': ${files.length} files`);
+  } catch (error) {
+    log.error(`  \u274C Error searching pattern '${pattern}': ${error.message}`);
+  }
+  if (isProjectRoot) {
+    let customDirectories = [];
+    try {
+      customDirectories = await findCustomDartDirectories(rootUri);
+      log.debug(`\u{1F50D} Found ${customDirectories.length} custom directories`);
+    } catch (error) {
+      log.error(`\u274C Error finding custom directories: ${error.message}`);
+    }
+    for (const customDir of customDirectories) {
+      try {
+        const customFiles = await vscode28.workspace.findFiles(
+          new vscode28.RelativePattern(customDir, "**/*.dart"),
+          "**/.*"
+        );
+        uris.push(...customFiles);
+        log.debug(` \u2022 Custom directory '${import_path8.default.relative(root, customDir.fsPath)}': ${customFiles.length} files`);
+      } catch (error) {
+        log.error(`  \u274C Error in custom directory ${customDir.fsPath}: ${error.message}`);
+      }
+    }
+  } else {
+    log.debug(`\u{1F4CA} Skipping custom directory search (not in project root)`);
+  }
+  const found = Array.from(new Set(uris.map((u) => u.toString()))).map((s) => vscode28.Uri.parse(s));
+  const patterns = vscode28.workspace.getConfiguration("satori").get("analysis.exclude", DEFAULT_EXCLUDES);
+  const isExcluded = makeExcluder(patterns);
+  const uniqueUris = found.filter((u) => !isExcluded(import_path8.default.relative(root, u.fsPath)));
+  if (uniqueUris.length < found.length) {
+    log.info(`Left out ${found.length - uniqueUris.length} of ${found.length} Dart files that match satori.analysis.exclude (generated code by default).`);
+  }
+  log.debug(`\u{1F4C4} Total unique files found: ${uniqueUris.length}`);
+  return { uris: uniqueUris, leftOut: found.length - uniqueUris.length };
+}
+async function extractFileSymbols(uris, reporter = silentReporter) {
+  let analyzedCount = 0;
+  let errorCount = 0;
+  let emptyCount = 0;
+  let emptyStreak = 0;
+  const hasSymbols = (r) => Array.isArray(r) && r.length > 0;
+  reporter.start("symbols");
+  const filesData = await mapLimited(uris, SYMBOL_REQUEST_CONCURRENCY, async (u) => {
+    let syms = [];
+    try {
+      const ask = async () => await vscode28.commands.executeCommand(
+        "vscode.executeDocumentSymbolProvider",
+        u
+      );
+      const delays = emptyStreak >= MAX_EMPTY_FILES_IN_A_ROW ? [] : EMPTY_SYMBOLS_RETRY_DELAYS_MS;
+      const outcome = await retryUntil(ask, hasSymbols, delays);
+      emptyStreak = outcome.exhausted ? emptyStreak + 1 : 0;
+      const raw = outcome.result;
+      if (!Array.isArray(raw)) {
+        log.debug(`[DIAGNOSTIC] No symbol array for ${import_path8.default.basename(u.fsPath)}: ${raw === null ? "null" : typeof raw}`);
+        if (raw === null) {
+          emptyCount++;
+        } else {
+          errorCount++;
+        }
+      } else if (raw.length === 0) {
+        emptyCount++;
+      } else {
+        analyzedCount++;
+      }
+      syms = transformLspSymbols(Array.isArray(raw) ? raw : [], void 0, u.toString());
+    } catch (e) {
+      log.error(`\u26A0\uFE0F Error getting symbols for ${import_path8.default.basename(u.fsPath)}: ${e.message}`);
+      errorCount++;
+    }
+    return { file: normalizePath2(u.fsPath), fileUri: u.toString(), symbols: syms };
+  }, (done, total) => reporter.progress("symbols", done, total));
+  reporter.finish("symbols");
+  log.debug(`\u{1F4CA} Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
+  return { files: filesData, stats: { files: filesData.length, withSymbols: analyzedCount, errors: errorCount } };
+}
+var SYMBOL_REQUEST_CONCURRENCY = 8;
+var EMPTY_SYMBOLS_RETRY_DELAYS_MS = [250, 750];
+var MAX_EMPTY_FILES_IN_A_ROW = 6;
+async function analyzeProject(rootUri, context, progress, fresh = false) {
+  const root = rootUri.fsPath;
+  log.debug(`\u{1F50D} Analyzing project at: ${root}`);
+  log.debug(`\u{1F4CA} Root URI - scheme: ${rootUri.scheme}, fsPath: ${rootUri.fsPath}`);
+  log.debug(`\u{1F4CA} Root URI - toString: ${rootUri.toString()}`);
+  const isProjectRoot = fs17.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  log.debug(`\u{1F4CA} Is project root (has pubspec.yaml): ${isProjectRoot}`);
+  const analysisStart = Date.now();
+  const loading = new NotificationReporter(progress, {
+    labels: {
+      files: t("loading.phase.files"),
+      symbols: t("loading.phase.symbols"),
+      relations: t("loading.phase.relations"),
+      types: t("loading.phase.types"),
+      graph: t("loading.phase.graph"),
+      draw: t("loading.phase.draw")
+    },
+    elapsed: t("loading.elapsed")
+  });
+  try {
+    return await analyzeFiles(rootUri, context, loading, fresh);
+  } finally {
+    loading.release();
+  }
+}
+function reportIncompleteAnalysis(stats, root, isProjectRoot, leftOut) {
+  const causes = likelyCauses({
+    files: stats.files,
+    withSymbols: stats.withSymbols,
+    isProjectRoot,
+    hasPackageConfig: fs17.existsSync(import_path8.default.join(root, ".dart_tool", "package_config.json")),
+    dartExtensionActive: vscode28.extensions.getExtension("Dart-Code.dart-code")?.isActive === true,
+    workspaceTrusted: vscode28.workspace.isTrusted,
+    leftOutBySatori: leftOut
+  });
+  log.info(`\u26A0\uFE0F ${t("health.warning", String(stats.withSymbols), String(stats.files), String(stats.classes))}`);
+  log.info(t("health.causesTitle"));
+  causes.forEach((c) => log.info(`  - ${t("health.cause." + c.id, ...c.args)}`));
+  const retry = t("health.action.retry");
+  const details = t("health.action.details");
+  void vscode28.window.showWarningMessage(t("health.warning", String(stats.withSymbols), String(stats.files), String(stats.classes)), retry, details).then((choice) => {
+    if (choice === retry) {
+      void vscode28.commands.executeCommand("satori.reanalyze");
+    } else if (choice === details) {
+      log.show();
+    }
+  });
+}
+var SECOND_CHANCE_WAIT_MS = 8e3;
+var sleep = (ms) => new Promise((resolve4) => setTimeout(resolve4, ms));
+async function analyzeFiles(rootUri, context, loading, fresh) {
+  const root = rootUri.fsPath;
+  const isProjectRoot = fs17.existsSync(import_path8.default.join(root, "pubspec.yaml"));
+  const analysisStart = Date.now();
+  loading.start("files");
+  const { uris: uniqueUris, leftOut } = await discoverDartFiles(rootUri, isProjectRoot);
+  const discoveredAt = Date.now();
+  loading.finish("files");
+  if (uniqueUris.length === 0) {
+    log.info("\u274C No Dart files found in the project.");
+    vscode28.window.showWarningMessage("No Dart files found in the project. Please check your project structure.");
+    return null;
+  }
+  log.debug(`\u{1F4C4} Sample of found files (first 5):`);
+  uniqueUris.slice(0, 5).forEach((uri, idx) => {
+    log.debug(`  ${idx + 1}. ${uri.fsPath}`);
+  });
+  const useCache = vscode28.workspace.getConfiguration("satori").get("cache.enabled", true);
+  const extensionVersion = String(context.extension.packageJSON.version);
+  const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath2(root));
+  const architectureFile = findArchitectureFile(root);
+  const fingerprint = fingerprintOf(stampFiles([...uniqueUris.map((u) => u.fsPath), ...architectureFile ? [architectureFile] : []]));
+  const cached = useCache && !fresh ? readCachedAnalysis(cacheFile, fingerprint, extensionVersion) : null;
+  if (cached) {
+    const result = await createWebview(context, {
+      projectRoot: normalizePath2(root),
+      files: [],
+      cached: { graph: cached.graph, fileImports: cached.fileImports },
+      reporter: loading
+    });
+    const timings = {
+      files: uniqueUris.length,
+      discoverMs: discoveredAt - analysisStart,
+      symbolsMs: 0,
+      ...result.timings,
+      totalMs: Date.now() - analysisStart
+    };
+    log.info("\u23F1 Opened " + timings.files + " files from the saved analysis in " + (timings.totalMs / 1e3).toFixed(1) + "s (saved " + new Date(cached.savedAt).toLocaleString() + "; turn off with satori.cache.enabled)");
+    return { panel: result.panel, graph: result.graph, timings };
+  }
+  const navigation = buildNavigationIndex(root, uniqueUris, loading);
+  let extraction = await extractFileSymbols(uniqueUris, loading);
+  if (!symbolsLookComplete(extraction.stats)) {
+    log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server and asking again.`);
+    loading.start("symbols", t("loading.symbols.waiting"));
+    await sleep(SECOND_CHANCE_WAIT_MS);
+    const empty = new Set(extraction.files.filter((f) => f.symbols.length === 0).map((f) => f.fileUri));
+    const again = await extractFileSymbols(uniqueUris.filter((u) => empty.has(u.toString())), loading);
+    const byUri = new Map(again.files.map((f) => [f.fileUri, f]));
+    const merged = extraction.files.map((f) => byUri.get(f.fileUri) ?? f);
+    extraction = { files: merged, stats: { files: merged.length, withSymbols: merged.filter((f) => f.symbols.length > 0).length, errors: again.stats.errors } };
+  }
+  const filesDataArray = extraction.files;
+  const symbolStats = extraction.stats;
+  const symbolsAt = Date.now();
+  log.debug(`\u{1F4E6} Preparing to create webview...`);
+  log.debug(`\u{1F4E6} Project root for webview: ${root}`);
+  log.debug(`\u{1F4E6} Total files for webview: ${filesDataArray.length}`);
+  try {
+    log.debug(`\u{1F680} Calling createWebview function...`);
+    const result = await createWebview(context, {
+      projectRoot: normalizePath2(root),
+      files: filesDataArray,
+      navigation,
+      reporter: loading
+    });
+    const { panel, graph } = result;
+    const timings = {
+      files: filesDataArray.length,
+      discoverMs: discoveredAt - analysisStart,
+      symbolsMs: symbolsAt - discoveredAt,
+      ...result.timings,
+      totalMs: Date.now() - analysisStart
+    };
+    log.info(`\u23F1 Analysis of ${timings.files} files took ${(timings.totalMs / 1e3).toFixed(1)}s (find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
+    const stats = { ...symbolStats, classes: (graph.nodes ?? []).filter((n) => n.kind === "class").length };
+    if (isHealthy(stats)) {
+      if (useCache) {
+        setTimeout(() => {
+          try {
+            writeCachedAnalysis(cacheFile, fingerprint, extensionVersion, graph, result.fileImports, stats);
+            log.info(`\u{1F4BE} Analysis saved for the next time (${cacheFile})`);
+          } catch (e) {
+            log.error(`Could not save the analysis: ${e.message}`);
+          }
+        }, 0);
+      }
+    } else {
+      reportIncompleteAnalysis(stats, root, isProjectRoot, leftOut);
+    }
+    log.debug(`\u2705 Webview created successfully!`);
+    log.debug(`\u{1F4CA} Graph stats: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
+    if (!graph.nodes || graph.nodes.length === 0) {
+      log.error(`\u26A0\uFE0F WARNING: Graph has no nodes!`);
+    }
+    return { panel, graph, timings };
+  } catch (error) {
+    log.error(`\u274C CRITICAL ERROR creating webview:`);
+    log.error(`   Message: ${error.message}`);
+    log.error(`   Stack: ${error.stack}`);
+    vscode28.window.showErrorMessage(`Failed to create visualization: ${error.message}`);
+    return null;
+  }
+}
+async function revealInEditor(file, start, end, preserveFocus = false) {
+  try {
+    const uri = vscode28.Uri.parse(file);
+    const startPos = new vscode28.Position(start.line, start.character);
+    const endPos = new vscode28.Position(end.line, end.character);
+    const range = new vscode28.Range(startPos, endPos);
+    const existingEditor = vscode28.window.visibleTextEditors.find(
+      (e) => e.document.uri.fsPath === uri.fsPath && e.viewColumn === vscode28.ViewColumn.Two
+    );
+    if (existingEditor) {
+      existingEditor.selection = new vscode28.Selection(startPos, endPos);
+      existingEditor.revealRange(range, vscode28.TextEditorRevealType.InCenter);
+      return;
+    }
+    const doc = await vscode28.workspace.openTextDocument(uri);
+    const editor = await vscode28.window.showTextDocument(doc, {
+      viewColumn: vscode28.ViewColumn.Two,
+      preview: true,
+      preserveFocus,
+      selection: range
+    });
+    editor.revealRange(range, vscode28.TextEditorRevealType.InCenter);
+  } catch (e) {
+    log.error(`Could not open or read file: ${file} (${e instanceof Error ? e.message : String(e)})`);
+  }
+}
+function setupWebviewMessageHandlers(state, detailsProvider, context) {
+  const panel = state.getPanel();
+  const graph = state.getGraph();
+  if (!panel || !graph) {
+    log.error("Cannot setup webview handlers: panel or graph is undefined");
+    return;
+  }
+  log.debug("Setting up webview message handlers...");
+  log.debug(`\u{1F4CA} Graph stats for handlers: ${graph.nodes?.length || 0} nodes, ${graph.edges?.length || 0} edges`);
+  panel.webview.onDidReceiveMessage(
+    async (message) => {
+      const currentGraph = state.getGraph();
+      const currentPanel = state.getPanel();
+      switch (message.command) {
+        case "log":
+          log.debug(`[WebView] ${message.args.join(" ")}`);
+          return;
+        case "openClass":
+          if (!message.file || !message.start || !message.end) {
+            log.info(`Received openClass request without required file data.`);
+            return;
+          }
+          await revealInEditor(message.file, message.start, message.end);
+          return;
+        case "ready":
+          state.stats.webviewReady = true;
+          return;
+        case "reanalyze":
+          void vscode28.commands.executeCommand("satori.reanalyze");
+          return;
+        case "saveAnnotations":
+          if (typeof message.projectRoot === "string" && message.data && typeof message.data === "object") {
+            await saveAnnotations(context.workspaceState, message.projectRoot, message.data);
+            state.stats.annotationSaves++;
+          }
+          return;
+        case "getSnippet": {
+          if (!currentGraph || !currentPanel) {
+            return;
+          }
+          const snippet = buildSnippet(currentGraph, message);
+          state.stats.snippetsServed++;
+          currentPanel.webview.postMessage({ command: "snippet", requestId: message.requestId, snippet });
+          if (snippet && message.reveal) {
+            await revealInEditor(snippet.file, snippet.jump.start, snippet.jump.end, true);
+          }
+          return;
+        }
+        case "showRelationships":
+          {
+            state.stats.relationshipUpdates++;
+            const data = message.data;
+            if (data && currentGraph) {
+              const focusedNode = currentGraph.nodes.find(
+                (node) => node.label === data.focusedNodeLabel || node.id === data.focusedNodeId
+              );
+              detailsProvider.updateDetails({ ...data, focusedNode });
+            } else {
+              detailsProvider.updateDetails(data);
+            }
+          }
+          return;
+        case "getImports": {
+          if (!message.nodeId || !currentGraph || !currentPanel) {
+            return;
+          }
+          log.debug(`[Backend] WebView requested imports for:${message.nodeId}`);
+          const focusNode = currentGraph.nodes.find((n) => n.id === message.nodeId);
+          if (focusNode && focusNode.data.fileUri) {
+            const imports = extractPackageImportsFromFile(focusNode.data.fileUri);
+            log.debug(`[Backend] Imports found: ${imports.join(", ")}. Sending to WebView.`);
+            currentPanel.webview.postMessage({
+              command: "displayImports",
+              nodeId: message.nodeId,
+              imports
+            });
+          } else {
+            log.debug(`[Backend] \u26A0\uFE0F Could not find node or its fileUri for ${message.nodeId}`);
+          }
+          return;
+        }
+        case "clearRelationships":
+          detailsProvider.clearDetails();
+          return;
+      }
+    },
+    void 0,
+    context.subscriptions
+  );
+  panel.onDidDispose(
+    () => {
+      log.debug("Graph panel closed, clearing details and state.");
+      detailsProvider.clearDetails();
+      state.clear();
+    },
+    null,
+    context.subscriptions
+  );
+  log.debug("\u2705 Webview message handlers setup complete");
+}
+async function activate(context) {
+  function getLanguage() {
+    const config = vscode28.workspace.getConfiguration("satori");
+    return config.get("language", "en");
+  }
+  log.debug("\u{1F680} Satori: starting\u2026");
+  const language = getLanguage();
+  await Localization.getInstance().loadTranslations(context.extensionPath, language);
+  const dartExtension = vscode28.extensions.getExtension("Dart-Code.dart-code");
+  if (!dartExtension || !dartExtension.isActive) {
+    vscode28.window.showErrorMessage(
+      "Dart extension is required for Satori to work properly."
+    );
+    return;
+  }
+  log.debug("Dart extension detected, using existing language services");
+  registerDebugCommands(context);
+  const state = new ExtensionState();
+  const detailsProvider = new DetailsViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode28.window.registerWebviewViewProvider(DetailsViewProvider.viewType, detailsProvider)
+  );
+  const runAnalysis = (rootUri, fresh = false) => vscode28.window.withProgress({
+    location: vscode28.ProgressLocation.Notification,
+    title: "Satori",
+    cancellable: false
+  }, async (progress) => {
+    progress.report({ increment: 0, message: t("progress.starting") });
+    const result = await analyzeProject(rootUri, context, progress, fresh);
+    if (!result) {
+      log.debug("Analysis returned NULL - ABORTING");
+      vscode28.window.showErrorMessage("Analysis failed. Check the Output panel (Satori) for details.");
+      return;
+    }
+    state.setGraph(result.panel, result.graph);
+    state.timings = result.timings;
+    setupWebviewMessageHandlers(state, detailsProvider, context);
+    progress.report({ increment: 100, message: t("progress.completed") });
+    log.debug("Analysis completed successfully");
+  });
+  const analyzeCurrentProjectCommand = vscode28.commands.registerCommand(
+    "satori.analyzeProject",
+    async () => {
+      const rootUri = await findFlutterProjectRoot();
+      if (!rootUri) {
+        log.debug("No Flutter project root found - ABORTING");
+        return;
+      }
+      await runAnalysis(rootUri);
+    }
+  );
+  log.info("Command satori.analyzeProject registered");
+  context.subscriptions.push(analyzeCurrentProjectCommand);
+  context.subscriptions.push(vscode28.commands.registerCommand("satori.reanalyze", async () => {
+    const rootUri = await findFlutterProjectRoot();
+    if (!rootUri) {
+      return;
+    }
+    await runAnalysis(rootUri, true);
+  }));
+  context.subscriptions.push(vscode28.commands.registerCommand("satori.clearCache", () => {
+    const removed = clearCachedAnalyses(context.globalStorageUri.fsPath);
+    log.info(`Saved analyses removed: ${removed}`);
+    void vscode28.window.showInformationMessage(t("cache.cleared", String(removed)));
+  }));
+  const showProjectDiagramCommand = vscode28.commands.registerCommand(
+    "extension.showProjectDiagram",
+    async () => {
+      const pick = await vscode28.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: "Select project folder"
+      });
+      if (!pick?.length) {
+        log.debug("No folder selected - ABORTING");
+        return;
+      }
+      await runAnalysis(pick[0]);
+    }
+  );
+  log.info("Command extension.showProjectDiagram registered");
+  context.subscriptions.push(showProjectDiagramCommand);
+  const originalResolveWebviewView = detailsProvider.resolveWebviewView.bind(detailsProvider);
+  detailsProvider.resolveWebviewView = (webviewView, ...args) => {
+    webviewView.webview.onDidReceiveMessage(async (message) => {
+      switch (message.command) {
+        case "log":
+          log.debug(`[DetailsView] ${message.args.join(" ")}`);
+          break;
+        case "focusNode":
+          const currentPanel = state.getPanel();
+          if (currentPanel) {
+            log.debug(`[Extension] Received 'focusNode' from DetailsView. Forwarding to graph.`);
+            currentPanel.webview.postMessage({
+              command: "setFocusInGraph",
+              nodeId: message.nodeId
+            });
+          } else {
+            log.debug(`[Extension] Error: Received 'focusNode' but graph panel is not open.`);
+          }
+          break;
+        case "highlightPath":
+          const panelForPath = state.getPanel();
+          if (panelForPath) {
+            log.debug(`[Extension] Forwarding 'highlightPath' to graph.`);
+            panelForPath.webview.postMessage({
+              command: "setPathHighlight",
+              sourceId: message.sourceId,
+              targetId: message.targetId
+            });
+          }
+          break;
+        case "openFile": {
+          const currentGraph = state.getGraph();
+          if (!message.nodeId || !currentGraph) {
+            log.info(`Received openFile request without nodeId or graph not loaded.`);
+            return;
+          }
+          const node = currentGraph.nodes.find((n) => n.id === message.nodeId);
+          if (!node || !node.data.fileUri) {
+            log.error(`Could not find node or file URI for id: ${message.nodeId}`);
+            return;
+          }
+          try {
+            const uri = vscode28.Uri.parse(node.data.fileUri);
+            const doc = await vscode28.workspace.openTextDocument(uri);
+            await vscode28.window.showTextDocument(doc, {
+              viewColumn: vscode28.ViewColumn.Two,
+              preview: false,
+              preserveFocus: false
+            });
+            log.debug(`Successfully opened file: ${node.data.fileUri}`);
+          } catch (error) {
+            log.error(`Error opening file ${node.data.fileUri}: ${error}`);
+            vscode28.window.showErrorMessage(`Could not open file: ${node.label}`);
+          }
+          return;
+        }
+      }
+    });
+    return originalResolveWebviewView(webviewView, ...args);
+  };
+  return {
+    getGraph: () => state.getGraph(),
+    getStats: () => ({ ...state.stats, timings: state.timings }),
+    focusNode: (nodeId) => state.getPanel()?.webview.postMessage({ command: "setFocusInGraph", nodeId })
+  };
+}
+function normalizePath2(p) {
+  return p.replace(/\\/g, "/");
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  activate
+});
+//# sourceMappingURL=extension.js.map
