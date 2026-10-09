@@ -1,11 +1,5 @@
 {
   "progress.starting": "Starting analysis...",
-  "progress.searchingFiles": "Searching Dart files...",
-  "progress.searchingCustomDirs": "Searching custom directories...",
-  "progress.analyzingFiles": "Analyzing {0} files...",
-  "progress.analyzingFile": "Analyzing {0} ({1}/{2})...",
-  "progress.buildingGraph": "Building project graph...",
-  "progress.configuringInterface": "Configuring interface...",
   "progress.completed": "Completed",
   "loader.analyzing": "Analyzing project...",
   "loader.processing": "Processing Dart files",
@@ -348,5 +342,10 @@
   "trail.emptyProject": "No classes were found in this project",
   "trail.emptyProjectCauses": "Usually Dart's analysis server was still starting, the folder has no pubspec.yaml or packages are missing (run pub get). A saved analysis that was empty may also be showing; analysing again ignores it.",
   "trail.emptyProjectButton": "Analyze again",
-  "trail.emptyProjectTip": "Analyse the project again without using the saved analysis"
+  "trail.emptyProjectTip": "Analyse the project again without using the saved analysis",
+  "trail.ctx.layer.title": "Move to layer",
+  "trail.ctx.layer.tip": "Place {0} in {1}. It is saved in satori.json, so the whole team sees it.",
+  "trail.ctx.layer.auto": "Back to automatic",
+  "trail.ctx.layer.autoTip": "Let Satori choose the layer of this class again",
+  "layer.fileCreated": "{0} was created to keep the layer you chose. Commit it to share the layers with your team."
 }

@@ -21,6 +21,68 @@ export function findArchitectureFile(start: string): string | undefined {
     return undefined;
 }
 
+/** Where satori.json goes when there is none: next to the pubspec.yaml of the project, going up from the analysed folder. */
+export function architectureFileFor(start: string): string {
+    const existing = findArchitectureFile(start);
+    if (existing) { return existing; }
+    let dir = path.resolve(start);
+    for (let i = 0; i < 6; i++) {
+        if (fs.existsSync(path.join(dir, 'pubspec.yaml'))) { return path.join(dir, ARCHITECTURE_FILE); }
+        const parent = path.dirname(dir);
+        if (parent === dir) { break; }
+        dir = parent;
+    }
+    return path.join(path.resolve(start), ARCHITECTURE_FILE);
+}
+
+export interface OverrideResult {
+    ok: boolean;
+    file: string;
+    created: boolean;
+    /** Why nothing was written. */
+    problem?: string;
+}
+
+/**
+ * Places a class in a layer by hand: writes `architecture.overrides[name]` in satori.json, creating the file (with the
+ * default layers, so nothing else changes) when there is none. A null layer takes the class back to the automatic one.
+ * A file that is not valid JSON is never overwritten.
+ */
+export function writeLayerOverride(start: string, className: string, layer: string | null): OverrideResult {
+    const file = architectureFileFor(start);
+    const existed = fs.existsSync(file);
+    let json: any = {};
+    if (existed) {
+        try { json = JSON.parse(fs.readFileSync(file, 'utf8') || '{}'); } catch (e: any) {
+            return { ok: false, file, created: false, problem: `${ARCHITECTURE_FILE} is not valid JSON (${e.message}), so it was not changed.` };
+        }
+        if (!json || typeof json !== 'object' || Array.isArray(json)) {
+            return { ok: false, file, created: false, problem: `${ARCHITECTURE_FILE} must hold an object, so it was not changed.` };
+        }
+    }
+    if (!json.architecture || typeof json.architecture !== 'object') { json.architecture = { preset: 'default' }; }
+    const overrides: Record<string, string> = json.architecture.overrides && typeof json.architecture.overrides === 'object' ? json.architecture.overrides : {};
+    if (layer === null) { delete overrides[className]; } else { overrides[className] = layer; }
+    if (Object.keys(overrides).length > 0) { json.architecture.overrides = overrides; } else { delete json.architecture.overrides; }
+    fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+    return { ok: true, file, created: !existed };
+}
+
+/**
+ * What decides the layer of the classes the analysis places, without the classes placed by hand: those are applied in
+ * the diagram, so moving one must not make the saved analysis stale.
+ */
+export function architectureDigest(file: string | undefined): string {
+    if (!file) { return ''; }
+    try {
+        const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (json && json.architecture && typeof json.architecture === 'object') { delete json.architecture.overrides; }
+        return JSON.stringify(json);
+    } catch {
+        return 'unreadable';
+    }
+}
+
 export interface LoadedArchitecture extends ParseResult {
     file?: string;
 }
@@ -60,6 +122,7 @@ export function viewArchitecture(a: Architecture) {
         allow: a.allow,
         forbid: a.forbid,
         neutral: a.neutral,
-        builtin: a.builtin
+        builtin: a.builtin,
+        overrides: a.overrides
     };
 }

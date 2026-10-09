@@ -3352,6 +3352,69 @@ function findArchitectureFile(start) {
   }
   return void 0;
 }
+function architectureFileFor(start) {
+  const existing = findArchitectureFile(start);
+  if (existing) {
+    return existing;
+  }
+  let dir = path15.resolve(start);
+  for (let i = 0; i < 6; i++) {
+    if (fs12.existsSync(path15.join(dir, "pubspec.yaml"))) {
+      return path15.join(dir, ARCHITECTURE_FILE);
+    }
+    const parent = path15.dirname(dir);
+    if (parent === dir) {
+      break;
+    }
+    dir = parent;
+  }
+  return path15.join(path15.resolve(start), ARCHITECTURE_FILE);
+}
+function writeLayerOverride(start, className, layer) {
+  const file = architectureFileFor(start);
+  const existed = fs12.existsSync(file);
+  let json = {};
+  if (existed) {
+    try {
+      json = JSON.parse(fs12.readFileSync(file, "utf8") || "{}");
+    } catch (e) {
+      return { ok: false, file, created: false, problem: `${ARCHITECTURE_FILE} is not valid JSON (${e.message}), so it was not changed.` };
+    }
+    if (!json || typeof json !== "object" || Array.isArray(json)) {
+      return { ok: false, file, created: false, problem: `${ARCHITECTURE_FILE} must hold an object, so it was not changed.` };
+    }
+  }
+  if (!json.architecture || typeof json.architecture !== "object") {
+    json.architecture = { preset: "default" };
+  }
+  const overrides2 = json.architecture.overrides && typeof json.architecture.overrides === "object" ? json.architecture.overrides : {};
+  if (layer === null) {
+    delete overrides2[className];
+  } else {
+    overrides2[className] = layer;
+  }
+  if (Object.keys(overrides2).length > 0) {
+    json.architecture.overrides = overrides2;
+  } else {
+    delete json.architecture.overrides;
+  }
+  fs12.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
+  return { ok: true, file, created: !existed };
+}
+function architectureDigest(file) {
+  if (!file) {
+    return "";
+  }
+  try {
+    const json = JSON.parse(fs12.readFileSync(file, "utf8"));
+    if (json && json.architecture && typeof json.architecture === "object") {
+      delete json.architecture.overrides;
+    }
+    return JSON.stringify(json);
+  } catch {
+    return "unreadable";
+  }
+}
 function discoverFolders(projectDir) {
   const list = (dir) => {
     try {
@@ -3388,7 +3451,8 @@ function viewArchitecture(a) {
     allow: a.allow,
     forbid: a.forbid,
     neutral: a.neutral,
-    builtin: a.builtin
+    builtin: a.builtin,
+    overrides: a.overrides
   };
 }
 
@@ -3570,6 +3634,7 @@ async function createWebview(context, data) {
   let enrichedAt;
   let graphBuiltAt;
   let engine = "saved analysis";
+  let relationsWaitMs = 0;
   if (data.cached) {
     projectGraph = data.cached.graph;
     Object.assign(fileImports, data.cached.fileImports);
@@ -3627,7 +3692,9 @@ async function createWebview(context, data) {
     log.debug("\u2705 Type index cleared.");
     log.debug("Phase 2: Building project graph model...");
     reporter.start("graph");
+    const waitStarted = Date.now();
     const navigation = data.navigation ? await data.navigation : null;
+    relationsWaitMs = Date.now() - waitStarted;
     if (navigation) {
       log.info(`Relationships read from the analysis server: ${navigation.files} files (start ${navigation.startMs}ms, analysis ${navigation.analyzeMs}ms, navigation ${navigation.navigationMs}ms).`);
     }
@@ -3776,7 +3843,7 @@ async function createWebview(context, data) {
     panel,
     graph: projectGraph,
     fileImports,
-    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt, engine }
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt - relationsWaitMs, finishMs: finishedAt - graphBuiltAt, relationsWaitMs, engine }
   };
 }
 function getNonce() {
@@ -3823,9 +3890,10 @@ function likelyCauses(facts) {
 
 // src/analysis/graph_cache.ts
 var CACHE_LAYOUT = 2;
-function fingerprintOf(stamps) {
+function fingerprintOf(stamps, extra = []) {
   const hash = crypto.createHash("sha1");
   stamps.map((s) => `${s.path}|${s.size}|${Math.round(s.mtimeMs)}`).sort().forEach((line) => hash.update(line + "\n"));
+  extra.forEach((text) => hash.update("extra|" + text + "\n"));
   return hash.digest("hex");
 }
 function stampFiles(files) {
@@ -3885,6 +3953,40 @@ function clearCachedAnalyses(storageDir) {
     }
   }
   return removed;
+}
+
+// src/analysis/adaptive_wait.ts
+var DEFAULT_DELAYS_MS = [3e3, 5e3, 8e3, 12e3, 15e3, 2e4, 25e3, 3e4];
+async function waitForSymbols(initial, options) {
+  let stats = initial;
+  let best = initial.withSymbols;
+  let stalled = 0;
+  let waited = 0;
+  let rounds = 0;
+  for (let i = 0; i < options.delaysMs.length; i++) {
+    if (symbolsLookComplete(stats)) {
+      return { rounds, waitedMs: waited, stats, end: "complete" };
+    }
+    const delay = options.delaysMs[i];
+    options.onWait?.(i + 1, delay, stats);
+    await options.sleep(delay);
+    waited += delay;
+    stats = await options.round(i + 1);
+    rounds++;
+    if (stats.withSymbols > best) {
+      best = stats.withSymbols;
+      stalled = 0;
+    } else {
+      stalled++;
+    }
+    if (symbolsLookComplete(stats)) {
+      return { rounds, waitedMs: waited, stats, end: "complete" };
+    }
+    if (stalled >= options.stallLimit) {
+      return { rounds, waitedMs: waited, stats, end: "stalled" };
+    }
+  }
+  return { rounds, waitedMs: waited, stats, end: symbolsLookComplete(stats) ? "complete" : "ran-out" };
 }
 
 // src/analysis/navigation_runner.ts
@@ -4362,6 +4464,8 @@ var ExtensionState = class {
   projectGraph;
   stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
   timings;
+  /** The folder that was analysed, to know where satori.json goes. */
+  projectRoot;
   /**
    * Sets the webview panel and project graph in the global state.
    *
@@ -4467,7 +4571,7 @@ async function discoverDartFiles(rootUri, isProjectRoot) {
   log.debug(`\u{1F4C4} Total unique files found: ${uniqueUris.length}`);
   return { uris: uniqueUris, leftOut: found.length - uniqueUris.length };
 }
-async function extractFileSymbols(uris, reporter = silentReporter) {
+async function extractFileSymbols(uris, reporter = silentReporter, finishStep = true) {
   let analyzedCount = 0;
   let errorCount = 0;
   let emptyCount = 0;
@@ -4504,7 +4608,9 @@ async function extractFileSymbols(uris, reporter = silentReporter) {
     }
     return { file: normalizePath2(u.fsPath), fileUri: u.toString(), symbols: syms };
   }, (done, total) => reporter.progress("symbols", done, total));
-  reporter.finish("symbols");
+  if (finishStep) {
+    reporter.finish("symbols");
+  }
   log.debug(`\u{1F4CA} Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
   return { files: filesData, stats: { files: filesData.length, withSymbols: analyzedCount, errors: errorCount } };
 }
@@ -4559,7 +4665,6 @@ function reportIncompleteAnalysis(stats, root, isProjectRoot, leftOut) {
     }
   });
 }
-var SECOND_CHANCE_WAIT_MS = 8e3;
 var sleep = (ms) => new Promise((resolve4) => setTimeout(resolve4, ms));
 async function analyzeFiles(rootUri, context, loading, fresh) {
   const root = rootUri.fsPath;
@@ -4582,7 +4687,7 @@ async function analyzeFiles(rootUri, context, loading, fresh) {
   const extensionVersion = String(context.extension.packageJSON.version);
   const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath2(root));
   const architectureFile = findArchitectureFile(root);
-  const fingerprint = fingerprintOf(stampFiles([...uniqueUris.map((u) => u.fsPath), ...architectureFile ? [architectureFile] : []]));
+  const fingerprint = fingerprintOf(stampFiles(uniqueUris.map((u) => u.fsPath)), [architectureDigest(architectureFile)]);
   const cached = useCache && !fresh ? readCachedAnalysis(cacheFile, fingerprint, extensionVersion) : null;
   if (cached) {
     const result = await createWebview(context, {
@@ -4602,17 +4707,30 @@ async function analyzeFiles(rootUri, context, loading, fresh) {
     return { panel: result.panel, graph: result.graph, timings };
   }
   const navigation = buildNavigationIndex(root, uniqueUris, loading);
-  let extraction = await extractFileSymbols(uniqueUris, loading);
+  let extraction = await extractFileSymbols(uniqueUris, loading, false);
   if (!symbolsLookComplete(extraction.stats)) {
-    log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server and asking again.`);
-    loading.start("symbols", t("loading.symbols.waiting"));
-    await sleep(SECOND_CHANCE_WAIT_MS);
-    const empty = new Set(extraction.files.filter((f) => f.symbols.length === 0).map((f) => f.fileUri));
-    const again = await extractFileSymbols(uniqueUris.filter((u) => empty.has(u.toString())), loading);
-    const byUri = new Map(again.files.map((f) => [f.fileUri, f]));
-    const merged = extraction.files.map((f) => byUri.get(f.fileUri) ?? f);
-    extraction = { files: merged, stats: { files: merged.length, withSymbols: merged.filter((f) => f.symbols.length > 0).length, errors: again.stats.errors } };
+    log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server.`);
+    let current = extraction.files;
+    const waited = await waitForSymbols(extraction.stats, {
+      delaysMs: DEFAULT_DELAYS_MS,
+      stallLimit: 2,
+      sleep,
+      onWait: (round, delayMs, now) => {
+        log.info(`Waiting ${delayMs / 1e3}s for the Dart server (round ${round}): ${now.withSymbols} of ${now.files} files have symbols.`);
+        loading.progress("symbols", now.withSymbols, now.files, t("loading.symbols.waiting"));
+      },
+      round: async () => {
+        const empty = new Set(current.filter((f) => f.symbols.length === 0).map((f) => f.fileUri));
+        const again = await extractFileSymbols(uniqueUris.filter((u) => empty.has(u.toString())), loading, false);
+        const byUri = new Map(again.files.map((f) => [f.fileUri, f]));
+        current = current.map((f) => byUri.get(f.fileUri) ?? f);
+        return { files: current.length, withSymbols: current.filter((f) => f.symbols.length > 0).length, errors: again.stats.errors };
+      }
+    });
+    extraction = { files: current, stats: waited.stats };
+    log.info(`Waited ${(waited.waitedMs / 1e3).toFixed(0)}s for the Dart server in ${waited.rounds} round(s): ${waited.stats.withSymbols} of ${waited.stats.files} files have symbols (${waited.end}).`);
   }
+  loading.finish("symbols");
   const filesDataArray = extraction.files;
   const symbolStats = extraction.stats;
   const symbolsAt = Date.now();
@@ -4635,7 +4753,7 @@ async function analyzeFiles(rootUri, context, loading, fresh) {
       ...result.timings,
       totalMs: Date.now() - analysisStart
     };
-    log.info(`\u23F1 Analysis of ${timings.files} files took ${(timings.totalMs / 1e3).toFixed(1)}s (find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
+    log.info(`\u23F1 Analysis of ${timings.files} files took ${(timings.totalMs / 1e3).toFixed(1)}s (find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, wait for Dart server ${timings.relationsWaitMs}ms, enrichment ${timings.enrichMs}ms, graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
     const stats = { ...symbolStats, classes: (graph.nodes ?? []).filter((n) => n.kind === "class").length };
     if (isHealthy(stats)) {
       if (useCache) {
@@ -4721,6 +4839,20 @@ function setupWebviewMessageHandlers(state, detailsProvider, context) {
         case "reanalyze":
           void vscode28.commands.executeCommand("satori.reanalyze");
           return;
+        case "setLayerOverride": {
+          const folder = vscode28.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          const start = state.projectRoot ?? folder;
+          if (!start || typeof message.className !== "string") {
+            return;
+          }
+          const result = writeLayerOverride(start, message.className, message.layer);
+          if (!result.ok) {
+            void vscode28.window.showWarningMessage(result.problem ?? "satori.json could not be changed.");
+          } else if (result.created) {
+            void vscode28.window.showInformationMessage(t("layer.fileCreated", import_path8.default.basename(result.file)));
+          }
+          return;
+        }
         case "saveAnnotations":
           if (typeof message.projectRoot === "string" && message.data && typeof message.data === "object") {
             await saveAnnotations(context.workspaceState, message.projectRoot, message.data);
@@ -4827,6 +4959,7 @@ async function activate(context) {
     }
     state.setGraph(result.panel, result.graph);
     state.timings = result.timings;
+    state.projectRoot = rootUri.fsPath;
     setupWebviewMessageHandlers(state, detailsProvider, context);
     progress.report({ increment: 100, message: t("progress.completed") });
     log.debug("Analysis completed successfully");

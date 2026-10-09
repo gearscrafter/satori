@@ -189,6 +189,7 @@ A preset is a starting point. What you write is merged into it: a layer with the
 }
 ```
 
+- **Placing a class by hand.** Right-click a class in the diagram and choose **Move to layer**: it changes column at once and is saved in `overrides` (the file is created if there is none). **Back to automatic** removes it.
 - **Placing a class.** In this order: `overrides` (by class name), the `folders` of its file, what it `extends`, its `names` (`*Page` ends with, `Base*` starts with, `*Repo*` contains), then Satori's own guess if you keep it (`heuristic`), and last the neutral layer. A folder wins over a name.
 - **The neutral layer** (`"neutral": true`) takes no part in the rules and receives libraries and whatever matches nothing. If none is marked, one called "other" is added.
 - **Rules.** `"mode": "order"` (the default): a layer may use the ones after it in the list and using one before it is a violation, with `allow` listing exceptions. `"mode": "allow"`: only the `[from, to]` pairs in `allow` are permitted, which is how "everything points to the domain" is written. `forbid` lists pairs that are always a violation. Using a layer from itself and inheritance are never violations.
@@ -417,7 +418,7 @@ The graph model, drawing logic and icon set are plain JavaScript without DOM acc
 Satori reads the classes from Dart's language server. If the server is still starting it answers "no symbols" for most files, so:
 
 1. **Wait for the Dart analysis to finish** (the Dart status in the status bar) and run **satori: Analyze Current Project (ignore saved analysis)**. The empty diagram has a button for it.
-2. Satori already waits about 8 seconds and asks again for the files that came back empty. If it still finds classes in fewer than half of the files it says so, lists the likely reasons in the "satori" output and **does not save that analysis**, so reopening the project does not repeat it.
+2. Satori already waits for the Dart server: it asks again, only about the files that came back empty, in rounds of 3, 5, 8, 12... seconds for as long as each round brings more files back, up to about two minutes (a project with nothing to find stops after about 8 seconds). If it still finds classes in fewer than half of the files it says so, lists the likely reasons in the "satori" output and **does not save that analysis**, so reopening the project does not repeat it.
 3. Other reasons it checks and lists: the workspace is not trusted (Restricted Mode: the Dart extension does not analyse code), the Dart extension is not active, the folder has no `pubspec.yaml` or no `.dart_tool/package_config.json` (run `dart pub get` / `flutter pub get`), or the files were left out by `satori.analysis.exclude` (generated code by default).
 4. If a diagram from the saved analysis looks wrong, **satori: Clear Saved Analyses** removes them all; `satori.cache.enabled` = `false` turns the saved analysis off.
 5. Enable debug logs: `satori.toggleDebugLogs`.

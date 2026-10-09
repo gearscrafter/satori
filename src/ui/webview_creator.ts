@@ -122,7 +122,7 @@ export async function createWebview(
     /** Where the notification is told how the analysis is going. */
     reporter?: LoadingReporter;
   },
-): Promise<{ panel: vscode.WebviewPanel; graph: ProjectGraphModel; fileImports: Record<string, ImportRef[]>; timings: { enrichMs: number; graphMs: number; finishMs: number; engine: string } }> {
+): Promise<{ panel: vscode.WebviewPanel; graph: ProjectGraphModel; fileImports: Record<string, ImportRef[]>; timings: { enrichMs: number; graphMs: number; finishMs: number; relationsWaitMs: number; engine: string } }> {
   const startedAt = Date.now();
   const reporter = data.reporter ?? silentReporter;
 
@@ -161,6 +161,7 @@ export async function createWebview(
   let enrichedAt: number;
   let graphBuiltAt: number;
   let engine = "saved analysis";
+  let relationsWaitMs = 0;
 
   if (data.cached) {
     projectGraph = data.cached.graph;
@@ -221,7 +222,10 @@ export async function createWebview(
 
   log.debug('Phase 2: Building project graph model...');
   reporter.start('graph');
+  // Dart's analysis server works while the symbols are read; what is still left of it when they are done is waiting, not graph building.
+  const waitStarted = Date.now();
   const navigation = data.navigation ? await data.navigation : null;
+  relationsWaitMs = Date.now() - waitStarted;
   if (navigation) {
     log.info(`Relationships read from the analysis server: ${navigation.files} files (start ${navigation.startMs}ms, analysis ${navigation.analyzeMs}ms, navigation ${navigation.navigationMs}ms).`);
   }
@@ -407,7 +411,7 @@ export async function createWebview(
     panel,
     graph: projectGraph,
     fileImports,
-    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt, finishMs: finishedAt - graphBuiltAt, engine }
+    timings: { enrichMs: enrichedAt - startedAt, graphMs: graphBuiltAt - enrichedAt - relationsWaitMs, finishMs: finishedAt - graphBuiltAt, relationsWaitMs, engine }
   };
 }
 

@@ -10,9 +10,10 @@ import { extractPackageImportsFromFile } from '../packages/package_files';
 import { createWebview, saveAnnotations } from './webview_creator';
 import { cacheFileFor, clearCachedAnalyses, fingerprintOf, readCachedAnalysis, stampFiles, writeCachedAnalysis } from '../analysis/graph_cache';
 import { AnalysisStats, SymbolStats, isHealthy, likelyCauses, symbolsLookComplete } from '../analysis/analysis_health';
+import { DEFAULT_DELAYS_MS, waitForSymbols } from '../analysis/adaptive_wait';
 import { DEFAULT_EXCLUDES, makeExcluder } from '../filesystem/exclusions';
 import { buildNavigationIndex } from '../analysis/navigation_runner';
-import { findArchitectureFile } from '../analysis/architecture_file';
+import { architectureDigest, findArchitectureFile, writeLayerOverride } from '../analysis/architecture_file';
 import { LoadingReporter, silentReporter } from './loading_state';
 import { NotificationReporter } from './progress_reporter';
 import { log } from '../utils/logger';
@@ -33,6 +34,8 @@ class ExtensionState {
     projectGraph: ProjectGraphModel | undefined;
     stats = { webviewReady: false, snippetsServed: 0, relationshipUpdates: 0, annotationSaves: 0 };
     timings: Record<string, number | string> | undefined;
+    /** The folder that was analysed, to know where satori.json goes. */
+    projectRoot: string | undefined;
 
     /**
      * Sets the webview panel and project graph in the global state.
@@ -183,7 +186,8 @@ async function discoverDartFiles(
  */
 async function extractFileSymbols(
     uris: vscode.Uri[],
-    reporter: LoadingReporter = silentReporter
+    reporter: LoadingReporter = silentReporter,
+    finishStep = true
 ): Promise<{ files: FileData[]; stats: SymbolStats }> {
     let analyzedCount = 0;
     let errorCount = 0;
@@ -222,7 +226,7 @@ async function extractFileSymbols(
 
         return { file: normalizePath(u.fsPath), fileUri: u.toString(), symbols: syms };
     }, (done, total) => reporter.progress('symbols', done, total));
-    reporter.finish('symbols');
+    if (finishStep) { reporter.finish('symbols'); }
 
     log.debug(`📊 Analysis Summary: ${analyzedCount} analyzed, ${emptyCount} empty, ${errorCount} errors, ${filesData.length} total`);
     return { files: filesData, stats: { files: filesData.length, withSymbols: analyzedCount, errors: errorCount } };
@@ -308,7 +312,6 @@ function reportIncompleteAnalysis(stats: AnalysisStats, root: string, isProjectR
     });
 }
 
-const SECOND_CHANCE_WAIT_MS = 8000;
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContext, loading: LoadingReporter, fresh: boolean) {
@@ -337,7 +340,8 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
     const cacheFile = cacheFileFor(context.globalStorageUri.fsPath, normalizePath(root));
     // satori.json decides the layer of every class, so changing it must analyse again.
     const architectureFile = findArchitectureFile(root);
-    const fingerprint = fingerprintOf(stampFiles([...uniqueUris.map(u => u.fsPath), ...(architectureFile ? [architectureFile] : [])]));
+    // The file itself is not stamped: moving one class by hand rewrites it and must not make the analysis stale.
+    const fingerprint = fingerprintOf(stampFiles(uniqueUris.map(u => u.fsPath)), [architectureDigest(architectureFile)]);
     const cached = useCache && !fresh ? readCachedAnalysis<ProjectGraphModel, Record<string, ImportRef[]>>(cacheFile, fingerprint, extensionVersion) : null;
 
     if (cached) {
@@ -361,19 +365,32 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
 
     const navigation = buildNavigationIndex(root, uniqueUris, loading);
 
-    let extraction = await extractFileSymbols(uniqueUris, loading);
+    let extraction = await extractFileSymbols(uniqueUris, loading, false);
     if (!symbolsLookComplete(extraction.stats)) {
-        // Most files answered "no symbols". Almost always Dart's server is still starting: wait a moment and ask
-        // again, only about the files that came back empty, before giving the result as final.
-        log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server and asking again.`);
-        loading.start('symbols', t('loading.symbols.waiting'));
-        await sleep(SECOND_CHANCE_WAIT_MS);
-        const empty = new Set(extraction.files.filter(f => f.symbols.length === 0).map(f => f.fileUri));
-        const again = await extractFileSymbols(uniqueUris.filter(u => empty.has(u.toString())), loading);
-        const byUri = new Map(again.files.map(f => [f.fileUri, f]));
-        const merged = extraction.files.map(f => byUri.get(f.fileUri) ?? f);
-        extraction = { files: merged, stats: { files: merged.length, withSymbols: merged.filter(f => f.symbols.length > 0).length, errors: again.stats.errors } };
+        // Most files answered "no symbols". Almost always Dart's server is still getting ready, and how long it needs
+        // depends on the size of the project: ask again, only about the empty files, for as long as it keeps improving.
+        log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server.`);
+        let current = extraction.files;
+        const waited = await waitForSymbols(extraction.stats, {
+            delaysMs: DEFAULT_DELAYS_MS,
+            stallLimit: 2,
+            sleep,
+            onWait: (round, delayMs, now) => {
+                log.info(`Waiting ${delayMs / 1000}s for the Dart server (round ${round}): ${now.withSymbols} of ${now.files} files have symbols.`);
+                loading.progress('symbols', now.withSymbols, now.files, t('loading.symbols.waiting'));
+            },
+            round: async () => {
+                const empty = new Set(current.filter(f => f.symbols.length === 0).map(f => f.fileUri));
+                const again = await extractFileSymbols(uniqueUris.filter(u => empty.has(u.toString())), loading, false);
+                const byUri = new Map(again.files.map(f => [f.fileUri, f]));
+                current = current.map(f => byUri.get(f.fileUri) ?? f);
+                return { files: current.length, withSymbols: current.filter(f => f.symbols.length > 0).length, errors: again.stats.errors };
+            }
+        });
+        extraction = { files: current, stats: waited.stats };
+        log.info(`Waited ${(waited.waitedMs / 1000).toFixed(0)}s for the Dart server in ${waited.rounds} round(s): ${waited.stats.withSymbols} of ${waited.stats.files} files have symbols (${waited.end}).`);
     }
+    loading.finish('symbols');
     const filesDataArray = extraction.files;
     const symbolStats = extraction.stats;
     const symbolsAt = Date.now();
@@ -402,7 +419,7 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
             totalMs: Date.now() - analysisStart
         };
         log.info(`⏱ Analysis of ${timings.files} files took ${(timings.totalMs / 1000).toFixed(1)}s ` +
-            `(find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, enrichment ${timings.enrichMs}ms, ` +
+            `(find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, wait for Dart server ${timings.relationsWaitMs}ms, enrichment ${timings.enrichMs}ms, ` +
             `graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
 
         const stats: AnalysisStats = { ...symbolStats, classes: (graph.nodes ?? []).filter(n => n.kind === 'class').length };
@@ -451,6 +468,7 @@ type GraphWebviewMessage =
     | { command: 'openClass'; file?: string; start?: LspPosition; end?: LspPosition }
     | { command: 'ready' }
     | { command: 'reanalyze' }
+    | { command: 'setLayerOverride'; className: string; layer: string | null }
     | { command: 'saveAnnotations'; projectRoot: string; data: Record<string, unknown> }
     | { command: 'getSnippet'; requestId: number; reveal?: boolean; nodeId?: string; sourceId?: string; targetId?: string;
         fileUri?: string; line?: number; column?: number; length?: number }
@@ -557,6 +575,20 @@ function setupWebviewMessageHandlers(
                 case 'reanalyze':
                     void vscode.commands.executeCommand('satori.reanalyze');
                     return;
+
+                case 'setLayerOverride': {
+                    // A class placed by hand from the menu of the diagram: it is written to satori.json so the team shares it.
+                    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                    const start = state.projectRoot ?? folder;
+                    if (!start || typeof message.className !== 'string') { return; }
+                    const result = writeLayerOverride(start, message.className, message.layer);
+                    if (!result.ok) {
+                        void vscode.window.showWarningMessage(result.problem ?? 'satori.json could not be changed.');
+                    } else if (result.created) {
+                        void vscode.window.showInformationMessage(t('layer.fileCreated', path.basename(result.file)));
+                    }
+                    return;
+                }
 
                 case 'saveAnnotations':
                     if (typeof message.projectRoot === 'string' && message.data && typeof message.data === 'object') {
@@ -698,6 +730,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             state.setGraph(result.panel, result.graph);
             state.timings = result.timings;
+            state.projectRoot = rootUri.fsPath;
             setupWebviewMessageHandlers(state, detailsProvider, context);
 
             progress.report({ increment: 100, message: t('progress.completed') });

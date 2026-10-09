@@ -1,11 +1,17 @@
 # Changelog
 
+## [2.3.0] - 10-09-2026
+
+### Added
+
+- **Move a class to another layer from the diagram.** Right-click a class (or one of its members) and choose **Move to layer**: the class changes column at once and the choice is written to `architecture.overrides` in `satori.json`, so the team shares it. If there is no `satori.json` it is created next to `pubspec.yaml` with the default layers, so nothing else changes. **Back to automatic** gives the class back to the analysis. A `satori.json` that is not valid JSON is never overwritten, and moving a class does not make the saved analysis stale.
+
 ## [2.2.1] - 10-07-2026
 
 ### Fixed
 
 - **An empty or partial diagram stayed that way when the project was opened again.** An analysis was saved even when Dart's language server, still starting, had answered "no symbols" for most files, and reopening reused it. Now an analysis is saved only when it found classes in at least half of the files, and the saved ones from before (which carry no such record) are ignored.
-- When most files come back empty, Satori waits about 8 seconds and asks again for those files before giving the result as final.
+- **The wait for Dart's language server is no longer a fixed 8 seconds.** When most files come back empty, Satori asks again, only about those files, in rounds of 3, 5, 8, 12, 15, 20, 25 and 30 seconds, and keeps waiting while each round brings more files back (up to about two minutes). It stops as soon as the answers are complete, or after two rounds with nothing new, so a project with nothing to find still waits about 8 seconds. A big project that needed a minute no longer ends up with an empty diagram.
 - If the result is still incomplete it says so, lists the likely reasons in the "satori" output (workspace not trusted, Dart extension not active, no `pubspec.yaml`, no `.dart_tool/package_config.json`, files left out by `satori.analysis.exclude`, server still starting) and offers **Analyze again** and **Show details**.
 
 ### Added

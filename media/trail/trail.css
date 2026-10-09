@@ -628,3 +628,12 @@ button.tool[aria-pressed="true"], button.width[aria-pressed="true"] { background
 .empty-project .overview-hint { margin: 0 0 14px; }
 .empty-action { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 16px; border: 1px solid var(--accent); background: #f3eefc; color: var(--accent); font-weight: 600; cursor: pointer; }
 .empty-action:hover { background: #e8def9; }
+
+/* "Move to layer" in the menu of a class: one row per layer, with its colour. */
+#ctxmenu .menu-section { margin: 6px 0 2px; padding: 6px 10px 2px; border-top: 1px solid var(--color-border-soft); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
+#ctxmenu .layer-choice { align-items: center; gap: 8px; padding: 4px 10px; }
+#ctxmenu .layer-choice .swatch { width: 11px; height: 11px; border-radius: 3px; background: var(--li); border: 1px solid var(--lbd); flex: none; }
+#ctxmenu .layer-choice .label { flex: 1; font-weight: 500; }
+#ctxmenu .layer-choice.current .label { font-weight: 700; }
+#ctxmenu .layer-choice .tick { color: var(--accent); display: inline-flex; }
+#ctxmenu .layer-auto { align-items: center; gap: 8px; padding: 4px 10px; color: var(--color-muted); font-size: 12px; }

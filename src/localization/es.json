@@ -1,11 +1,5 @@
 {
   "progress.starting": "Iniciando análisis...",
-  "progress.searchingFiles": "Buscando archivos Dart...",
-  "progress.searchingCustomDirs": "Buscando directorios personalizados...",
-  "progress.analyzingFiles": "Analizando {0} archivos...",
-  "progress.analyzingFile": "Analizando {0} ({1}/{2})...",
-  "progress.buildingGraph": "Construyendo grafo del proyecto...",
-  "progress.configuringInterface": "Configurando interfaz...",
   "progress.completed": "Completado",
   "loader.analyzing": "Analizando proyecto...",
   "loader.processing": "Procesando archivos Dart",
@@ -348,5 +342,10 @@
   "trail.emptyProject": "No se encontró ninguna clase en este proyecto",
   "trail.emptyProjectCauses": "Lo habitual es que el servidor de análisis de Dart siguiera arrancando, que la carpeta no tenga pubspec.yaml o que falten los paquetes (ejecuta pub get). También puede mostrarse un análisis guardado que estaba vacío; analizar de nuevo lo ignora.",
   "trail.emptyProjectButton": "Analizar de nuevo",
-  "trail.emptyProjectTip": "Analiza el proyecto otra vez sin usar el análisis guardado"
+  "trail.emptyProjectTip": "Analiza el proyecto otra vez sin usar el análisis guardado",
+  "trail.ctx.layer.title": "Mover a la capa",
+  "trail.ctx.layer.tip": "Poner {0} en {1}. Se guarda en satori.json, así que todo el equipo lo ve.",
+  "trail.ctx.layer.auto": "Volver a automático",
+  "trail.ctx.layer.autoTip": "Que Satori vuelva a elegir la capa de esta clase",
+  "layer.fileCreated": "Se creó {0} para guardar la capa que elegiste. Súbelo al repositorio para compartir las capas con tu equipo."
 }

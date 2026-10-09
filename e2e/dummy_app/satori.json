@@ -1,0 +1,8 @@
+{
+  "architecture": {
+    "preset": "default",
+    "overrides": {
+      "CheckoutManager": "state"
+    }
+  }
+}

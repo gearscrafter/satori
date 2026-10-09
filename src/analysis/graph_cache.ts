@@ -31,12 +31,13 @@ export interface FileStamp {
 }
 
 /** One value that changes when any file is added, removed, renamed, resized or touched. */
-export function fingerprintOf(stamps: FileStamp[]): string {
+export function fingerprintOf(stamps: FileStamp[], extra: string[] = []): string {
     const hash = crypto.createHash('sha1');
     stamps
         .map(s => `${s.path}|${s.size}|${Math.round(s.mtimeMs)}`)
         .sort()
         .forEach(line => hash.update(line + '\n'));
+    extra.forEach(text => hash.update('extra|' + text + '\n'));
     return hash.digest('hex');
 }
 

@@ -658,3 +658,34 @@ suite('Trail No Rules Test Suite', () => {
         assert.deepStrictEqual(forbidden.map((v: any) => v.sourceLabel + '>' + v.targetLabel), ['DataB>ScreenA']);
     });
 });
+
+suite('Trail Class Placed By Hand Test Suite', () => {
+    const layers = [{ id: 'presentation' }, { id: 'domain' }, { id: 'data' }, { id: 'core', neutral: true }];
+    const g = {
+        nodes: [node('P', 'HomePage', 'class', 'presentation'), node('P.b', 'b', 'method', 'member', 'P'), node('R', 'Repo', 'class', 'data'), node('R.f', 'f', 'method', 'member', 'R')],
+        edges: [edge('1', 'P.b', 'R.f', 'CALLS')]
+    };
+    const make = (overrides: any) => TrailModel.createModel(g, { architecture: { layers, neutral: 'core', mode: 'allow', allow: [['presentation', 'domain']], overrides } });
+
+    test('a class placed by hand goes to that layer, whatever the analysis said', () => {
+        assert.strictEqual(make({}).layerOf('R'), 'data');
+        assert.strictEqual(make({ Repo: 'domain' }).layerOf('R'), 'domain');
+        const columns = make({ Repo: 'domain' }).overview().layers;
+        assert.deepStrictEqual(columns.find((l: any) => l.layer === 'domain').classes.map((c: any) => c.label), ['Repo']);
+        assert.deepStrictEqual(columns.find((l: any) => l.layer === 'data').classes, []);
+    });
+
+    test('the rules use the layer it was placed in', () => {
+        assert.deepStrictEqual(make({}).audit().violations.map((v: any) => v.sourceLabel + '>' + v.targetLabel), ['HomePage>Repo']);
+        assert.deepStrictEqual(make({ Repo: 'domain' }).audit().violations, []);
+    });
+
+    test('a layer that does not exist is ignored', () => {
+        assert.strictEqual(make({ Repo: 'nowhere' }).layerOf('R'), 'data');
+    });
+
+    test('the neighbours of a focused class are grouped by where they were placed', () => {
+        const f = make({ Repo: 'domain' }).focus('P');
+        assert.deepStrictEqual(f.right.map((grp: any) => grp.layer), ['domain']);
+    });
+});

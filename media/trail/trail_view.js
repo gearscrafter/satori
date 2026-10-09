@@ -1782,6 +1782,44 @@
         if (!node || !range || !node.data.fileUri) { return; }
         vscodeApi.postMessage({ command: 'openClass', file: node.data.fileUri, start: range.start, end: range.end });
     }
+    /**
+     * Places a class in a layer by hand. The diagram changes at once; the extension writes it to satori.json (creating
+     * the file when there is none), so the whole team shares it. A null layer gives the class back to the automatic one.
+     */
+    function moveToLayer(className, layer) {
+        architecture = architecture || M.defaultArchitecture();
+        const overrides = Object.assign({}, architecture.overrides || {});
+        if (layer === null) { delete overrides[className]; } else { overrides[className] = layer; }
+        architecture = Object.assign({}, architecture, { overrides: overrides });
+        vscodeApi.postMessage({ command: 'setLayerOverride', className: className, layer: layer });
+        refilter();
+    }
+
+    /** The "Move to layer" part of the menu of a class. */
+    function layerChoices(menu, ownerId) {
+        const owner = model.nodes.get(ownerId);
+        if (!owner || owner.kind === 'package' || model.isLibrary(ownerId) || model.layers.length < 2) { return; }
+        const name = model.nameOf(ownerId);
+        const current = model.layerOf(ownerId);
+        const byHand = Object.prototype.hasOwnProperty.call(model.architecture.overrides || {}, name);
+        menu.appendChild(el('div', { class: 'menu-section', text: t('trail.ctx.layer.title') }));
+        model.layers.forEach(function (layer) {
+            const choice = el('button', {
+                role: 'menuitemradio', type: 'button', 'aria-checked': String(layer === current),
+                class: 'layer-choice layer-' + layer + (layer === current ? ' current' : ''),
+                title: t('trail.ctx.layer.tip', name, layerLabel(layer))
+            }, el('span', { class: 'swatch' }), el('span', { class: 'label', text: layerLabel(layer) }),
+            layer === current ? el('span', { class: 'tick' }, ico('check', 13)) : null);
+            choice.addEventListener('click', function () { closeMenu(); if (layer !== current || !byHand) { moveToLayer(name, layer); } });
+            menu.appendChild(choice);
+        });
+        if (byHand) {
+            const auto = el('button', { role: 'menuitem', type: 'button', class: 'layer-auto', title: t('trail.ctx.layer.autoTip') }, ico('reset', 13), t('trail.ctx.layer.auto'));
+            auto.addEventListener('click', function () { closeMenu(); moveToLayer(name, null); });
+            menu.appendChild(auto);
+        }
+    }
+
     function openMenu(x, y, id) {
         const menu = $('ctxmenu');
         menu.replaceChildren();
@@ -1800,13 +1838,14 @@
         if (state.trace) { item(t('trail.ctx.clearTrace'), t('trail.ctx.clearTrace.desc'), 'close', clearTrace); }
         item(t('trail.ctx.focus'), t('trail.ctx.focus.desc'), 'focus', function () { navigate(id); });
         item(t('trail.ctx.open'), t('trail.ctx.open.desc'), 'open', function () { openInEditor(id); });
+        layerChoices(menu, model.ownerOf(id));
         menu.hidden = false;
         const w = menu.offsetWidth;
         const h = menu.offsetHeight;
         menu.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px';
         menu.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
         const first = menu.querySelector('button');
-        if (first) { first.focus(); }
+        if (first) { first.focus({ preventScroll: true }); }
     }
 
     /* ---------- legend (HUD) ---------- */

@@ -75,6 +75,13 @@ suite('Graph Cache Test Suite', () => {
         assert.strictEqual(clearCachedAnalyses(path.join(dir, 'missing')), 0);
     });
 
+    test('the fingerprint can carry extra text, and changes with it', () => {
+        const a = { path: '/p/a.dart', size: 10, mtimeMs: 1000 };
+        assert.notStrictEqual(fingerprintOf([a], ['one']), fingerprintOf([a], ['two']));
+        assert.strictEqual(fingerprintOf([a], ['one']), fingerprintOf([a], ['one']));
+        assert.strictEqual(fingerprintOf([a]), fingerprintOf([a], []));
+    });
+
     test('every project folder gets its own file', () => {
         assert.notStrictEqual(cacheFileFor(dir, '/projects/one'), cacheFileFor(dir, '/projects/two'));
         assert.strictEqual(cacheFileFor(dir, '/Projects/App'), cacheFileFor(dir, '/projects/app'));

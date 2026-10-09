@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { discoverFolders, findArchitectureFile, loadArchitecture, viewArchitecture } from '../../analysis/architecture_file';
+import { architectureDigest, architectureFileFor, discoverFolders, findArchitectureFile, loadArchitecture, viewArchitecture, writeLayerOverride } from '../../analysis/architecture_file';
 import { defaultArchitecture, KNOWN_ICONS } from '../../analysis/architecture_config';
 
 suite('Architecture File Test Suite', () => {
@@ -51,9 +51,10 @@ suite('Architecture File Test Suite', () => {
         assert.ok(loaded.file!.endsWith('satori.json'));
     });
 
-    test('the page gets the layers and the rules, not how classes are placed', () => {
+    test('the page gets the layers, the rules and the classes placed by hand, not how the others are placed', () => {
         const view = viewArchitecture({ ...defaultArchitecture(), overrides: { A: 'view' } });
-        assert.deepStrictEqual(Object.keys(view).sort(), ['allow', 'builtin', 'forbid', 'layers', 'mode', 'neutral']);
+        assert.deepStrictEqual(Object.keys(view).sort(), ['allow', 'builtin', 'forbid', 'layers', 'mode', 'neutral', 'overrides']);
+        assert.deepStrictEqual(view.overrides, { A: 'view' });
         assert.deepStrictEqual(view.layers[4], { id: 'utility', label: undefined, description: undefined, color: undefined, icon: undefined, neutral: true });
     });
 });
@@ -110,5 +111,72 @@ suite('Architecture Folders Discovery Test Suite', () => {
         const loaded = loadArchitecture(dir);
         assert.deepStrictEqual(loaded.problems, []);
         assert.deepStrictEqual(loaded.architecture.layers.map(l => l.id), ['views', 'services', 'core']);
+    });
+});
+
+suite('Layer Override File Test Suite', () => {
+    let dir: string;
+    setup(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'satori-override-')); });
+    teardown(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+    const file = () => path.join(dir, 'satori.json');
+    const read = () => JSON.parse(fs.readFileSync(file(), 'utf8'));
+
+    test('with no file it creates one with the default layers, so nothing else changes', () => {
+        fs.writeFileSync(path.join(dir, 'pubspec.yaml'), 'name: x');
+        const result = writeLayerOverride(dir, 'Product', 'model');
+        assert.deepStrictEqual({ ok: result.ok, created: result.created }, { ok: true, created: true });
+        assert.deepStrictEqual(read(), { architecture: { preset: 'default', overrides: { Product: 'model' } } });
+        const loaded = loadArchitecture(dir);
+        assert.deepStrictEqual(loaded.problems, []);
+        assert.strictEqual(loaded.architecture.overrides.Product, 'model');
+        assert.deepStrictEqual(loaded.architecture.layers.map(l => l.id), ['view', 'state', 'service', 'model', 'utility']);
+    });
+
+    test('it goes next to the pubspec.yaml of the project when the analysed folder is below it', () => {
+        fs.writeFileSync(path.join(dir, 'pubspec.yaml'), 'name: x');
+        fs.mkdirSync(path.join(dir, 'lib', 'a'), { recursive: true });
+        assert.strictEqual(architectureFileFor(path.join(dir, 'lib', 'a')), file());
+    });
+
+    test('with a file it adds the class and keeps everything else', () => {
+        fs.writeFileSync(file(), JSON.stringify({ other: 1, architecture: { preset: 'clean', rules: { mode: 'allow' }, overrides: { Old: 'data' } } }));
+        writeLayerOverride(dir, 'Product', 'domain');
+        assert.deepStrictEqual(read(), { other: 1, architecture: { preset: 'clean', rules: { mode: 'allow' }, overrides: { Old: 'data', Product: 'domain' } } });
+    });
+
+    test('a null layer takes the class back to automatic, and the empty list goes away', () => {
+        fs.writeFileSync(file(), JSON.stringify({ architecture: { preset: 'clean', overrides: { Product: 'domain' } } }));
+        writeLayerOverride(dir, 'Product', null);
+        assert.deepStrictEqual(read(), { architecture: { preset: 'clean' } });
+    });
+
+    test('a file that is not valid JSON is never overwritten', () => {
+        fs.writeFileSync(file(), '{ "architecture": ');
+        const result = writeLayerOverride(dir, 'Product', 'domain');
+        assert.strictEqual(result.ok, false);
+        assert.ok(/not valid JSON/.test(result.problem!));
+        assert.strictEqual(fs.readFileSync(file(), 'utf8'), '{ "architecture": ');
+    });
+
+    test('a file that holds something else than an object is left alone', () => {
+        fs.writeFileSync(file(), '[1, 2]');
+        assert.strictEqual(writeLayerOverride(dir, 'Product', 'domain').ok, false);
+        assert.strictEqual(fs.readFileSync(file(), 'utf8'), '[1, 2]');
+    });
+
+    test('a file with no architecture section gets one and keeps its other keys', () => {
+        fs.writeFileSync(file(), JSON.stringify({ other: true }));
+        writeLayerOverride(dir, 'A', 'view');
+        assert.deepStrictEqual(read(), { other: true, architecture: { preset: 'default', overrides: { A: 'view' } } });
+    });
+
+    test('the digest ignores the classes placed by hand but not the rest', () => {
+        fs.writeFileSync(file(), JSON.stringify({ architecture: { preset: 'clean' } }));
+        const before = architectureDigest(file());
+        writeLayerOverride(dir, 'Product', 'domain');
+        assert.strictEqual(architectureDigest(file()), before, 'moving a class does not change it');
+        fs.writeFileSync(file(), JSON.stringify({ architecture: { preset: 'mvvm' } }));
+        assert.notStrictEqual(architectureDigest(file()), before, 'a different architecture does');
+        assert.strictEqual(architectureDigest(undefined), '');
     });
 });

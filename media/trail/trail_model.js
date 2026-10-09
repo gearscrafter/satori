@@ -15,7 +15,7 @@
     function defaultArchitecture() {
         return {
             layers: LAYERS.map(function (id) { return { id: id, neutral: id === 'utility' }; }),
-            mode: 'order', allow: [], forbid: [], neutral: 'utility', builtin: true
+            mode: 'order', allow: [], forbid: [], neutral: 'utility', builtin: true, overrides: {}
         };
     }
 
@@ -30,7 +30,8 @@
         const pairs = function (list) { return Array.isArray(list) ? list.filter(function (p) { return Array.isArray(p) && p.length === 2; }) : []; };
         return {
             layers: layers, mode: given.mode === 'allow' || given.mode === 'none' ? given.mode : 'order', allow: pairs(given.allow), forbid: pairs(given.forbid),
-            neutral: neutral, builtin: given.builtin === true
+            neutral: neutral, builtin: given.builtin === true,
+            overrides: given.overrides && typeof given.overrides === 'object' ? Object.assign({}, given.overrides) : {}
         };
     }
     const LABEL_PRIORITY = ['EXTENDS', 'IMPLEMENTS', 'OBSERVES', 'CALLS', 'WRITES_TO', 'READS_FROM', 'PASSES_AS_ARGUMENT', 'INSTANCE_OF', 'USES_AS_TYPE'];
@@ -133,6 +134,9 @@
 
         function layerOf(id) {
             const n = nodes.get(ownerOf(id));
+            // A class placed by hand (satori.json, or the menu of the diagram) wins over what the analysis decided.
+            const placed = n && arch.overrides[stripDecor(n.label)];
+            if (placed && layerIds.indexOf(placed) >= 0) { return placed; }
             const layer = n && n.data && n.data.layer;
             return layerIds.indexOf(layer) >= 0 ? layer : neutralLayer;
         }
