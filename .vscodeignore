@@ -28,3 +28,7 @@ assets/extension.gif
 assets/extension1.png
 .claude/**
 .vscode-test.mjs
+
+# the diagram is loaded from media/trail/min (minified); the sources are not needed
+media/trail/*.js
+media/trail/*.css
