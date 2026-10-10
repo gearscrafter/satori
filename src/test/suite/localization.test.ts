@@ -21,6 +21,20 @@ suite('Localization Test Suite', () => {
         assert.deepStrictEqual(mismatched, []);
     });
 
+    test('the loading phrases are the same in both languages, short, and as many as the code asks for', () => {
+        const source = fs.readFileSync(path.join(root, 'src/ui/extension_lifecycle.ts'), 'utf8');
+        const count = Number(/LOADING_PHRASES = (\d+)/.exec(source)![1]);
+        const keys = (dict: Record<string, string>) => Object.keys(dict).filter(k => k.startsWith('loading.quip.'));
+        assert.strictEqual(keys(en).length, count);
+        assert.strictEqual(keys(es).length, count);
+        for (let i = 1; i <= count; i++) { assert.ok(('loading.quip.' + i) in en && ('loading.quip.' + i) in es, 'loading.quip.' + i); }
+        [en, es].forEach(dict => {
+            const texts = keys(dict).map(k => dict[k]);
+            assert.strictEqual(new Set(texts).size, texts.length, 'repeated phrase');
+            texts.forEach(text => assert.ok(text.length <= 52, text.length + ' characters: ' + text));
+        });
+    });
+
     test('no translation is empty', () => {
         [en, es].forEach(dict => Object.entries(dict).forEach(([k, v]) => assert.ok(v.trim().length > 0, k + ' is empty')));
     });

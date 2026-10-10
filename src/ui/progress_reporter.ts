@@ -8,6 +8,22 @@ export interface ProgressSink {
 export interface ReporterTexts {
     labels: Record<PhaseId, string>;
     elapsed: string;
+    /** Short phrases to keep the wait company; none, and nothing is shown. */
+    quips?: string[];
+}
+
+/** The first phrase appears after this long, so a quick analysis never shows one, and then one changes every so often. */
+export const QUIP_FIRST_MS = 4000;
+export const QUIP_EVERY_MS = 8000;
+
+/** The phrases in a random order that uses each one before any is repeated (Fisher-Yates). */
+export function shuffled<T>(items: readonly T[], random: () => number): T[] {
+    const list = items.slice();
+    for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
 }
 
 function formatElapsed(ms: number): string {
@@ -26,14 +42,17 @@ export class NotificationReporter implements LoadingReporter {
     private readonly throttle: Throttle;
     private readonly startedAt: number;
     private lastOverall = 0;
+    private readonly quips: string[];
     private ticker: ReturnType<typeof setInterval> | undefined;
 
     constructor(
         private readonly sink: ProgressSink,
         private readonly texts: ReporterTexts,
         private readonly now: () => number = Date.now,
-        tickMs = 1000
+        tickMs = 1000,
+        random: () => number = Math.random
     ) {
+        this.quips = shuffled(texts.quips ?? [], random);
         this.state = new LoadingState(texts.labels);
         this.startedAt = now();
         this.throttle = new Throttle(() => this.emit(), 200, now);
@@ -66,8 +85,18 @@ export class NotificationReporter implements LoadingReporter {
             else if (current.detail) { text += ` - ${current.detail}`; }
             parts.push(text);
         }
-        parts.push(`${this.texts.elapsed} ${formatElapsed(this.now() - this.startedAt)}`);
+        const elapsed = this.now() - this.startedAt;
+        parts.push(`${this.texts.elapsed} ${formatElapsed(elapsed)}`);
+        const quip = this.quip(elapsed);
+        if (quip) { parts.push(quip); }
         return parts.join(' · ');
+    }
+
+    /** The phrase for this moment of the wait: none at first, then one after another. */
+    private quip(elapsedMs: number): string | undefined {
+        if (this.quips.length === 0 || elapsedMs < QUIP_FIRST_MS) { return undefined; }
+        const turn = Math.floor((elapsedMs - QUIP_FIRST_MS) / QUIP_EVERY_MS);
+        return this.quips[turn % this.quips.length];
     }
 
     private emit(): void {

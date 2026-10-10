@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.5.0] - 10-09-2026
+
+### Added
+
+- **Incremental analysis.** Besides the saved analysis, Satori now saves what each file said (its symbols with their types resolved, and where its identifiers point to). When some files change, only those files, and the ones that use what they declare, are analysed again; the rest comes from what was saved, and the graph is built as always. On a real Flutter app of 1,700 files, changing 3 files took 36 s against 130-210 s for a full analysis, with exactly the same graph (27,627 nodes, 42,777 relationships). Dart's analysis server is asked about those files only. If more than a fifth of the files changed, the saved data is from another version, or the language server answers "no symbols" for files that had some, everything is analysed again. **Analyze Current Project (ignore saved analysis)** and **Clear Saved Analyses** do not use it.
+- `npm run test:e2e:incremental`: edits, adds and deletes files of a copy of the example project, and checks that the incremental graph is the same as the full one.
+
+### Fixed
+
+- A type or a creation (`Repo()`) is no longer drawn towards a class whose name two files share, because which one it meant depended on the order the files were read in.
+
 ## [2.4.0] - 10-09-2026
 
 ### Added

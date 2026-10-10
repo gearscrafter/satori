@@ -90,7 +90,7 @@ export function clearCachedAnalyses(storageDir: string): number {
     let names: string[] = [];
     try { names = fs.readdirSync(storageDir); } catch { return 0; }
     for (const name of names) {
-        if (/^analysis-[0-9a-f]+\.json(\.\d+\.tmp)?$/.test(name)) {
+        if (/^analysis-[0-9a-f]+(\.state)?\.json(\.\d+\.tmp)?$/.test(name)) {
             try { fs.unlinkSync(path.join(storageDir, name)); removed++; } catch { /* in use or already gone */ }
         }
     }

@@ -40,6 +40,12 @@ export function positionAt(starts: number[], offset: number): { line: number; ch
     return { line: low, character: offset - starts[low] };
 }
 
+/** The path part of a key written by NavigationIndex.key ("path:line:character"). */
+function pathOfKey(key: string): string {
+    const second = key.lastIndexOf(':', key.lastIndexOf(':') - 1);
+    return key.slice(0, second);
+}
+
 export class NavigationIndex {
     private readonly byTarget = new Map<string, Usage[]>();
 
@@ -53,6 +59,47 @@ export class NavigationIndex {
     }
 
     get size(): number { return this.byTarget.size; }
+
+    /** Everything the index holds, to be saved: [where the symbol is declared, where it is used]. */
+    toJSON(): Array<[string, Usage[]]> {
+        return Array.from(this.byTarget.entries());
+    }
+
+    static fromJSON(entries: Array<[string, Usage[]]>): NavigationIndex {
+        const index = new NavigationIndex();
+        for (const [key, usages] of entries) { index.byTarget.set(key, usages); }
+        return index;
+    }
+
+    /** The URIs of the files that use something declared in one of these files (paths normalised, as in key()). */
+    filesUsingDeclarationsIn(paths: ReadonlySet<string>): Set<string> {
+        const users = new Set<string>();
+        for (const [key, usages] of this.byTarget) {
+            if (paths.has(pathOfKey(key))) { usages.forEach(u => users.add(u.uri)); }
+        }
+        return users;
+    }
+
+    /**
+     * Forgets what is known about some files, to ask again: the declarations they hold (their positions may have
+     * moved) and the uses that appear in them.
+     */
+    forget(declaredIn: ReadonlySet<string>, usedIn: ReadonlySet<string>): void {
+        for (const [key, usages] of this.byTarget) {
+            if (declaredIn.has(pathOfKey(key))) { this.byTarget.delete(key); continue; }
+            if (usedIn.size === 0) { continue; }
+            const kept = usages.filter(u => !usedIn.has(u.uri));
+            if (kept.length === 0) { this.byTarget.delete(key); } else if (kept.length !== usages.length) { this.byTarget.set(key, kept); }
+        }
+    }
+
+    /** Adds everything another index knows. */
+    absorb(other: NavigationIndex): void {
+        for (const [key, usages] of other.byTarget) {
+            const list = this.byTarget.get(key);
+            if (list) { list.push(...usages); } else { this.byTarget.set(key, usages.slice()); }
+        }
+    }
 
     /**
      * Adds what one file says about its identifiers.

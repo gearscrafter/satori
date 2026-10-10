@@ -125,7 +125,8 @@ Press `?` (or the help button) for a legend that explains the layer colours and 
 | `satori.dartSdkPath` | `""` | Path to the Dart SDK, if it cannot be found automatically |
 | `satori.analysis.engine` | `auto` | How Satori finds where each field and method is used: `auto` asks Dart's analysis server for the whole project, one request per file, and falls back to the language server if that is not possible; `languageServer` always asks it symbol by symbol (slow on big projects) |
 | `satori.analysis.exclude` | generated code | Globs of Dart files left out of the analysis. By default `*.g.dart`, `*.freezed.dart`, `*.gr.dart`, `*.mocks.dart`, `*.config.dart`, `generated/` folders... An empty list analyses everything |
-| `satori.cache.enabled` | `true` | Saves the finished analysis and reuses it while no Dart file changes |
+| `satori.cache.enabled` | `true` | Saves the finished analysis and reuses it while no Dart file changes. It also saves what each file said, so after a few changes only those files (and the ones that use them) are analysed again |
+| `satori.loading.phrases` | `true` | Short geek and anime phrases in the notification while a long analysis runs (none in a quick one) |
 | `satori.audit.godClass.wmc` | `47` | Audit: complexity (WMC) from which a class can be a God Class |
 | `satori.audit.godClass.atfd` | `5` | Audit: a God Class must use MORE than this many attributes of other classes (ATFD) |
 | `satori.audit.godClass.tcc` | `0.33` | Audit: a God Class must have a cohesion (TCC) BELOW this value |
@@ -401,6 +402,10 @@ npm test
 # End to end: installs Dart-Code in a test instance, opens e2e/dummy_app,
 # runs "Analyze Current Project" and checks the graph and the webview
 npm run test:e2e
+
+# Incremental analysis: edits, adds and deletes files of a copy of dummy_app and checks that
+# analysing again only what changed gives exactly the graph of a full analysis
+npm run test:e2e:incremental
 ```
 
 The graph model, drawing logic and icon set are plain JavaScript without DOM access, so they are covered by regular unit tests.
@@ -434,6 +439,7 @@ Satori reads the classes from Dart's language server. If the server is still sta
 - Close other large projects in VS Code
 - Verify available memory (>4GB recommended)
 - Consider modular analysis for very large projects
+- After the first analysis, changing a few files only analyses those files and the ones that use them again (a few seconds to a minute on a big project, against minutes). When many files change at once, or the saved data is from another version, Satori analyses everything again. **Analyze Current Project (ignore saved analysis)** always does.
 
 ## 📄 License
 
@@ -451,7 +457,7 @@ Contributions are welcome! Please:
 
 ### Roadmap
 
-- [ ] Support for incremental analysis
+- [x] Incremental analysis
 - [ ] Diagram export (PNG, SVG)
 - [ ] Integration with documentation tools
 - [ ] Quality metrics analysis

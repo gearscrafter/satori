@@ -114,7 +114,12 @@ export async function createWebview(
   context: vscode.ExtensionContext,
   data: {
     projectRoot: string;
-    files: Array<{ file: string; fileUri: string; symbols: any[] }>;
+    /** `enriched` files come from a previous analysis, with their types already resolved: they are used as they are. */
+    files: Array<{ file: string; fileUri: string; symbols: any[]; enriched?: boolean }>;
+    /** The imports of the `enriched` files. */
+    reusedImports?: Record<string, ImportRef[]>;
+    /** Called when every file has its types resolved and before the graph is built, to save what the analysis knows. */
+    onEnriched?: (files: Array<{ file: string; fileUri: string; symbols: any[] }>, fileImports: Record<string, ImportRef[]>) => void;
     /** A finished analysis of the same files: the language server is not asked again. */
     cached?: { graph: ProjectGraphModel; fileImports: Record<string, ImportRef[]> };
     /** Started earlier, in parallel with the symbols: where every symbol is used, from Dart's analysis server. */
@@ -188,12 +193,14 @@ export async function createWebview(
   }));
 
   // Every file at once flooded the language server with thousands of hover requests; a few at a time keeps it answering.
+  if (data.reusedImports) { Object.assign(fileImports, data.reusedImports); }
   reporter.start('types');
   const processedFiles = await mapLimited(data.files, ENRICH_FILE_CONCURRENCY, async (f_item) => {
-    const fileContent = fs.readFileSync(f_item.file, 'utf8');
     const fileUriString = (typeof f_item.fileUri === 'string' && f_item.fileUri.startsWith('file:'))
       ? f_item.fileUri
       : vscode.Uri.file(f_item.file).toString();
+    if (f_item.enriched) { return { file: f_item.file, fileUri: fileUriString, symbols: f_item.symbols }; }
+    const fileContent = fs.readFileSync(f_item.file, 'utf8');
     const imports = parseImports(fileContent);
     if (imports.length) { fileImports[fileUriString] = imports; }
 
@@ -214,6 +221,7 @@ export async function createWebview(
   reporter.finish('types');
 
   data.files = processedFiles;
+  data.onEnriched?.(processedFiles, fileImports);
   enrichedAt = Date.now();
   log.debug('✅ Deep enrichment of all files completed.');
 

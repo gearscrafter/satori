@@ -68,8 +68,11 @@ export class DartAnalysisClient {
         return String(reply.result?.version ?? '');
     }
 
-    /** Points the server at a project and waits until it has finished analysing it. */
-    async analyze(root: string, timeoutMs: number): Promise<void> {
+    /**
+     * Points the server at a project and waits until it has finished analysing it. `included` narrows the analysis
+     * to some files or folders of it: the rest is only read as far as those files need it.
+     */
+    async analyze(root: string, timeoutMs: number, included: string[] = [root]): Promise<void> {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const finished = new Promise<void>((resolve, reject) => {
             this.analysisFinished = resolve;
@@ -78,7 +81,7 @@ export class DartAnalysisClient {
         });
         try {
             await this.request('server.setSubscriptions', { subscriptions: ['STATUS'] });
-            await this.request('analysis.setAnalysisRoots', { included: [root], excluded: [] });
+            await this.request('analysis.setAnalysisRoots', { included, excluded: [] });
             await finished;
         } finally {
             if (timer) { clearTimeout(timer); }

@@ -5,7 +5,7 @@ import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges, setNav
 import { methodBody } from "../analysis/signature";
 import { cyclomaticComplexity } from "../analysis/complexity";
 import { observedTypeNames } from "../analysis/observers";
-import { typeUsage } from "../analysis/type_usage";
+import { typeUsage, unambiguousClassNames } from "../analysis/type_usage";
 import { CalledNames } from "../analysis/called_names";
 import { log } from "../utils/logger";
 import * as vscode from 'vscode';
@@ -42,7 +42,7 @@ export async function createGraphEdgesFromSymbols(
     }
  
     const nodeById = new Map<string, ProjectGraphNode>(projectGraph.nodes.map(n => [n.id, n]));
-    const classNames: ReadonlySet<string> = new Set(classNodeIndex.keys());
+    const classNames = unambiguousClassNames(projectGraph.nodes.filter(n => n.kind === 'class').map(n => n.label));
 
     /** A member that names a class as a type, or creates it, depends on that class. */
     const addTypeEdges = (sourceNode: ProjectGraphNode, cleanedSource: string) => {

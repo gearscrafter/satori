@@ -1,5 +1,13 @@
 import * as assert from 'assert';
-import { declarationFrom, typeUsage } from '../../analysis/type_usage';
+import { declarationFrom, typeUsage, unambiguousClassNames } from '../../analysis/type_usage';
+
+suite('Unambiguous Class Names Test Suite', () => {
+    test('a name used by two classes is left out, whatever the order', () => {
+        assert.deepStrictEqual(Array.from(unambiguousClassNames(['A', 'B', 'A', 'C'])).sort(), ['B', 'C']);
+        assert.deepStrictEqual(Array.from(unambiguousClassNames(['A', 'A', 'A'])), []);
+        assert.deepStrictEqual(Array.from(unambiguousClassNames([])), []);
+    });
+});
 
 suite('Field Declaration Test Suite', () => {
     test('it reads the type written before the name, up to the semicolon', () => {

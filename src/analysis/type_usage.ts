@@ -68,3 +68,16 @@ export function declarationFrom(lines: readonly string[], line: number, maxLines
     }
     return text;
 }
+
+/**
+ * The names a type can be told from. Two classes with the same name in different files cannot be told apart by their
+ * name, and picking one would depend on the order the files were read in, so such a name is left out.
+ */
+export function unambiguousClassNames(classLabels: Iterable<string>): Set<string> {
+    const seen = new Set<string>();
+    const repeated = new Set<string>();
+    for (const label of classLabels) {
+        if (seen.has(label)) { repeated.add(label); } else { seen.add(label); }
+    }
+    return new Set(Array.from(seen).filter(name => !repeated.has(name)));
+}

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { LoadingState, PHASE_ORDER, Throttle, PhaseId } from '../../ui/loading_state';
-import { NotificationReporter } from '../../ui/progress_reporter';
+import { NotificationReporter, QUIP_EVERY_MS, QUIP_FIRST_MS, shuffled } from '../../ui/progress_reporter';
 import { mapLimited } from '../../core';
 
 const labels = Object.fromEntries(PHASE_ORDER.map(id => [id, id.toUpperCase()])) as Record<PhaseId, string>;
@@ -156,5 +156,73 @@ suite('mapLimited Progress Test Suite', () => {
     test('works without a progress callback and with no items', async () => {
         assert.deepStrictEqual(await mapLimited([1], 4, async n => n), [1]);
         assert.deepStrictEqual(await mapLimited([], 4, async n => n, () => { throw new Error('nothing to report'); }), []);
+    });
+});
+
+suite('Loading Phrases Test Suite', () => {
+    const phrases = ['one', 'two', 'three', 'four'];
+    const make = (quips?: string[], random: () => number = () => 0.5) => {
+        let clock = 1000;
+        const reporter = new NotificationReporter({ report: () => undefined }, { labels, elapsed: 'Elapsed', quips }, () => clock, 3600000, random);
+        return { reporter, at: (ms: number) => { clock = 1000 + ms; } };
+    };
+    const last = (message: string) => message.split(' · ').pop()!;
+
+    test('a quick analysis never shows one', () => {
+        const { reporter, at } = make(phrases);
+        try {
+            at(3999);
+            assert.ok(!phrases.includes(last(reporter.message())), reporter.message());
+        } finally { reporter.release(); }
+    });
+
+    test('after a few seconds one appears at the end of the message, and it changes every few seconds', () => {
+        const { reporter, at } = make(phrases);
+        try {
+            const seen: string[] = [];
+            for (let turn = 0; turn < 4; turn++) {
+                at(QUIP_FIRST_MS + turn * QUIP_EVERY_MS + 100);
+                seen.push(last(reporter.message()));
+            }
+            assert.ok(seen.every(p => phrases.includes(p)), seen.join());
+            assert.strictEqual(new Set(seen).size, 4, 'each one before any repeats');
+            at(QUIP_FIRST_MS + QUIP_EVERY_MS - 1);
+            assert.strictEqual(last(reporter.message()), seen[0], 'the same one until its time is up');
+        } finally { reporter.release(); }
+    });
+
+    test('after the last one it starts over', () => {
+        const { reporter, at } = make(phrases);
+        try {
+            at(QUIP_FIRST_MS);
+            const first = last(reporter.message());
+            at(QUIP_FIRST_MS + phrases.length * QUIP_EVERY_MS);
+            assert.strictEqual(last(reporter.message()), first);
+        } finally { reporter.release(); }
+    });
+
+    test('the order is random, and a different random gives a different order', () => {
+        let seed = 0.1;
+        const a = make(phrases, () => { seed = (seed * 9301 + 0.49297) % 1; return seed; });
+        const b = make(phrases, () => 0.99);
+        try {
+            const order = (r: { reporter: NotificationReporter; at: (ms: number) => void }) => [0, 1, 2, 3].map(i => { r.at(QUIP_FIRST_MS + i * QUIP_EVERY_MS + 1); return last(r.reporter.message()); });
+            assert.notDeepStrictEqual(order(a), order(b));
+        } finally { a.reporter.release(); b.reporter.release(); }
+    });
+
+    test('without phrases the message is the same as ever', () => {
+        const { reporter, at } = make(undefined);
+        try {
+            at(60000);
+            assert.ok(/^\d+% · .*Elapsed 1m 0s$/.test(reporter.message()) || /Elapsed 1m 0s$/.test(reporter.message()), reporter.message());
+        } finally { reporter.release(); }
+    });
+
+    test('shuffling keeps every item and does not touch the original', () => {
+        const original = [1, 2, 3, 4, 5];
+        const mixed = shuffled(original, Math.random);
+        assert.deepStrictEqual(mixed.slice().sort(), original);
+        assert.deepStrictEqual(original, [1, 2, 3, 4, 5]);
     });
 });

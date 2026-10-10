@@ -12,7 +12,9 @@ import { cacheFileFor, clearCachedAnalyses, fingerprintOf, readCachedAnalysis, s
 import { AnalysisStats, SymbolStats, isHealthy, likelyCauses, symbolsLookComplete } from '../analysis/analysis_health';
 import { DEFAULT_DELAYS_MS, waitForSymbols } from '../analysis/adaptive_wait';
 import { DEFAULT_EXCLUDES, makeExcluder } from '../filesystem/exclusions';
-import { buildNavigationIndex } from '../analysis/navigation_runner';
+import { buildNavigationIndex, NavigationOutcome } from '../analysis/navigation_runner';
+import { readState, stateFileFor, writeStateParts } from '../analysis/incremental_state';
+import { AnalyzedFile, prepareIncremental } from './incremental_analysis';
 import { architectureDigest, findArchitectureFile, writeLayerOverride } from '../analysis/architecture_file';
 import { LoadingReporter, silentReporter } from './loading_state';
 import { NotificationReporter } from './progress_reporter';
@@ -277,7 +279,11 @@ async function analyzeProject(
             graph: t('loading.phase.graph'),
             draw: t('loading.phase.draw')
         },
-        elapsed: t('loading.elapsed')
+        elapsed: t('loading.elapsed'),
+        // Something to read during a long wait; satori.loading.phrases turns it off.
+        quips: vscode.workspace.getConfiguration('satori').get<boolean>('loading.phrases', true)
+            ? Array.from({ length: LOADING_PHRASES }, (_, i) => t(`loading.quip.${i + 1}`))
+            : undefined
     });
     try {
         return await analyzeFiles(rootUri, context, loading, fresh);
@@ -312,6 +318,9 @@ function reportIncompleteAnalysis(stats: AnalysisStats, root: string, isProjectR
     });
 }
 
+/** How many loading.quip.N texts there are in the localization files. */
+const LOADING_PHRASES = 30;
+
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContext, loading: LoadingReporter, fresh: boolean) {
@@ -341,7 +350,8 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
     // satori.json decides the layer of every class, so changing it must analyse again.
     const architectureFile = findArchitectureFile(root);
     // The file itself is not stamped: moving one class by hand rewrites it and must not make the analysis stale.
-    const fingerprint = fingerprintOf(stampFiles(uniqueUris.map(u => u.fsPath)), [architectureDigest(architectureFile)]);
+    const stamps = stampFiles(uniqueUris.map(u => u.fsPath));
+    const fingerprint = fingerprintOf(stamps, [architectureDigest(architectureFile)]);
     const cached = useCache && !fresh ? readCachedAnalysis<ProjectGraphModel, Record<string, ImportRef[]>>(cacheFile, fingerprint, extensionVersion) : null;
 
     if (cached) {
@@ -363,49 +373,90 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
     }
 
 
-    const navigation = buildNavigationIndex(root, uniqueUris, loading);
+    // Some files changed since the last analysis: only those, and the ones that use them, are asked about again.
+    const stateFile = stateFileFor(cacheFile);
+    let navigation: Promise<NavigationOutcome | null>;
+    let filesDataArray: AnalyzedFile[];
+    let symbolStats: SymbolStats;
+    let symbolsAt: number;
+    let reusedImports: Record<string, ImportRef[]> | undefined;
+    let incrementalNote: string | undefined;
 
-    let extraction = await extractFileSymbols(uniqueUris, loading, false);
-    if (!symbolsLookComplete(extraction.stats)) {
-        // Most files answered "no symbols". Almost always Dart's server is still getting ready, and how long it needs
-        // depends on the size of the project: ask again, only about the empty files, for as long as it keeps improving.
-        log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server.`);
-        let current = extraction.files;
-        const waited = await waitForSymbols(extraction.stats, {
-            delaysMs: DEFAULT_DELAYS_MS,
-            stallLimit: 2,
-            sleep,
-            onWait: (round, delayMs, now) => {
-                log.info(`Waiting ${delayMs / 1000}s for the Dart server (round ${round}): ${now.withSymbols} of ${now.files} files have symbols.`);
-                loading.progress('symbols', now.withSymbols, now.files, t('loading.symbols.waiting'));
-            },
-            round: async () => {
-                const empty = new Set(current.filter(f => f.symbols.length === 0).map(f => f.fileUri));
-                const again = await extractFileSymbols(uniqueUris.filter(u => empty.has(u.toString())), loading, false);
-                const byUri = new Map(again.files.map(f => [f.fileUri, f]));
-                current = current.map(f => byUri.get(f.fileUri) ?? f);
-                return { files: current.length, withSymbols: current.filter(f => f.symbols.length > 0).length, errors: again.stats.errors };
-            }
-        });
-        extraction = { files: current, stats: waited.stats };
-        log.info(`Waited ${(waited.waitedMs / 1000).toFixed(0)}s for the Dart server in ${waited.rounds} round(s): ${waited.stats.withSymbols} of ${waited.stats.files} files have symbols (${waited.end}).`);
+    const previous = useCache && !fresh ? readState(stateFile, extensionVersion) : null;
+    let incremental: Awaited<ReturnType<typeof prepareIncremental>> | undefined;
+    if (previous) {
+        try {
+            incremental = await prepareIncremental({
+                state: previous,
+                uris: uniqueUris,
+                stamps,
+                extractSymbols: async asked => await extractFileSymbols(asked, loading, true),
+                askNavigation: async asked => await buildNavigationIndex(root, uniqueUris, loading, asked)
+            });
+            if (!incremental.ok) { log.info(`Analysing everything again: ${incremental.reason}.`); }
+        } catch (error: any) {
+            log.info(`Analysing everything again: the incremental analysis failed (${error.message}).`);
+        }
     }
-    loading.finish('symbols');
-    const filesDataArray = extraction.files;
-    const symbolStats = extraction.stats;
-    const symbolsAt = Date.now();
+
+    if (incremental && incremental.ok) {
+        navigation = Promise.resolve(incremental.navigation);
+        filesDataArray = incremental.files;
+        symbolStats = incremental.stats;
+        reusedImports = incremental.reusedImports;
+        incrementalNote = `incremental: ${incremental.asked} files asked again, ${incremental.reused} reused`;
+        loading.finish('symbols');
+        loading.finish('relations');
+        symbolsAt = Date.now();
+    } else {
+        navigation = buildNavigationIndex(root, uniqueUris, loading);
+
+        let extraction = await extractFileSymbols(uniqueUris, loading, false);
+        if (!symbolsLookComplete(extraction.stats)) {
+            // Most files answered "no symbols". Almost always Dart's server is still getting ready, and how long it needs
+            // depends on the size of the project: ask again, only about the empty files, for as long as it keeps improving.
+            log.info(`Only ${extraction.stats.withSymbols} of ${extraction.stats.files} files returned symbols; waiting for the Dart server.`);
+            let current = extraction.files;
+            const waited = await waitForSymbols(extraction.stats, {
+                delaysMs: DEFAULT_DELAYS_MS,
+                stallLimit: 2,
+                sleep,
+                onWait: (round, delayMs, now) => {
+                    log.info(`Waiting ${delayMs / 1000}s for the Dart server (round ${round}): ${now.withSymbols} of ${now.files} files have symbols.`);
+                    loading.progress('symbols', now.withSymbols, now.files, t('loading.symbols.waiting'));
+                },
+                round: async () => {
+                    const empty = new Set(current.filter(f => f.symbols.length === 0).map(f => f.fileUri));
+                    const again = await extractFileSymbols(uniqueUris.filter(u => empty.has(u.toString())), loading, false);
+                    const byUri = new Map(again.files.map(f => [f.fileUri, f]));
+                    current = current.map(f => byUri.get(f.fileUri) ?? f);
+                    return { files: current.length, withSymbols: current.filter(f => f.symbols.length > 0).length, errors: again.stats.errors };
+                }
+            });
+            extraction = { files: current, stats: waited.stats };
+            log.info(`Waited ${(waited.waitedMs / 1000).toFixed(0)}s for the Dart server in ${waited.rounds} round(s): ${waited.stats.withSymbols} of ${waited.stats.files} files have symbols (${waited.end}).`);
+        }
+        loading.finish('symbols');
+        filesDataArray = extraction.files;
+        symbolStats = extraction.stats;
+        symbolsAt = Date.now();
+    }
 
 
     log.debug(`📦 Preparing to create webview...`);
     log.debug(`📦 Project root for webview: ${root}`);
     log.debug(`📦 Total files for webview: ${filesDataArray.length}`);
 
+    let snapshot: { filesJson: string; imports: Record<string, ImportRef[]> } | undefined;
     try {
         log.debug(`🚀 Calling createWebview function...`);
         
         const result = await createWebview(context, { 
             projectRoot: normalizePath(root),
             files: filesDataArray,
+            reusedImports,
+            // The symbols are copied now, before the graph is built (which changes them), and written once the page is up.
+            onEnriched: useCache ? (enriched, imports) => { snapshot = { filesJson: JSON.stringify(enriched), imports: { ...imports } }; } : undefined,
             navigation,
             reporter: loading
         });
@@ -416,19 +467,24 @@ async function analyzeFiles(rootUri: vscode.Uri, context: vscode.ExtensionContex
             discoverMs: discoveredAt - analysisStart,
             symbolsMs: symbolsAt - discoveredAt,
             ...result.timings,
+            ...(incrementalNote ? { engine: 'incremental' } : {}),
             totalMs: Date.now() - analysisStart
         };
         log.info(`⏱ Analysis of ${timings.files} files took ${(timings.totalMs / 1000).toFixed(1)}s ` +
             `(find files ${timings.discoverMs}ms, symbols ${timings.symbolsMs}ms, wait for Dart server ${timings.relationsWaitMs}ms, enrichment ${timings.enrichMs}ms, ` +
-            `graph ${timings.graphMs}ms, page ${timings.finishMs}ms)`);
+            `graph ${timings.graphMs}ms, page ${timings.finishMs}ms)${incrementalNote ? '; ' + incrementalNote : ''}`);
 
         const stats: AnalysisStats = { ...symbolStats, classes: (graph.nodes ?? []).filter(n => n.kind === 'class').length };
         if (isHealthy(stats)) {
             if (useCache) {
                 // After the page is on screen: serialising a big graph takes a moment and nobody waits for it.
-                setTimeout(() => {
+                setTimeout(async () => {
                     try {
                         writeCachedAnalysis(cacheFile, fingerprint, extensionVersion, graph, result.fileImports, stats);
+                        const used = (await navigation)?.index;
+                        if (snapshot) {
+                            writeStateParts(stateFile, { extensionVersion, stamps, hasNavigation: !!used }, snapshot.filesJson, snapshot.imports, used ? used.toJSON() : []);
+                        }
                         log.info(`💾 Analysis saved for the next time (${cacheFile})`);
                     } catch (e: any) {
                         log.error(`Could not save the analysis: ${e.message}`);
