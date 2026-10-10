@@ -5,3 +5,5 @@ class WishlistStore extends StateNotifier<List<String>> {
 
   void add(String id) => state = [...state, id];
 }
+
+final wishlistProvider = StateNotifierProvider<WishlistStore, List<String>>(() => WishlistStore());

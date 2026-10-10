@@ -593,7 +593,8 @@ button.tool[aria-pressed="true"], button.width[aria-pressed="true"] { background
 .heat .member { background: color-mix(in srgb, var(--heat-bg) 55%, #ffffff); }
 .heat-box { border-color: color-mix(in srgb, #b42318 40%, var(--heat-bg)) !important; border-style: solid !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--heat-bg) 55%, transparent); }
 #btn-audit[aria-pressed="true"] { background: #ffe3e3; border-color: #f5b5b5; color: #b42318; }
-@media (max-width: 760px) { .audit-body { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .audit-body, .audit-guide { grid-template-columns: 1fr; } }
+.audit-guide { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border-soft); }
 
 .audit-head .chip-toggle { text-decoration: none; opacity: 1; background: #ffffff; }
 .audit-head .chip-toggle[aria-pressed="true"] { background: #ffe3e3; border-color: #f5b5b5; color: #b42318; font-weight: 600; }
@@ -637,3 +638,9 @@ button.tool[aria-pressed="true"], button.width[aria-pressed="true"] { background
 #ctxmenu .layer-choice.current .label { font-weight: 700; }
 #ctxmenu .layer-choice .tick { color: var(--accent); display: inline-flex; }
 #ctxmenu .layer-auto { align-items: center; gap: 8px; padding: 4px 10px; color: var(--color-muted); font-size: 12px; }
+
+/* "Start here": a few classes to begin with, under the hint of the overview. */
+.start-here { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; font-size: 12px; }
+.start-label { color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
+.audit-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.audit-guide .audit-link { cursor: pointer; }

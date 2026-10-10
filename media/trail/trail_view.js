@@ -819,6 +819,8 @@
         }
         columns.appendChild(el('div', { class: 'overview-head' },
             el('p', { class: 'overview-hint' }, ico('pointer', 14), (model.architecture.builtin ? t('trail.overviewHint') : t('trail.overviewHintCustom'))), picker));
+        const starts = startHere();
+        if (starts) { columns.appendChild(starts); }
         const notice = unmatchedNotice(o, total);
         if (notice) { columns.appendChild(notice); }
         const grid = el('div', { id: 'overview' });
@@ -1040,13 +1042,43 @@
             c.reasons.forEach(function (r) { why.appendChild(el('span', { class: 'why why-' + r.type, title: reasonText(r), text: reasonIcon(r) + ' ' + reasonText(r) })); });
             return el('div', { class: 'audit-hot' }, row, why);
         });
+        // Where to start, and what may be dead code: both come from how many others each class is tied to.
+        const chips = function (items, more) {
+            const box = el('div', { class: 'audit-chips' });
+            items.forEach(function (c) {
+                const b = classLink(c.id, c.label, c.layer);
+                b.title = t('trail.audit.tip.connections', String(c.incoming), String(c.outgoing));
+                box.appendChild(b);
+            });
+            if (more > 0) { box.appendChild(el('span', { class: 'audit-more', text: t('trail.audit.unusedMore', String(more)) })); }
+            return box;
+        };
+        const guide = el('div', { class: 'audit-guide' },
+            list(t('trail.audit.hubs'), a.hubs.length, a.hubs.length ? [chips(a.hubs.slice(0, 10), 0)] : [], t('trail.audit.noHubs')),
+            list(t('trail.audit.unused'), a.unused.length, a.unused.length ? [chips(a.unused.slice(0, 12), a.unused.length - 12)] : [], t('trail.audit.noUnused')));
+        guide.querySelectorAll('h4')[0].title = t('trail.audit.tip.hubs');
+        guide.querySelectorAll('h4')[1].title = t('trail.audit.tip.unused');
         const body = el('div', { class: 'audit-body' },
             list(t('trail.audit.cycles'), a.cycles.length, cycleRows, t('trail.audit.noCycles')),
             list(t('trail.audit.violations'), a.violations.length, violationRows, t('trail.audit.noViolations')),
             list(t('trail.audit.hotspots'), a.hotspots.length, hotRows, t('trail.audit.noHotspots')),
             stateColumn());
+        panel.appendChild(guide);
         panel.appendChild(body);
         if (gods) { panel.appendChild(el('div', { class: 'audit-foot', text: t('trail.audit.godNote', String(gods)) })); }
+    }
+
+    /** A few classes to begin reading with, under the hint of the overview: the ones the most others are tied to. */
+    function startHere() {
+        const hubs = model.orientation().hubs.slice(0, 5);
+        if (hubs.length < 2) { return null; }
+        const row = el('div', { class: 'start-here' }, el('span', { class: 'start-label', title: t('trail.audit.tip.hubs'), text: t('trail.audit.hubs') + ':' }));
+        hubs.forEach(function (c) {
+            const b = el('button', { class: 'audit-link layer-' + c.layer, title: t('trail.audit.tip.connections', String(c.incoming), String(c.outgoing)), text: c.label });
+            b.addEventListener('click', function () { navigate(c.id); });
+            row.appendChild(b);
+        });
+        return row;
     }
 
     function setAudit(on) {

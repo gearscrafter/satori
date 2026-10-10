@@ -551,13 +551,13 @@ suite('Trail State Management Test Suite', () => {
         assert.ok(names.includes('CounterCubit') && names.includes('SessionNotifier'), names.join(','));
     });
 
-    test('works on the real graph of the example: four approaches, one widget listening to three holders', () => {
+    test('works on the real graph of the example: four approaches, one widget listening to four holders, one of them through a Riverpod provider', () => {
         const real = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../e2e/fixtures/dummy_graph.json'), 'utf8'));
         const info = TrailModel.createModel(real).stateManagers();
         assert.deepStrictEqual(info.families.map((f: any) => f.family).sort(), ['bloc', 'getx', 'provider', 'riverpod']);
         assert.strictEqual(info.fragmented, true);
         const observed = info.families.flatMap((fam: any) => fam.classes).filter((c: any) => c.observers > 0).length;
-        assert.strictEqual(observed, 3);
+        assert.strictEqual(observed, 4);
     });
 });
 
@@ -687,5 +687,66 @@ suite('Trail Class Placed By Hand Test Suite', () => {
     test('the neighbours of a focused class are grouped by where they were placed', () => {
         const f = make({ Repo: 'domain' }).focus('P');
         assert.deepStrictEqual(f.right.map((grp: any) => grp.layer), ['domain']);
+    });
+});
+
+suite('Trail Orientation Test Suite', () => {
+    // Hub is used by A, B and C and uses Store; Lonely is used by nobody; Base is only extended; the app is built by main.
+    const g = {
+        nodes: [
+            node('main', 'main', 'function', 'utility'),
+            node('App', 'App', 'class', 'view'),
+            node('Hub', 'Hub', 'class', 'state'),
+            node('A', 'A', 'class', 'view'),
+            node('B', 'B', 'class', 'view'),
+            node('C', 'C', 'class', 'view'),
+            node('Store', 'Store', 'class', 'service'),
+            node('Lonely', 'Lonely', 'class', 'model'),
+            node('Base', 'Base', 'class', 'model'),
+            node('Child', 'Child', 'class', 'model'),
+            node('Lib', '🔗 Dio', 'class', 'service', undefined, 'external_package')
+        ],
+        edges: [
+            edge('1', 'main', 'App', 'INSTANCE_OF'),
+            edge('2', 'App', 'A', 'INSTANCE_OF'),
+            edge('3', 'A', 'Hub', 'USES_AS_TYPE'),
+            edge('4', 'B', 'Hub', 'USES_AS_TYPE'),
+            edge('5', 'C', 'Hub', 'CALLS'),
+            edge('6', 'Hub', 'Store', 'CALLS'),
+            edge('7', 'Child', 'Base', 'EXTENDS'),
+            edge('8', 'Child', 'Lib', 'CALLS')
+        ]
+    };
+    const audit = () => TrailModel.createModel(g, {}).audit();
+
+    test('the classes the most others are tied to come first', () => {
+        const hubs = audit().hubs;
+        assert.strictEqual(hubs[0].label, 'Hub');
+        assert.deepStrictEqual({ in: hubs[0].incoming, out: hubs[0].outgoing }, { in: 3, out: 1 });
+    });
+
+    test('a class with no relationship is not a place to start', () => {
+        assert.ok(!audit().hubs.some((c: any) => c.label === 'Lonely'));
+    });
+
+    test('classes that nothing uses are listed as possibly unused', () => {
+        const unused = audit().unused.map((c: any) => c.label).sort();
+        assert.deepStrictEqual(unused, ['B', 'C', 'Child', 'Lonely']);
+    });
+
+    test('what main builds, what is only extended and what is used by others are not unused', () => {
+        const unused = audit().unused.map((c: any) => c.label);
+        ['App', 'A', 'Hub', 'Store', 'Base'].forEach(label => assert.ok(!unused.includes(label), label));
+    });
+
+    test('libraries and the SDK are never judged', () => {
+        const all = [...audit().hubs, ...audit().unused].map((c: any) => c.label);
+        assert.ok(!all.some((label: string) => /Dio/.test(label)));
+    });
+
+    test('the same class used twice by another still counts once as a relationship', () => {
+        const twice = { nodes: g.nodes, edges: [...g.edges, edge('9', 'A', 'Hub', 'CALLS')] };
+        const hub = TrailModel.createModel(twice, {}).audit().hubs.find((c: any) => c.label === 'Hub');
+        assert.strictEqual(hub.incoming, 3);
     });
 });

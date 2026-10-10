@@ -365,6 +365,38 @@
          * Architecture audit over the class graph of the project: circular dependencies (strongly connected groups),
          * layer violations and a heat score per class. Libraries and the SDK are left out, only the project is judged.
          */
+        /**
+         * Where to start reading, and what may be dead code, from how many other classes each one is tied to. The first
+         * is the classes the most others revolve around. The second is the classes nothing else in the project builds,
+         * names as a type, extends or calls. main() builds the app, so the entry points are not in it; a class reached only
+         * through a string (a route name) or by generated code cannot be seen, so it says "possibly".
+         */
+        let orientationCache = null;
+        function orientation() {
+            if (orientationCache) { return orientationCache; }
+            const own = owners.filter(function (n) { return sourceTypeOf(n.id) === 'project'; });
+            const ids = new Set(own.map(function (n) { return n.id; }));
+            const incomingOf = new Map();
+            const outgoingOf = new Map();
+            aggregated.forEach(function (agg) {
+                if (ids.has(agg.source) && ids.has(agg.target) && agg.source !== agg.target) {
+                    incomingOf.set(agg.target, (incomingOf.get(agg.target) || 0) + 1);
+                    outgoingOf.set(agg.source, (outgoingOf.get(agg.source) || 0) + 1);
+                }
+            });
+            const asClass = function (n) {
+                return { id: n.id, label: stripDecor(n.label), layer: layerOf(n.id), folder: folderOf(n.id), incoming: incomingOf.get(n.id) || 0, outgoing: outgoingOf.get(n.id) || 0 };
+            };
+            const projectClasses = own.filter(function (n) { return n.kind === 'class'; }).map(asClass);
+            orientationCache = {
+                hubs: projectClasses.filter(function (c) { return c.incoming + c.outgoing > 0; })
+                    .sort(function (a, b) { return (b.incoming + b.outgoing) - (a.incoming + a.outgoing) || b.incoming - a.incoming || a.label.localeCompare(b.label); }),
+                unused: projectClasses.filter(function (c) { return c.incoming === 0; })
+                    .sort(function (a, b) { return String(a.folder || '').localeCompare(String(b.folder || '')) || a.label.localeCompare(b.label); })
+            };
+            return orientationCache;
+        }
+
         function audit(config) {
             // Defaults follow the God Class detection strategy of Lanza and Marinescu (Object-Oriented Metrics in Practice):
             // ATFD above "few" (5), WMC "very high" (47) and TCC below one third. The weights are Satori's own.
@@ -542,7 +574,8 @@
             });
             const hotspots = Array.from(classes.values()).filter(function (c) { return c.risk > 0; })
                 .sort(function (a, b) { return b.risk - a.risk || a.label.localeCompare(b.label); });
-            return { classes: classes, cycles: cycles, violations: violations, hotspots: hotspots };
+            const guide = orientation();
+            return { classes: classes, cycles: cycles, violations: violations, hotspots: hotspots, hubs: guide.hubs, unused: guide.unused };
         }
 
         /** 0..1 heat of a class for one metric ("risk" mixes all of them), 0 when the class is not part of the project. */
@@ -789,7 +822,7 @@
             nodes, edges, internalCount, architecture: arch, layers: layerIds, neutralLayer,
             flowOrder: layerIds.filter(function (id) { return id !== neutralLayer; }),
             ownerOf, layerOf, nameOf, sourceTypeOf,
-            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders, dependenciesOf, libraries, isLibrary, audit, heatOf, stateOf, stateManagers,
+            overview, focus, search, layerFlow, findAggregate, flowRefs, traceFlow, folderOf, folders, dependenciesOf, libraries, isLibrary, audit, orientation, heatOf, stateOf, stateManagers,
             nodeRange: id => normalizeRange(nodes.get(id) && nodes.get(id).data && (nodes.get(id).data.range || nodes.get(id).data.selectionRange))
         };
     }

@@ -39,3 +39,13 @@ class BlocBuilder<B, S> {
 class Get {
   static T find<T>() => throw UnimplementedError();
 }
+
+class StateNotifierProvider<N extends StateNotifier<S>, S> {
+  const StateNotifierProvider(this.create);
+
+  final N Function() create;
+}
+
+class WidgetRef {
+  S watch<N extends StateNotifier<S>, S>(StateNotifierProvider<N, S> provider) => throw UnimplementedError();
+}

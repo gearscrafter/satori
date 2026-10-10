@@ -377,5 +377,13 @@
   "loading.quip.27": "Abriendo un portal a otro isekai... de tipos",
   "loading.quip.28": "Compilando el poder de la amistad",
   "loading.quip.29": "Minando mena de Dart, cuidado con los creepers",
-  "loading.quip.30": "Ya casi. Como una barra de energía free-to-play"
+  "loading.quip.30": "Ya casi. Como una barra de energía free-to-play",
+  "trail.audit.hubs": "Por dónde empezar",
+  "trail.audit.tip.hubs": "Las clases a las que más otras están ligadas: leerlas primero explica cómo encaja el resto",
+  "trail.audit.tip.connections": "{0} clases la usan y ella usa {1}",
+  "trail.audit.noHubs": "Aún no hay relaciones entre clases.",
+  "trail.audit.unused": "Posiblemente sin uso",
+  "trail.audit.tip.unused": "Clases que nada más en el proyecto construye, nombra como tipo, extiende o llama. Una clase a la que solo se llega por el nombre de una ruta o por código generado parece sin uso aquí, así que revisa antes de borrar.",
+  "trail.audit.unusedMore": "+{0} más, filtra por carpeta para verlas",
+  "trail.audit.noUnused": "Todas las clases las usa otra."
 }

@@ -7,6 +7,8 @@ import { cyclomaticComplexity } from "../analysis/complexity";
 import { observedTypeNames } from "../analysis/observers";
 import { typeUsage, unambiguousClassNames } from "../analysis/type_usage";
 import { CalledNames } from "../analysis/called_names";
+import { providerDeclarations, watchedProviders } from "../analysis/riverpod";
+import * as fs from 'fs';
 import { log } from "../utils/logger";
 import * as vscode from 'vscode';
 
@@ -51,6 +53,20 @@ export async function createGraphEdgesFromSymbols(
         for (const name of usage.created) { createEdge(sourceNode.id, classNodeIndex.get(name)!.id, 'INSTANCE_OF'); }
         for (const name of usage.used) { createEdge(sourceNode.id, classNodeIndex.get(name)!.id, 'USES_AS_TYPE'); }
     };
+
+    // Riverpod: the provider variables of the project and the classes they hold, read from the text of the files.
+    const providers = new Map<string, string[]>();
+    const scanned = new Set<string>();
+    for (const enriched of symbolMapById.values()) {
+        const uri = enriched.fileUri;
+        if (!uri || !uri.startsWith('file:') || scanned.has(uri)) { continue; }
+        scanned.add(uri);
+        try {
+            const text = fs.readFileSync(vscode.Uri.parse(uri).fsPath, 'utf8');
+            if (!/Provider|iverpod/.test(text)) { continue; }
+            providerDeclarations(stripCommentsAndStrings(text), classNames).forEach((held, name) => providers.set(name, held));
+        } catch { /* a file that cannot be read has no providers to find */ }
+    }
 
     const symbolNameIndex = new Map<string, EnrichedSymbol[]>();
     for (const enriched of symbolMapById.values()) {
@@ -126,6 +142,13 @@ export async function createGraphEdgesFromSymbols(
             for (const holder of observedTypeNames(body)) {
                 const holderNode = classNodeIndex.get(holder);
                 if (holderNode && holderNode.id !== sourceNode.id) { createEdge(sourceNode.id, holderNode.id, 'OBSERVES'); }
+            }
+            // ref.watch(userProvider) depends on the class the provider holds.
+            for (const providerName of watchedProviders(body)) {
+                for (const held of providers.get(providerName) ?? []) {
+                    const heldNode = classNodeIndex.get(held);
+                    if (heldNode && heldNode.id !== sourceNode.id) { createEdge(sourceNode.id, heldNode.id, 'OBSERVES'); }
+                }
             }
             const mentionedNames = calledNames.mentioned(body).filter(name => symbolNameIndex.has(name));
 

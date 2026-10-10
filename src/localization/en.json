@@ -377,5 +377,13 @@
   "loading.quip.27": "Opening a portal to another isekai... of types",
   "loading.quip.28": "Compiling the power of friendship",
   "loading.quip.29": "Mining Dart ore, watch out for creepers",
-  "loading.quip.30": "Almost there. Like a free-to-play stamina bar"
+  "loading.quip.30": "Almost there. Like a free-to-play stamina bar",
+  "trail.audit.hubs": "Start here",
+  "trail.audit.tip.hubs": "The classes the most others are tied to: reading them first explains how the rest fits together",
+  "trail.audit.tip.connections": "{0} classes use it and it uses {1}",
+  "trail.audit.noHubs": "No relationships between classes yet.",
+  "trail.audit.unused": "Possibly unused",
+  "trail.audit.tip.unused": "Classes that nothing else in the project builds, names as a type, extends or calls. A class reached only by a route name or by generated code looks unused here, so check before deleting.",
+  "trail.audit.unusedMore": "+{0} more, filter by folder to see them",
+  "trail.audit.noUnused": "Every class is used by another."
 }

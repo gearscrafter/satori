@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.0] - 10-10-2026
+
+### Added
+
+- **Start here and Possibly unused.** The overview shows five chips with the classes the most others depend on, and the audit panel opens with two lists: those classes, and the classes that nothing else in the project builds, names as a type, extends or calls (dead-code candidates; a class reached only by a route name or by generated code looks unused, so the list says "possibly").
+- **Riverpod is followed.** `ref.watch(userProvider)`, `ref.read(...)`, `ref.listen(...)`, `ref.refresh(...)` and `ref.invalidate(...)` now draw an **observes** arrow from the widget to the class the provider holds, read from the provider declaration (`StateNotifierProvider<UserNotifier, UserState>(...)`, `NotifierProvider<Counter, int>(Counter.new)`, `FutureProvider<List<Todo>>(...)`) and from the `@riverpod` code generator (the class or function gives `counterProvider` / `todosProvider`).
+- **A shorter README.** It is now written for whoever installs the extension. The reference of `satori.json`, how the audit decides, and how to develop and test moved to `docs/satori-json.md`, `docs/audit.md` and `CONTRIBUTING.md`, and the limitations that no longer applied were removed.
+
 ## [2.5.0] - 10-09-2026
 
 ### Added
