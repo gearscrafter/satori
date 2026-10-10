@@ -11,8 +11,8 @@ import { AnalysisStats, isHealthy } from './analysis_health';
  * The cache holds the graph and the imports that the page needs. It is valid only for the same files (path,
  * size and modification time of every one), the same extension version and the same cache layout.
  */
-// 2: an analysis is saved only when it found what the project has, and says how much it found.
-export const CACHE_LAYOUT = 2;
+// 3: an analysis is saved only when it found what the project has, and says how much it found.
+export const CACHE_LAYOUT = 3;
 
 export interface CachedAnalysis<G = unknown, I = unknown> {
     layout: number;

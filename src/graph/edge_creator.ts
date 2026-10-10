@@ -1,10 +1,12 @@
-import { stripCommentsAndStrings, escapeRegExp } from "../core";
+import { stripCommentsAndStrings } from "../core";
 import { ProjectGraphModel, EnrichedSymbol, ProjectGraphEdge, ProjectGraphNode, ExternalPackageInfo } from "../types/index";
-import { getSourceCodeForSymbol } from "../analysis/source_analyzer";
+import { getSourceCodeForSymbol, getDeclarationForSymbol } from "../analysis/source_analyzer";
 import { tryAddReadsFromEdge, addFieldAccessEdges, addAmbiguousCallEdges, setNavigationHierarchy } from "../lsp/reference_analysis";
 import { methodBody } from "../analysis/signature";
 import { cyclomaticComplexity } from "../analysis/complexity";
 import { observedTypeNames } from "../analysis/observers";
+import { typeUsage } from "../analysis/type_usage";
+import { CalledNames } from "../analysis/called_names";
 import { log } from "../utils/logger";
 import * as vscode from 'vscode';
 
@@ -39,6 +41,17 @@ export async function createGraphEdgesFromSymbols(
         }
     }
  
+    const nodeById = new Map<string, ProjectGraphNode>(projectGraph.nodes.map(n => [n.id, n]));
+    const classNames: ReadonlySet<string> = new Set(classNodeIndex.keys());
+
+    /** A member that names a class as a type, or creates it, depends on that class. */
+    const addTypeEdges = (sourceNode: ProjectGraphNode, cleanedSource: string) => {
+        const owner = sourceNode.parent ? nodeById.get(sourceNode.parent) : undefined;
+        const usage = typeUsage(cleanedSource, classNames, owner?.label);
+        for (const name of usage.created) { createEdge(sourceNode.id, classNodeIndex.get(name)!.id, 'INSTANCE_OF'); }
+        for (const name of usage.used) { createEdge(sourceNode.id, classNodeIndex.get(name)!.id, 'USES_AS_TYPE'); }
+    };
+
     const symbolNameIndex = new Map<string, EnrichedSymbol[]>();
     for (const enriched of symbolMapById.values()) {
         const name = enriched.name;
@@ -52,11 +65,8 @@ export async function createGraphEdgesFromSymbols(
         if (sym) {nodeBySymbol.set(sym, node);}
     }
  
-    const symbolPatterns = new Map<string, RegExp>();
-    for (const name of symbolNameIndex.keys()) {
-        symbolPatterns.set(name, new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`));
-    }
-    log.debug(`[EdgeCreator] Pre-compiled ${symbolPatterns.size} RegExp patterns.`);
+    const calledNames = new CalledNames(symbolNameIndex.keys());
+    log.debug(`[EdgeCreator] Indexed ${symbolNameIndex.size} symbol names.`);
  
     const usedIdentifiers = new Set<string>();
     const ambiguousCallTargets = new Set<EnrichedSymbol>();
@@ -73,6 +83,12 @@ export async function createGraphEdgesFromSymbols(
                 if (targetNode) {createEdge(sourceNode.id, targetNode.id, 'EXTENDS');}
             });
  
+            sourceSymbol.relations.with?.forEach(mixin => {
+                const mixinName = typeof mixin === 'string' ? mixin : mixin.name;
+                const targetNode = classNodeIndex.get(mixinName.split('<')[0].trim());
+                if (targetNode) {createEdge(sourceNode.id, targetNode.id, 'IMPLEMENTS');}
+            });
+
             sourceSymbol.relations.implements?.forEach(impl => {
                 const interfaceName = typeof impl === 'string' ? impl : impl.name;
                 const baseName = interfaceName.split('<')[0].trim();
@@ -81,6 +97,13 @@ export async function createGraphEdgesFromSymbols(
             });
         }
  
+        // A field is typed: `final Repo repo;`, `List<Cart> items`.
+        if (sourceNode.kind === 'field' || sourceNode.kind === 'property') {
+            const declaration = getDeclarationForSymbol(sourceSymbol);
+            if (declaration) { addTypeEdges(sourceNode, stripCommentsAndStrings(declaration)); }
+            continue;
+        }
+
         if (
             sourceNode.kind === 'method' ||
             sourceNode.kind === 'function' ||
@@ -90,6 +113,7 @@ export async function createGraphEdgesFromSymbols(
             if (!sourceCodeText) {continue;}
  
             const cleanedSource = stripCommentsAndStrings(sourceCodeText);
+            addTypeEdges(sourceNode, cleanedSource);
             for (const word of cleanedSource.matchAll(/[A-Za-z_$][\w$]*/g)) {
                 usedIdentifiers.add(word[0]);
             }
@@ -103,12 +127,7 @@ export async function createGraphEdgesFromSymbols(
                 const holderNode = classNodeIndex.get(holder);
                 if (holderNode && holderNode.id !== sourceNode.id) { createEdge(sourceNode.id, holderNode.id, 'OBSERVES'); }
             }
-            const mentionedNames: string[] = [];
-            for (const [name, pattern] of symbolPatterns) {
-                if (pattern.test(body)) {
-                    mentionedNames.push(name);
-                }
-            }
+            const mentionedNames = calledNames.mentioned(body).filter(name => symbolNameIndex.has(name));
 
             for (const targetName of mentionedNames) {
                 const targetSymbols = symbolNameIndex.get(targetName)!;

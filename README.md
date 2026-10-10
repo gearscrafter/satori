@@ -289,11 +289,11 @@ The expected direction is **View -> State -> Service -> Model**. References that
 ### Relationship Types
 
 - 🟢 **Extends** (dotted): Class inheritance
-- 🔵 **Implements** (dotted): Interface implementation
+- 🔵 **Implements** (dotted): Interface implementation, and mixins applied with `with`
 - 🟣 **Calls**: Method calls
 - 🟠 **Reads From**: Data reading
 - 🔴 **Writes To**: Data writing
-- 🔷 **Instance of** / ⚫ **Uses as type**: Instantiation and type usage
+- 🔷 **Creates** / ⚫ **Uses as type**: a member that builds a class (`Repo()`, `const Cart()`) or names it as a type (fields, parameters, return types, generics, casts). A class injected with `getIt<Repo>()`, `context.read<Repo>()` or `Get.find<Repo>()` shows up this way. A static call (`Repo.load()`) is a call, not a type use
 - 🟥 **Red, dashed**: goes against the layer flow
 - 🟪 **Animated purple**: data flow of a trace
 

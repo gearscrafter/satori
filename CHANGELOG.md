@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.4.0] - 10-09-2026
+
+### Added
+
+- **More relationships between classes.** A member that builds a class (`Repo()`, `const Cart()`) or names it as a type (a field, a parameter, a return type, a generic argument, a cast) now draws an arrow to it, in the **types** group of the filters. This is also how a class injected with `getIt<Repo>()`, `context.read<Repo>()` or `Get.find<Repo>()` appears. A mixin applied with `with` is drawn like an implemented interface. Projects that rely on injection no longer look emptier than they are. The example project goes from 125 to 172 relationships.
+
+### Fixed
+
+- **Building the graph of a big project is much faster.** For every method Satori tested one pattern per name in the project, so the time grew with methods x names. It now reads the called names once per method and looks them up. On a real Flutter app of 1,700 files (27,600 nodes, 48,000 relationships) this step went from 62 s to 2 s with exactly the same result.
+- Analyses saved by an earlier version are ignored, so the new relationships appear without clearing anything.
+
 ## [2.3.0] - 10-09-2026
 
 ### Added

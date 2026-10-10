@@ -2,6 +2,7 @@ import { EnrichedSymbol } from "../types/index";
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { log } from "../utils/logger";
+import { declarationFrom } from "./type_usage";
 
 const fileContentCache = new Map<string, string>();
 
@@ -34,6 +35,25 @@ export function getFileLines(fileUri: string): string[] | null {
     }
     fileLinesCache.set(fileUri, lines);
     return lines;
+}
+
+/**
+ * The whole declaration a field is part of: its range covers only the name, so the type written before it
+ * ("final Repo repo;") and the initializer are read from its line up to the ";".
+ */
+export function getDeclarationForSymbol(symbol: EnrichedSymbol): string {
+  const range = symbol.range || symbol.selectionRange;
+  if (!range || !symbol.fileUri) {return '';}
+  try {
+      let content = fileContentCache.get(symbol.fileUri);
+      if (content === undefined) {
+          content = fs.readFileSync(vscode.Uri.parse(symbol.fileUri).fsPath, 'utf8');
+          fileContentCache.set(symbol.fileUri, content);
+      }
+      return declarationFrom(content.split(/\r?\n/), range.start.line);
+  } catch {
+      return '';
+  }
 }
 
 /**
