@@ -385,5 +385,8 @@
   "trail.audit.unused": "Posiblemente sin uso",
   "trail.audit.tip.unused": "Clases que nada más en el proyecto construye, nombra como tipo, extiende o llama. Una clase a la que solo se llega por el nombre de una ruta o por código generado parece sin uso aquí, así que revisa antes de borrar.",
   "trail.audit.unusedMore": "+{0} más, filtra por carpeta para verlas",
-  "trail.audit.noUnused": "Todas las clases las usa otra."
+  "trail.audit.noUnused": "Todas las clases las usa otra.",
+  "project.none": "No se encontró un proyecto Flutter. Abre una carpeta con pubspec.yaml, o ejecuta \"Satori: Show Project Diagram (Folder)\" para elegir una a mano.",
+  "project.pick.placeholder": "No hay pubspec.yaml en la raíz: elige el paquete a analizar",
+  "project.pick.lastUsed": "Analizado la última vez"
 }

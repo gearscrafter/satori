@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0] - 10-10-2026
+
+### Added
+
+- **Monorepos.** When the open folder has no `pubspec.yaml` (the packages have it, below the root), **Analyze Current Project** no longer stops with "No Flutter project found": it looks for the packages, takes the only one, or shows a list to pick from (name and path, the one analysed last time first, examples last). **Analyze Current Project (ignore saved analysis)** keeps the package it analysed. The command also takes a folder (a URI or a path) to analyse without asking. The error, when there is no package at all, now names the "Show Project Diagram (Folder)" command. `npm run test:e2e:monorepo` checks it on `e2e/mono_app`.
+- **An enum used as a type now gets its arrow.** `final Status status;` and `OrderStatus status = OrderStatus.pending;` were not drawn towards the enum, because only classes were looked up. Enums are very common in Flutter state. (`extension type` declarations are still not drawn: Dart reports them like a plain `extension`.)
+
 ## [2.6.0] - 10-10-2026
 
 ### Added

@@ -2,7 +2,7 @@
   "publisher": "gearscrafter",
   "name": "satori",
   "displayName": "Satori",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Interactive architecture visualizer for Flutter/Dart projects. Achieve sudden enlightenment of your code structure.",
   "license": "Apache-2.0",
   "categories": [
@@ -54,6 +54,7 @@
     "lint": "eslint src --ext ts",
     "test:e2e": "node esbuild.js && node ./e2e/run.js",
     "test:e2e:incremental": "node esbuild.js && node ./e2e/run_incremental.js",
+    "test:e2e:monorepo": "node esbuild.js && node ./e2e/run_monorepo.js",
     "vscode:prepublish": "npm run build",
     "vsce:package": "vsce package --no-dependencies",
     "vsce:publish": "vsce publish --no-dependencies"

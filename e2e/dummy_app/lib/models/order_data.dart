@@ -1,9 +1,12 @@
 import '../services/api_client.dart';
 import 'product.dart';
 
+enum OrderStatus { pending, paid }
+
 class OrderData {
   final String id;
   final List<Product> lines;
+  OrderStatus status = OrderStatus.pending;
 
   OrderData(this.id, this.lines);
 

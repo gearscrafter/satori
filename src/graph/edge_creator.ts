@@ -44,14 +44,19 @@ export async function createGraphEdgesFromSymbols(
     }
  
     const nodeById = new Map<string, ProjectGraphNode>(projectGraph.nodes.map(n => [n.id, n]));
-    const classNames = unambiguousClassNames(projectGraph.nodes.filter(n => n.kind === 'class').map(n => n.label));
+    // An enum is a type too: `final Status status;` depends on it.
+    const typeNodeIndex = new Map<string, ProjectGraphNode>();
+    for (const node of projectGraph.nodes) {
+        if ((node.kind === 'class' || node.kind === 'enum') && !typeNodeIndex.has(node.label)) { typeNodeIndex.set(node.label, node); }
+    }
+    const classNames = unambiguousClassNames(projectGraph.nodes.filter(n => n.kind === 'class' || n.kind === 'enum').map(n => n.label));
 
     /** A member that names a class as a type, or creates it, depends on that class. */
     const addTypeEdges = (sourceNode: ProjectGraphNode, cleanedSource: string) => {
         const owner = sourceNode.parent ? nodeById.get(sourceNode.parent) : undefined;
         const usage = typeUsage(cleanedSource, classNames, owner?.label);
-        for (const name of usage.created) { createEdge(sourceNode.id, classNodeIndex.get(name)!.id, 'INSTANCE_OF'); }
-        for (const name of usage.used) { createEdge(sourceNode.id, classNodeIndex.get(name)!.id, 'USES_AS_TYPE'); }
+        for (const name of usage.created) { createEdge(sourceNode.id, typeNodeIndex.get(name)!.id, 'INSTANCE_OF'); }
+        for (const name of usage.used) { createEdge(sourceNode.id, typeNodeIndex.get(name)!.id, 'USES_AS_TYPE'); }
     };
 
     // Riverpod: the provider variables of the project and the classes they hold, read from the text of the files.

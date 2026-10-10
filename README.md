@@ -12,7 +12,7 @@
 
 1. Install the **Dart** extension (Dart-Code) and open a Flutter/Dart project.
 2. Let Dart finish analysing it (the Dart status in the status bar).
-3. Run **Satori: Analyze Current Project** (`Ctrl+Shift+P`).
+3. Run **Satori: Analyze Current Project** (`Ctrl+Shift+P`). In a monorepo, with no `pubspec.yaml` at the root, it asks which package to analyse.
 
 The first analysis of a big project takes a few minutes, with progress in the notification at the bottom right. After that, opening it again takes seconds, and changing a few files only analyses those files again.
 
@@ -109,10 +109,12 @@ For anything else, turn on `satori.toggleDebugLogs` and read the "satori" output
 ## Limitations
 
 - It needs the **Dart extension**, its language server, and a trusted workspace.
+- It analyses **one package at a time**: in a monorepo, the classes of the other packages are not in the diagram, and the dependencies between packages are not drawn.
 - It shows which packages a file **imports**, not the classes inside packages or the Dart SDK.
 - State holders are recognised by the **base class** they extend. Riverpod providers are followed through `ref.watch`, `ref.read` and `ref.listen`, and `@riverpod` ones too; `BlocProvider(create: ...)` is not drawn, only who listens.
 - A method whose name is unique in the project is matched **by name**, so your own `add()` can be confused with `list.add(x)`.
 - **Possibly unused** classes may be reached only by a route name or by generated code, which Satori cannot see. Check before deleting.
+- `extension type` declarations are not drawn as types, because Dart reports them like a plain `extension`.
 - A type or creation is **not drawn** towards a class whose name two files share, because the name alone does not say which one it means.
 - The **data flow trace** follows calls and field accesses, not values that travel through local variables, return values or callbacks, so it can be shorter than the real flow.
 - Big diagrams show the 12 most connected neighbours per side (a button shows the rest) and fold layers over 30 classes.

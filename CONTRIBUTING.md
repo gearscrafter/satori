@@ -79,6 +79,9 @@ npm run test:e2e
 # Incremental analysis: edits, adds and deletes files of a copy of dummy_app and checks that
 # analysing again only what changed gives exactly the graph of a full analysis
 npm run test:e2e:incremental
+
+# Monorepo: no pubspec.yaml at the root, two packages below it (a copy of e2e/mono_app)
+npm run test:e2e:monorepo
 ```
 
 The graph model, drawing logic and icon set are plain JavaScript without DOM access, so they are covered by regular unit tests.

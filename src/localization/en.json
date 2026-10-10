@@ -385,5 +385,8 @@
   "trail.audit.unused": "Possibly unused",
   "trail.audit.tip.unused": "Classes that nothing else in the project builds, names as a type, extends or calls. A class reached only by a route name or by generated code looks unused here, so check before deleting.",
   "trail.audit.unusedMore": "+{0} more, filter by folder to see them",
-  "trail.audit.noUnused": "Every class is used by another."
+  "trail.audit.noUnused": "Every class is used by another.",
+  "project.none": "No Flutter project found. Open a folder that has a pubspec.yaml, or run \"Satori: Show Project Diagram (Folder)\" to pick one by hand.",
+  "project.pick.placeholder": "There is no pubspec.yaml at the root: pick the package to analyse",
+  "project.pick.lastUsed": "Analysed last time"
 }

@@ -12,6 +12,7 @@ import { cacheFileFor, clearCachedAnalyses, fingerprintOf, readCachedAnalysis, s
 import { AnalysisStats, SymbolStats, isHealthy, likelyCauses, symbolsLookComplete } from '../analysis/analysis_health';
 import { DEFAULT_DELAYS_MS, waitForSymbols } from '../analysis/adaptive_wait';
 import { DEFAULT_EXCLUDES, makeExcluder } from '../filesystem/exclusions';
+import { decide, orderChoices, packagesFrom, PackageChoice } from '../filesystem/project_choice';
 import { buildNavigationIndex, NavigationOutcome } from '../analysis/navigation_runner';
 import { readState, stateFileFor, writeStateParts } from '../analysis/incremental_state';
 import { AnalyzedFile, prepareIncremental } from './incremental_analysis';
@@ -81,17 +82,18 @@ class ExtensionState {
 }
 
 /**
- * Finds the Flutter project root by locating the pubspec.yaml file.
- * 
- * Examines all workspace folders looking for pubspec.yaml, which
- * identifies the root of a Flutter/Dart project. Shows appropriate error
- * messages if it cannot find a valid workspace or project.
- * 
- * @returns URI of the project root folder, or undefined if not found
+ * Finds the Flutter project to analyse.
+ *
+ * A folder that is given (by a command argument) is used as it is. Otherwise the open folder is the project when it has
+ * a pubspec.yaml. A monorepo has none at its root, only in the packages below it: those are looked for, and the one to
+ * analyse is picked from a list (or taken straight away when there is only one). `lastUsed` goes first in that list.
+ *
+ * @returns URI of the project root folder, or undefined if not found or nothing was picked
  */
-async function findFlutterProjectRoot(): Promise<vscode.Uri | undefined> {
+async function findFlutterProjectRoot(given?: vscode.Uri, lastUsed?: string): Promise<vscode.Uri | undefined> {
+    if (given) { return given; }
     const workspaceFolders = vscode.workspace.workspaceFolders;
-    
+
     if (!workspaceFolders || workspaceFolders.length === 0) {
         vscode.window.showErrorMessage('No workspace folder found. Please open a Flutter project.');
         return undefined;
@@ -103,7 +105,7 @@ async function findFlutterProjectRoot(): Promise<vscode.Uri | undefined> {
             '**/.*',
             1
         );
-        
+
         if (pubspecFiles.length > 0) {
             log.debug(`✅ Found pubspec.yaml at: ${pubspecFiles[0].fsPath}`);
             log.debug(`📁 Project root: ${folder.uri.fsPath}`);
@@ -112,8 +114,42 @@ async function findFlutterProjectRoot(): Promise<vscode.Uri | undefined> {
         }
     }
 
-    vscode.window.showErrorMessage('No Flutter project found. Make sure pubspec.yaml exists in your workspace.');
-    return undefined;
+    // None at the root: a monorepo keeps them in its packages.
+    const choices: PackageChoice[] = [];
+    for (const folder of workspaceFolders) {
+        const nested = await vscode.workspace.findFiles(
+            new vscode.RelativePattern(folder, '**/pubspec.yaml'),
+            '{**/.*,**/build/**,**/node_modules/**,**/.dart_tool/**,**/ephemeral/**}',
+            200
+        );
+        choices.push(...packagesFrom(folder.uri.fsPath, nested.map(u => u.fsPath), file => {
+            try { return fs.readFileSync(file, 'utf8'); } catch { return undefined; }
+        }));
+    }
+
+    const verdict = decide(choices);
+    if (verdict === 'none') {
+        vscode.window.showErrorMessage(t('project.none'));
+        return undefined;
+    }
+    const ordered = orderChoices(choices, lastUsed);
+    if (verdict === 'single') {
+        log.info(`No pubspec.yaml at the root; analysing the only package, ${ordered[0].relative}.`);
+        return vscode.Uri.file(ordered[0].folder);
+    }
+    const last = lastUsed ? lastUsed.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() : undefined;
+    const picked = await vscode.window.showQuickPick(
+        ordered.map(c => ({
+            label: c.name,
+            description: c.relative,
+            detail: last !== undefined && c.folder.replace(/\\/g, '/').toLowerCase() === last ? t('project.pick.lastUsed') : undefined,
+            choice: c
+        })),
+        { placeHolder: t('project.pick.placeholder'), matchOnDescription: true }
+    );
+    if (!picked) { log.debug('No package picked - ABORTING'); return undefined; }
+    log.info(`Analysing the package ${picked.choice.relative}.`);
+    return vscode.Uri.file(picked.choice.folder);
 }
 
 type FileData = { file: string; fileUri: string; symbols: any[] };
@@ -795,8 +831,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const analyzeCurrentProjectCommand = vscode.commands.registerCommand(
         'satori.analyzeProject',
-        async () => {
-            const rootUri = await findFlutterProjectRoot();
+        // A folder can be given, as a URI or a path: the diagram of that package, without asking.
+        async (folder?: vscode.Uri | string) => {
+            const given = typeof folder === 'string' ? vscode.Uri.file(folder) : folder instanceof vscode.Uri ? folder : undefined;
+            const rootUri = await findFlutterProjectRoot(given, state.projectRoot);
             if (!rootUri) {
                 log.debug('No Flutter project root found - ABORTING');
                 return;
@@ -809,7 +847,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // The way out of a saved analysis that is wrong or out of date: analyse again without it.
     context.subscriptions.push(vscode.commands.registerCommand('satori.reanalyze', async () => {
-        const rootUri = await findFlutterProjectRoot();
+        // The same package as last time, so a monorepo does not ask again.
+        const rootUri = await findFlutterProjectRoot(state.projectRoot ? vscode.Uri.file(state.projectRoot) : undefined);
         if (!rootUri) { return; }
         await runAnalysis(rootUri, true);
     }));
